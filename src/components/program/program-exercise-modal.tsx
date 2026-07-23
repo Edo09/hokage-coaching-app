@@ -39,7 +39,7 @@ export function ProgramExerciseModal({
   onClose,
   onPlay,
 }: Props) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const colors = useColors();
   const insets = useSafeAreaInsets();
 
@@ -47,6 +47,16 @@ export function ProgramExerciseModal({
   const done = exercise != null && logging.isDone(exercise.id, weekNumber);
   const videoUrl = exercise?.exercise?.video_url ?? null;
   const hasVideo = videoUrl != null && videoUrl !== "";
+
+  // Step-by-step "how to" in the app language, falling back to the other.
+  const cat = exercise?.exercise;
+  const steps =
+    (i18n.language === "es" ? cat?.instructions_es : cat?.instructions_en) ??
+    cat?.instructions_en ??
+    cat?.instructions_es ??
+    null;
+  // Collapsed by default — tap the header to reveal the steps.
+  const [showSteps, setShowSteps] = React.useState(false);
 
   const loadPct = p != null ? formatLoadPct(p) : null;
   const rir = p != null ? formatRir(p) : null;
@@ -131,6 +141,51 @@ export function ProgramExerciseModal({
                   <Button variant="secondary" icon="play" onPress={() => onPlay(videoUrl)}>
                     {t("program.watchDemoShort")}
                   </Button>
+                )}
+
+                {steps != null && steps.length > 0 && (
+                  <View className="rounded-2xl border border-border bg-brand-dark p-3.5">
+                    <Pressable
+                      onPress={() => setShowSteps((v) => !v)}
+                      accessibilityRole="button"
+                      accessibilityLabel={t("program.howTo")}
+                      accessibilityState={{ expanded: showSteps }}
+                      className="flex-row items-center justify-between"
+                    >
+                      <Text
+                        className="text-[11px] font-bold uppercase text-content-tertiary"
+                        style={{ letterSpacing: 0.6 }}
+                      >
+                        {t("program.howTo")}
+                      </Text>
+                      <View className="flex-row items-center gap-1.5">
+                        <Text className="text-[11px] font-semibold text-content-muted" style={TABULAR}>
+                          {steps.length}
+                        </Text>
+                        <Ionicons
+                          name={showSteps ? "chevron-up" : "chevron-down"}
+                          size={16}
+                          color={colors.contentMuted}
+                        />
+                      </View>
+                    </Pressable>
+                    {showSteps && (
+                      <View className="gap-2 pt-3">
+                        {steps.map((step, i) => (
+                          <View key={i} className="flex-row gap-2.5">
+                            <View className="mt-0.5 h-5 w-5 items-center justify-center rounded-full bg-brand-primary-soft">
+                              <Text className="text-[11px] font-bold text-brand-primary" style={TABULAR}>
+                                {i + 1}
+                              </Text>
+                            </View>
+                            <Text className="flex-1 text-[13px] leading-[19px] text-content-secondary">
+                              {step}
+                            </Text>
+                          </View>
+                        ))}
+                      </View>
+                    )}
+                  </View>
                 )}
 
                 <ProgramSetLogger

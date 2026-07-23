@@ -298,6 +298,7 @@ export default {
     repsCol: "Reps",
     openExercise: "Abrir {{name}}",
     watchDemoShort: "Ver demo",
+    howTo: "Cómo hacerlo",
     markDoneCta: "Marcar como hecho",
     markedDone: "Hecho",
   },
