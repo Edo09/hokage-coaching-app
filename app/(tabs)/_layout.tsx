@@ -69,7 +69,7 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="routines"
         options={{
-          title: t("tabs.routines"),
+          title: t("tabs.program"),
           headerShown: false,
           tabBarIcon: ({ focused }) => <TabIcon name="barbell" focused={focused} />,
         }}

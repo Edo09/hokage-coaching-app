@@ -11,7 +11,7 @@ import { useProfile } from "@/src/hooks/use-profile";
 import { useProgress } from "@/src/hooks/use-progress";
 import { useRoutines } from "@/src/hooks/use-routines";
 import type { BodyMeasurement, WorkoutLog } from "@/src/types/database";
-import { recommendedCalorieGoal } from "@/src/utils/calories";
+import { burnFromMinutes, estimateProgramMinutes, recommendedCalorieGoal } from "@/src/utils/calories";
 import { addDays, toDateKey } from "@/src/utils/dates";
 import {
   achievements,
@@ -321,6 +321,18 @@ export function useProgressDashboard(periodo: Periodo) {
       neglected: alert != null ? { group: alert.group, days: alert.days } : null,
     };
 
+    // Estimated active minutes/kcal from program check-offs in the period —
+    // per day (exercise count → capped minutes) so a busy day can't exceed one
+    // session, summed. Programs log no duration, so this is the only time/kcal
+    // source now that manual workout logging is gone.
+    const programExByDay = new Map<string, number>();
+    for (const d of completionDates) {
+      if (d >= periodFrom && d <= today) programExByDay.set(d, (programExByDay.get(d) ?? 0) + 1);
+    }
+    let programMinutes = 0;
+    for (const cnt of programExByDay.values()) programMinutes += estimateProgramMinutes(cnt, profile);
+    const programKcal = burnFromMinutes(programMinutes, profile);
+
     return {
       isEmpty,
       daysPerWeek,
@@ -331,8 +343,8 @@ export function useProgressDashboard(periodo: Periodo) {
         dots,
         pills,
         best: bestMonth(sessionLogs, now),
-        minutes: trainedMinutes(periodLogs, profile),
-        kcal: burnedKcal(periodLogs, profile),
+        minutes: trainedMinutes(periodLogs, profile) + Math.round(programMinutes),
+        kcal: burnedKcal(periodLogs, profile) + programKcal,
         volumeKg: periodVolume,
       },
       weight,

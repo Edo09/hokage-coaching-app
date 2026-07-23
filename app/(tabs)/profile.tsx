@@ -7,15 +7,7 @@ import type { ScrollView as RNScrollView } from "react-native";
 
 import { kgToUnit1, unitToKg, useWeightUnit } from "@/src/lib/weight-unit";
 
-import {
-  Button,
-  Card,
-  Chip,
-  LoadingBlock,
-  Screen,
-  SelectField,
-  useToast,
-} from "@/src/components/ui";
+import { Button, Card, LoadingBlock, Screen, useToast } from "@/src/components/ui";
 import { useAuth } from "@/src/hooks/use-auth";
 import { useProfile } from "@/src/hooks/use-profile";
 import { useColors } from "@/src/theme/colors";
@@ -25,10 +17,6 @@ import type { Profile } from "@/src/types/database";
 import { recommendedCalorieGoal } from "@/src/utils/calories";
 import { cn } from "@/src/utils/cn";
 
-const DAY_KEYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"] as const;
-const DAY_VALUES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
-const DAYS_PER_WEEK_OPTIONS = [1, 2, 3, 4, 5, 6, 7];
-const DURATION_PRESETS = [30, 45, 60, 90];
 
 type IoniconName = React.ComponentProps<typeof Ionicons>["name"];
 
@@ -189,9 +177,6 @@ export default function ProfileScreen() {
   );
   const [activityLevel, setActivityLevel] = useState<Profile["activity_level"]>(null);
   const [professionType, setProfessionType] = useState<Profile["profession_type"]>(null);
-  const [daysPerWeek, setDaysPerWeek] = useState("");
-  const [sessionDuration, setSessionDuration] = useState("");
-  const [availableDays, setAvailableDays] = useState<string[]>([]);
   const [calorieGoal, setCalorieGoal] = useState("");
   const [goal, setGoal] = useState<Profile["goal"]>(null);
   const [formError, setFormError] = useState<string | null>(null);
@@ -211,11 +196,6 @@ export default function ProfileScreen() {
     setWeightKg(weightSeed(profile));
     setActivityLevel(profile.activity_level);
     setProfessionType(profile.profession_type);
-    setDaysPerWeek(profile.days_per_week != null ? String(profile.days_per_week) : "");
-    setSessionDuration(
-      profile.session_duration != null ? String(profile.session_duration) : ""
-    );
-    setAvailableDays(profile.available_days ?? []);
     setCalorieGoal(profile.calorie_goal != null ? String(profile.calorie_goal) : "");
     setGoal(profile.goal);
   }
@@ -253,7 +233,6 @@ export default function ProfileScreen() {
 
   // Enable save only when something actually differs from the loaded profile
   // (same string-coercion as the seeding effect above, so they stay in sync).
-  const baselineDays = profile?.available_days ?? [];
   const dirty =
     age !== (profile?.age != null ? String(profile.age) : "") ||
     sex !== (profile?.sex ?? null) ||
@@ -262,46 +241,11 @@ export default function ProfileScreen() {
     activityLevel !== (profile?.activity_level ?? null) ||
     professionType !== (profile?.profession_type ?? null) ||
     goal !== (profile?.goal ?? null) ||
-    daysPerWeek !== (profile?.days_per_week != null ? String(profile.days_per_week) : "") ||
-    sessionDuration !==
-      (profile?.session_duration != null ? String(profile.session_duration) : "") ||
-    calorieGoal !== (profile?.calorie_goal != null ? String(profile.calorie_goal) : "") ||
-    availableDays.length !== baselineDays.length ||
-    availableDays.some((d) => !baselineDays.includes(d));
+    calorieGoal !== (profile?.calorie_goal != null ? String(profile.calorie_goal) : "");
 
   const clearError = () => {
     if (formError != null) setFormError(null);
   };
-
-  const toggleDay = (day: string) => {
-    clearError();
-    setAvailableDays((prev) =>
-      prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day]
-    );
-  };
-
-  const daysPerWeekNum = parseInt(daysPerWeek, 10);
-  const daysCountMismatch =
-    !isNaN(daysPerWeekNum) &&
-    daysPerWeekNum > 0 &&
-    availableDays.length !== daysPerWeekNum;
-  const daysHint = !daysCountMismatch
-    ? null
-    : availableDays.length < daysPerWeekNum
-      ? t("profile.hintNeedMore", {
-          days: daysPerWeekNum,
-          remaining: daysPerWeekNum - availableDays.length,
-        })
-      : t("profile.hintTooMany", {
-          days: daysPerWeekNum,
-          extra: availableDays.length - daysPerWeekNum,
-        });
-
-  const sessionDurationNum = parseInt(sessionDuration, 10);
-  const durationChipValues =
-    isNaN(sessionDurationNum) || DURATION_PRESETS.includes(sessionDurationNum)
-      ? DURATION_PRESETS
-      : [...DURATION_PRESETS, sessionDurationNum].sort((a, b) => a - b);
 
   const validate = (): string | null => {
     const ageN = parseInt(age, 10);
@@ -314,11 +258,6 @@ export default function ProfileScreen() {
     if (!activityLevel || !professionType)
       return t("onboarding.selectActivityProfession");
     if (!goal) return t("profile.selectGoal");
-    const dpw = parseInt(daysPerWeek, 10);
-    if (isNaN(dpw) || dpw < 1 || dpw > 7) return t("onboarding.daysBetween");
-    const sd = parseInt(sessionDuration, 10);
-    if (isNaN(sd) || sd < 15 || sd > 300) return t("onboarding.durationBetween");
-    if (availableDays.length === 0) return t("onboarding.selectAtLeastOneDay");
     if (calorieGoal.trim() !== "") {
       const cg = parseInt(calorieGoal, 10);
       if (isNaN(cg) || cg < 800 || cg > 10000) return t("profile.calorieGoalBetween");
@@ -343,9 +282,6 @@ export default function ProfileScreen() {
         activity_level: activityLevel,
         profession_type: professionType,
         goal,
-        days_per_week: parseInt(daysPerWeek, 10),
-        session_duration: parseInt(sessionDuration, 10),
-        available_days: availableDays,
         calorie_goal: calorieGoal.trim() !== "" ? parseInt(calorieGoal, 10) : null,
       });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
@@ -674,65 +610,8 @@ export default function ProfileScreen() {
         </Card>
       </View>
 
-      {/* Plan de entrenamiento */}
-      <Card className="gap-3.5">
-        <View className="gap-0.5">
-          <Text className="text-[15px] font-bold text-content-primary">
-            {t("onboarding.trainingPlan")}
-          </Text>
-          <Text className="text-xs text-content-muted">
-            {t("onboarding.trainingSubtitle")}
-          </Text>
-        </View>
-
-        <View className="flex-row gap-2.5">
-          <SelectField
-            label={t("onboarding.daysPerWeek")}
-            placeholder={t("onboarding.daysPerWeek")}
-            value={daysPerWeek || null}
-            options={DAYS_PER_WEEK_OPTIONS.map((n) => ({ label: String(n), value: String(n) }))}
-            onChange={(v) => {
-              setDaysPerWeek(v);
-              clearError();
-            }}
-            containerClassName="flex-1"
-          />
-          <SelectField
-            label={t("profile.sessionDurationLabel")}
-            placeholder={t("profile.sessionDurationLabel")}
-            value={sessionDuration || null}
-            options={durationChipValues.map((n) => ({ label: `${n} min`, value: String(n) }))}
-            onChange={(v) => {
-              setSessionDuration(v);
-              clearError();
-            }}
-            containerClassName="flex-1"
-          />
-        </View>
-
-        <View className="gap-1.5">
-          <Text className="text-[12.5px] font-semibold text-content-secondary">
-            {t("onboarding.availableDays")}
-          </Text>
-          <View className="flex-row gap-1.5">
-            {DAY_KEYS.map((key, i) => (
-              <Chip
-                key={key}
-                label={t(`days.${key}`)}
-                selected={availableDays.includes(DAY_VALUES[i])}
-                onPress={() => toggleDay(DAY_VALUES[i])}
-                className="min-h-10 flex-1 items-center justify-center rounded-lg px-0 py-2.5"
-              />
-            ))}
-          </View>
-        </View>
-
-        {daysHint != null && (
-          <View className="rounded-[10px] border border-warning bg-warning-soft px-2.5 py-2">
-            <Text className="text-xs text-warning">{daysHint}</Text>
-          </View>
-        )}
-      </Card>
+      {/* Training plan (días/semana, duración, días disponibles) is coach-set in
+          the Admin Web Panel — hidden here so the client can't diverge from it. */}
     </Screen>
   );
 }

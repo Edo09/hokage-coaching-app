@@ -65,6 +65,40 @@ export function estimateCaloriesBurned(
   return Math.round(((WORKOUT_MET * 3.5 * weight) / 200) * minutes);
 }
 
+// Coach programs record no session duration (the client just checks exercises
+// off), so burned kcal is ESTIMATED from work done: each completed exercise ≈ a
+// few active minutes, capped at the coach-set session length so one day never
+// exceeds a normal session.
+const PROGRAM_MIN_PER_EXERCISE = 4.5;
+const PROGRAM_SESSION_CAP_MIN = 90; // fallback cap when no session_duration set
+
+/** Estimated active minutes from N program exercises checked off in ONE day. */
+export function estimateProgramMinutes(
+  exercisesDone: number,
+  profile: Pick<Profile, "session_duration"> | null,
+): number {
+  if (exercisesDone <= 0) return 0;
+  const cap = profile?.session_duration ?? PROGRAM_SESSION_CAP_MIN;
+  return Math.min(exercisesDone * PROGRAM_MIN_PER_EXERCISE, cap);
+}
+
+/** kcal for a given number of active minutes (same MET formula as logs). */
+export function burnFromMinutes(
+  minutes: number,
+  profile: Pick<Profile, "weight_kg"> | null,
+): number {
+  const weight = profile?.weight_kg ?? DEFAULT_WEIGHT_KG;
+  return Math.round(((WORKOUT_MET * 3.5 * weight) / 200) * minutes);
+}
+
+/** Estimated kcal burned from N program exercises checked off in ONE day. */
+export function estimateProgramBurn(
+  exercisesDone: number,
+  profile: Pick<Profile, "weight_kg" | "session_duration"> | null,
+): number {
+  return burnFromMinutes(estimateProgramMinutes(exercisesDone, profile), profile);
+}
+
 /** Total kcal across the given meals' items. */
 export function caloriesConsumed(meals: MealWithItems[]): number {
   return meals.reduce(

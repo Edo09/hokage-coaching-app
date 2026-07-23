@@ -157,6 +157,7 @@ export default {
   tabs: {
     home: "Inicio",
     routines: "Rutinas",
+    program: "Programa",
     meals: "Comidas",
     progress: "Progreso",
     profile: "Perfil",
@@ -513,6 +514,8 @@ export default {
     assignedRoutines: "De tu coach",
     noAssignedRoutines: "Aún no tienes rutinas de tu coach",
     noAssignedRoutinesHint: "Cuando tu coach te asigne un plan, aparecerá aquí.",
+    noProgramTitle: "Aún sin programa",
+    noProgramHint: "Tu coach te asignará un programa de entrenamiento — aparecerá aquí.",
     assignedBadge: "Asignada por tu coach",
     yourCoach: "Tu coach",
     noCoachYet: "Aún no tienes coach asignado",
