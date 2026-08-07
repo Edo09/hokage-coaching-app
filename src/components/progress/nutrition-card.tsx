@@ -49,7 +49,7 @@ export function NutritionCard({ periodo, nutrition }: NutritionCardProps) {
             {t("progress.emptyNutricion")}
           </Text>
           <Pressable
-            onPress={() => router.push("/(tabs)/meals")}
+            onPress={() => router.push("/(tabs)/nutrition")}
             accessibilityRole="button"
             hitSlop={8}
           >

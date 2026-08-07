@@ -50,7 +50,15 @@ export default function AddFoodScreen() {
   const online = useIsOnline();
   const { user } = useAuth();
   const { getOrCreateSlotMeal, addMealItem } = useMeals();
-  const params = useLocalSearchParams<{ mealType?: string; date?: string }>();
+  // prefillName / planOptionId arrive when the client taps "Registrar" on a
+  // prescribed option: the plan names the food, the photo + AI supply the
+  // numbers, and planOptionId is the adherence link the coach reads.
+  const params = useLocalSearchParams<{
+    mealType?: string;
+    date?: string;
+    prefillName?: string;
+    planOptionId?: string;
+  }>();
 
   const todayKey = toDateKey();
   // Bad/missing slot → time-of-day suggestion; bad/future date → today
@@ -62,8 +70,11 @@ export default function AddFoodScreen() {
   const date =
     isDateKey(params.date) && params.date <= todayKey ? params.date : todayKey;
 
-  const [name, setName] = useState("");
+  const [name, setName] = useState(params.prefillName ?? "");
   const [nameError, setNameError] = useState<string | undefined>();
+  // Non-null only for this screen's lifetime; editing the name afterwards does
+  // not break the link, because the client is still eating that prescription.
+  const planOptionId = params.planOptionId ?? null;
   const [photo, setPhoto] = useState<PickedPhoto | null>(null);
   const [aiEstimate, setAiEstimate] = useState(true);
   const [loading, setLoading] = useState(false);
@@ -177,6 +188,7 @@ export default function AddFoodScreen() {
         fat_g: estimate?.fat_g ?? (parseFloat(manualFat) || 0),
         portion: estimate?.portion ?? (manualPortion.trim() || undefined),
         photo_path: photoPath,
+        plan_option_id: planOptionId ?? undefined,
       });
 
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});

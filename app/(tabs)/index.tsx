@@ -369,7 +369,7 @@ export default function HomeScreen() {
             <SectionHeader
               title={t("home.todaysNutrition")}
               actionLabel={t("common.seeAll")}
-              onAction={() => router.push("/(tabs)/meals")}
+              onAction={() => router.push("/(tabs)/nutrition")}
             />
 
             {slotSummaries.length === 0 ? (
@@ -380,11 +380,11 @@ export default function HomeScreen() {
                   // push "create" on the next tick — pushing both in the same
                   // tick gets coalesced into one history entry (no parent
                   // screen, no back button); yielding first makes them two.
-                  router.push("/(tabs)/meals");
+                  router.push("/(tabs)/nutrition");
                   setTimeout(
                     () =>
                       router.push({
-                        pathname: "/(tabs)/meals/create",
+                        pathname: "/(tabs)/nutrition/create",
                         params: { mealType: suggestedSlot(), date: toDateKey() },
                       }),
                     0
@@ -407,7 +407,7 @@ export default function HomeScreen() {
                 {slotSummaries.map((summary, index) => (
                   <AnimatedView key={summary.slot} entering={staggered(index)} exiting={exit()}>
                     <Pressable
-                      onPress={() => router.push("/(tabs)/meals")}
+                      onPress={() => router.push("/(tabs)/nutrition")}
                       className="bg-surface rounded-2xl px-4 py-3.5 flex-row items-center gap-3.5 border border-border"
                     >
                       <Ionicons

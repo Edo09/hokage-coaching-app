@@ -114,6 +114,9 @@ export function useMeals() {
         fat_g: data.fat_g ?? 0,
         portion: data.portion ?? null,
         photo_path: data.photo_path ?? null,
+        // Carries through to the outbox payload, so an item registered from a
+        // prescribed option keeps its adherence link even when queued offline.
+        plan_option_id: data.plan_option_id ?? null,
         created_at: new Date().toISOString(),
       };
       queryClient.setQueryData<MealWithItems[]>(listKey, (old = []) =>

@@ -11,7 +11,7 @@ export const unstable_settings = {
   initialRouteName: "index",
 };
 
-export default function MealsLayout() {
+export default function NutritionLayout() {
   const colors = useColors();
   const { t } = useTranslation();
   return (
@@ -26,7 +26,7 @@ export default function MealsLayout() {
         ...(Platform.OS === "android" && { animation: "slide_from_right" as const }),
       }}
     >
-      <Stack.Screen name="index" options={{ title: t("meals.diary") }} />
+      <Stack.Screen name="index" options={{ title: t("tabs.nutrition") }} />
       <Stack.Screen
         name="create"
         options={{

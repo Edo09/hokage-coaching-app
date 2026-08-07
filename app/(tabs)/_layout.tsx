@@ -75,9 +75,9 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="meals"
+        name="nutrition"
         options={{
-          title: t("tabs.meals"),
+          title: t("tabs.nutrition"),
           headerShown: false,
           tabBarIcon: ({ focused }) => <TabIcon name="restaurant" focused={focused} />,
         }}

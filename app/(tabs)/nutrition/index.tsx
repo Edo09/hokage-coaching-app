@@ -6,23 +6,36 @@ import { useTranslation } from "react-i18next";
 import { RefreshControl } from "react-native";
 
 import { DiaryEntry, DiarySlot } from "@/src/components/diary-slot";
+import { EmptyState } from "@/src/components/empty-state";
+import { NutritionPlanView } from "@/src/components/nutrition/nutrition-plan-view";
+import { SupplementStackView } from "@/src/components/nutrition/supplement-stack-view";
 import {
   Card,
   ConfirmDialog,
   ErrorState,
   FAB,
   LoadingBlock,
+  Screen,
+  SegmentedControl,
   useToast,
 } from "@/src/components/ui";
 import { useAuth } from "@/src/hooks/use-auth";
 import { useMeals } from "@/src/hooks/use-meals";
+import { useNutritionPlan } from "@/src/hooks/use-nutrition-plan";
 import { useProfile } from "@/src/hooks/use-profile";
 import { useRefreshOnFocus } from "@/src/hooks/use-refresh-on-focus";
+import { useSupplementPlan } from "@/src/hooks/use-supplement-plan";
+import { mealTypeToDiarySlot, visibleItems } from "@/src/utils/nutrition-plan";
 import { PressableScale, slideEnter, staggered } from "@/src/lib/motion";
 import { useColors } from "@/src/theme/colors";
 import { Pressable, ScrollView, Text, View } from "@/src/tw";
 import { AnimatedView } from "@/src/tw/animated";
-import type { MealItem, MealType } from "@/src/types/database";
+import type {
+  MealItem,
+  MealType,
+  NutritionPlanMeal,
+  NutritionPlanOption,
+} from "@/src/types/database";
 import {
   caloriesConsumed,
   recommendedCalorieGoal,
@@ -30,7 +43,162 @@ import {
 import { addDays, formatDayLabel, toDateKey } from "@/src/utils/dates";
 import { MEAL_SLOTS, suggestedSlot } from "@/src/utils/meal-slots";
 
-export default function DiaryScreen() {
+type Pane = "plan" | "supplements" | "diary";
+
+/**
+ * The Nutrición tab, which replaced the old Comidas tab. Three panes:
+ *
+ *   Plan        — the coach's protocol for today's day type
+ *   Suplementos — the coach's stack, assigned SEPARATELY (so it has its own
+ *                 loading and empty states; a client may have either, both, or
+ *                 neither)
+ *   Diario      — the client's own log, exactly as it worked before
+ *
+ * Opens on Plan when a plan is assigned, otherwise on Diario — so a client with
+ * no coach plan sees the behaviour they already know.
+ */
+export default function NutritionScreen() {
+  const { t } = useTranslation();
+  const plan = useNutritionPlan();
+  const supplements = useSupplementPlan();
+  useRefreshOnFocus(plan.refresh);
+  useRefreshOnFocus(supplements.refresh);
+
+  // Seeded once from whether a plan exists; after that the client's choice wins,
+  // so a refetch can't yank the pane out from under them.
+  const [pane, setPane] = useState<Pane | null>(null);
+  const resolvedPane: Pane = pane ?? (plan.plan != null ? "plan" : "diary");
+
+  // Hand the prescription to the existing add-food screen rather than writing a
+  // macro-less row: plan foods carry no numbers, so the photo + AI estimator is
+  // what makes the diary entry honest. plan_option_id rides along as the
+  // adherence link.
+  const registerOption = (
+    meal: NutritionPlanMeal,
+    option: NutritionPlanOption,
+  ) => {
+    const visible = visibleItems(option, plan.day);
+    router.push({
+      pathname: "/(tabs)/nutrition/create",
+      params: {
+        mealType: mealTypeToDiarySlot(meal.meal_type),
+        date: toDateKey(),
+        // The first visible food seeds the name; the client edits it to match
+        // what they actually plated before the photo goes in.
+        prefillName: visible[0]?.name ?? "",
+        planOptionId: option.id,
+      },
+    });
+  };
+
+  return (
+    <View className="flex-1 bg-brand-dark">
+      <View className="px-4 pt-3">
+        <SegmentedControl
+          segments={[
+            { key: "plan", label: t("nutritionPlan.segmentPlan") },
+            { key: "supplements", label: t("nutritionPlan.segmentSupplements") },
+            { key: "diary", label: t("nutritionPlan.segmentDiary") },
+          ]}
+          value={resolvedPane}
+          onChange={(k) => setPane(k as Pane)}
+        />
+      </View>
+
+      {resolvedPane === "diary" ? (
+        <DiaryPane />
+      ) : resolvedPane === "plan" ? (
+        <PlanPane plan={plan} onRegister={registerOption} />
+      ) : (
+        <SupplementsPane supplements={supplements} day={plan.day} cycling={plan.plan?.day_cycling ?? false} />
+      )}
+    </View>
+  );
+}
+
+function PlanPane({
+  plan,
+  onRegister,
+}: {
+  plan: ReturnType<typeof useNutritionPlan>;
+  onRegister: (meal: NutritionPlanMeal, option: NutritionPlanOption) => void;
+}) {
+  const { t } = useTranslation();
+
+  if (plan.loading && plan.plan == null) return <LoadingBlock />;
+  if (plan.error && plan.plan == null) return <ErrorState onRetry={plan.refresh} />;
+  if (plan.plan == null) {
+    return (
+      <View className="flex-1 items-center justify-center px-6">
+        <EmptyState
+          icon="nutrition-outline"
+          title={t("nutritionPlan.noPlanTitle")}
+          subtitle={t("nutritionPlan.noPlanHint")}
+        />
+      </View>
+    );
+  }
+
+  return (
+    <Screen
+      refreshing={plan.refreshing}
+      onRefresh={plan.refresh}
+      contentContainerClassName="p-4 gap-3 pb-24"
+    >
+      <NutritionPlanView
+        plan={plan.plan}
+        day={plan.day}
+        autoDay={plan.autoDay}
+        overridden={plan.overridden}
+        onSelectDay={plan.setViewDay}
+        onRegister={onRegister}
+      />
+    </Screen>
+  );
+}
+
+function SupplementsPane({
+  supplements,
+  day,
+  cycling,
+}: {
+  supplements: ReturnType<typeof useSupplementPlan>;
+  day: "training" | "rest";
+  cycling: boolean;
+}) {
+  const { t } = useTranslation();
+
+  if (supplements.loading && supplements.plan == null) return <LoadingBlock />;
+  if (supplements.error && supplements.plan == null) {
+    return <ErrorState onRetry={supplements.refresh} />;
+  }
+  if (supplements.plan == null) {
+    return (
+      <View className="flex-1 items-center justify-center px-6">
+        <EmptyState
+          icon="medkit-outline"
+          title={t("supplements.noPlanTitle")}
+          subtitle={t("supplements.noPlanHint")}
+        />
+      </View>
+    );
+  }
+
+  return (
+    <Screen
+      refreshing={supplements.refreshing}
+      onRefresh={supplements.refresh}
+      contentContainerClassName="p-4 gap-3 pb-24"
+    >
+      <SupplementStackView plan={supplements.plan} day={day} cycling={cycling} />
+    </Screen>
+  );
+}
+
+// The diary, unchanged from when it was its own Comidas tab — date navigation,
+// day summary, per-slot entries, the add-food FAB and photo logging. It is now
+// one of three panes inside Nutrición.
+function DiaryPane() {
   const colors = useColors();
   const { t, i18n } = useTranslation();
   const toast = useToast();
@@ -118,7 +286,7 @@ export default function DiaryScreen() {
 
   const openAdd = (slot: MealType) =>
     router.push({
-      pathname: "/(tabs)/meals/create",
+      pathname: "/(tabs)/nutrition/create",
       params: { mealType: slot, date: dateKey },
     });
 
@@ -254,7 +422,7 @@ export default function DiaryScreen() {
                 onAdd={() => openAdd(slot)}
                 onEdit={(entry) =>
                   router.push({
-                    pathname: "/(tabs)/meals/edit",
+                    pathname: "/(tabs)/nutrition/edit",
                     params: { itemId: entry.item.id },
                   })
                 }
