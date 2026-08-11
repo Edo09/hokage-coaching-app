@@ -8,6 +8,7 @@ import { setupOnlineManager } from "@/src/lib/online";
 import { flushOutbox } from "@/src/lib/outbox";
 import { persister, PERSIST_MAX_AGE, queryClient } from "@/src/lib/query-client";
 import { AuthProvider } from "@/src/providers/auth-provider";
+import { RestTimerProvider } from "@/src/providers/rest-timer-provider";
 import { useColors } from "@/src/theme/colors";
 import { WEB_MAX_WIDTH } from "@/src/theme/layout";
 import { applyThemeMode, getStoredThemeMode } from "@/src/theme/theme-mode";
@@ -147,6 +148,9 @@ export default function RootLayout() {
       <I18nextProvider i18n={i18n}>
         <GluestackUIProvider mode={themeMode ?? "system"}>
           <AuthProvider>
+          {/* Above the router: one rest timer app-wide, so a countdown started
+              on an exercise survives navigating away from it. */}
+          <RestTimerProvider>
           <ToastProvider>
             {/* "auto" tracks the active scheme: light icons on dark, dark on light */}
             <StatusBar style="auto" />
@@ -193,6 +197,7 @@ export default function RootLayout() {
             </View>
             <AuthGate />
             </ToastProvider>
+          </RestTimerProvider>
           </AuthProvider>
         </GluestackUIProvider>
       </I18nextProvider>

@@ -3,6 +3,7 @@ import { Image } from "expo-image";
 import React from "react";
 import { useTranslation } from "react-i18next";
 
+import { useRestTimer } from "@/src/providers/rest-timer-provider";
 import { useColors } from "@/src/theme/colors";
 import { Pressable, Text, View } from "@/src/tw";
 import type { ProgramExercise, ProgramWeek } from "@/src/types/database";
@@ -128,13 +129,17 @@ export function ProgramExerciseRow({
         </View>
       )}
 
-      {/* Row body — tap opens the detail + set-logging sheet. */}
+      {/* Row body. The tappable area stops ABOVE the meta line so the rest
+          timer can be its own button — nesting it inside this Pressable made
+          RN Web emit a <button> inside a <button>, which is invalid HTML and
+          fails hydration. */}
+      <View className="flex-1 gap-1">
       <Pressable
         onPress={onOpen}
         disabled={onOpen == null}
         accessibilityRole="button"
         accessibilityLabel={t("program.openExercise", { name: p.name })}
-        className="flex-1 gap-1"
+        className="gap-1"
       >
         <View className="flex-row items-center gap-1.5">
           <Text
@@ -177,22 +182,22 @@ export function ProgramExerciseRow({
           )}
         </View>
 
-        {(p.tempo != null || p.restSeconds != null || p.notes != null) && (
-          <View className="flex-row flex-wrap items-center gap-x-3 gap-y-0.5">
-            {p.tempo != null && (
-              <Meta icon="time-outline">{t("program.tempoLabel", { tempo: p.tempo })}</Meta>
-            )}
-            {p.restSeconds != null && (
-              <Meta icon="pause-outline">
-                {t("program.restLabel", { seconds: p.restSeconds })}
-              </Meta>
-            )}
-            {p.notes != null && p.notes !== "" && (
-              <Text className="text-[11px] text-content-tertiary">{p.notes}</Text>
-            )}
-          </View>
-        )}
       </Pressable>
+
+      {/* Meta line — sibling of the body, never a child, so RestButton is a
+          top-level button. */}
+      {(p.tempo != null || p.restSeconds != null || p.notes != null) && (
+        <View className="flex-row flex-wrap items-center gap-x-3 gap-y-0.5">
+          {p.tempo != null && (
+            <Meta icon="time-outline">{t("program.tempoLabel", { tempo: p.tempo })}</Meta>
+          )}
+          {p.restSeconds != null && <RestButton seconds={p.restSeconds} name={p.name} />}
+          {p.notes != null && p.notes !== "" && (
+            <Text className="text-[11px] text-content-tertiary">{p.notes}</Text>
+          )}
+        </View>
+      )}
+      </View>
 
       {onToggleDone != null && (
         <Pressable
@@ -243,6 +248,53 @@ function Chip({
         {children}
       </Text>
     </View>
+  );
+}
+
+/**
+ * The coach's prescribed rest, made actionable. It reads as a normal meta line
+ * until you notice the play affordance — same information, now one tap from
+ * running.
+ *
+ * Lives OUTSIDE the row's Pressable. RN Web renders Pressable as <button>, and
+ * a button inside a button is invalid HTML that breaks hydration — so the
+ * tappable row body ends above this line rather than wrapping it.
+ */
+function RestButton({ seconds, name }: { seconds: number; name: string }) {
+  const { t } = useTranslation();
+  const colors = useColors();
+  const { start, running, label } = useRestTimer();
+  // Highlight only the row whose timer is actually counting.
+  const isMine = running && label === name;
+
+  return (
+    <Pressable
+      onPress={() => start(seconds, name)}
+      accessibilityRole="button"
+      accessibilityLabel={t("program.restStart", { seconds, name })}
+      hitSlop={6}
+      className={
+        isMine
+          ? "flex-row items-center gap-1 rounded-md bg-brand-primary-soft px-1.5 py-0.5"
+          : "flex-row items-center gap-1 rounded-md px-1.5 py-0.5"
+      }
+      style={isMine ? undefined : { marginLeft: -6 }}
+    >
+      <Ionicons
+        name={isMine ? "hourglass-outline" : "play-circle"}
+        size={13}
+        color={isMine ? colors.brandPrimary : colors.brandSecondary}
+      />
+      <Text
+        className={
+          isMine
+            ? "text-[11px] font-semibold text-brand-primary"
+            : "text-[11px] font-semibold text-brand-secondary"
+        }
+      >
+        {t("program.restLabel", { seconds })}
+      </Text>
+    </Pressable>
   );
 }
 

@@ -135,22 +135,10 @@ export default function Login() {
           {t("auth.signIn")}
         </Button>
 
-        {/* ── or ── */}
-        <View className="flex-row items-center gap-3 my-3">
-          <View className="flex-1 h-px bg-border-strong" />
-          <Text className="text-content-muted">{t("common.or")}</Text>
-          <View className="flex-1 h-px bg-border-strong" />
-        </View>
-
-        <Pressable
-          onPress={() => router.push("/(auth)/register")}
-          accessibilityRole="button"
-          className="border-2 border-brand-primary rounded-2xl py-4 items-center active:opacity-70"
-        >
-          <Text className="text-brand-primary font-bold text-base">
-            {t("auth.signUp")}
-          </Text>
-        </Pressable>
+        {/* No self-signup: the coach creates every account from the admin
+            panel. The "or / Registrarse" pair and the /register screen were
+            removed with it. A "contact your coach" flow is planned to take
+            this space. */}
       </View>
     </Screen>
   );

@@ -4,6 +4,7 @@ import React from "react";
 import { useTranslation } from "react-i18next";
 import { View } from "react-native";
 
+import { RestTimerBar } from "@/src/components/program/rest-timer-bar";
 import { useColors } from "@/src/theme/colors";
 import { Pressable } from "@/src/tw";
 
@@ -32,6 +33,7 @@ export default function TabsLayout() {
   const colors = useColors();
   const { t } = useTranslation();
   return (
+    <View style={{ flex: 1 }}>
     <Tabs
       screenOptions={{
         animation: "shift",
@@ -118,5 +120,9 @@ export default function TabsLayout() {
         }}
       />
     </Tabs>
+    {/* Floats clear of the 74px tab bar. Rendered here, not per screen, so the
+        countdown keeps running while the client moves around the app. */}
+    <RestTimerBar bottom={74} />
+    </View>
   );
 }
