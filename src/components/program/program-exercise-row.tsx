@@ -187,7 +187,7 @@ export function ProgramExerciseRow({
       {/* Meta line — sibling of the body, never a child, so RestButton is a
           top-level button. */}
       {(p.tempo != null || p.restSeconds != null || p.notes != null) && (
-        <View className="flex-row flex-wrap items-center gap-x-3 gap-y-0.5">
+        <View className="mt-0.5 flex-row flex-wrap items-center gap-x-3 gap-y-1.5">
           {p.tempo != null && (
             <Meta icon="time-outline">{t("program.tempoLabel", { tempo: p.tempo })}</Meta>
           )}
@@ -272,24 +272,30 @@ function RestButton({ seconds, name }: { seconds: number; name: string }) {
       onPress={() => start(seconds, name)}
       accessibilityRole="button"
       accessibilityLabel={t("program.restStart", { seconds, name })}
-      hitSlop={6}
+      hitSlop={10}
+      // Sized as a real control, not a caption: this gets tapped mid-set with
+      // sweaty hands, so it carries its own border and a ~36px tall target
+      // rather than sitting flush with the tempo/notes text beside it.
       className={
         isMine
-          ? "flex-row items-center gap-1 rounded-md bg-brand-primary-soft px-1.5 py-0.5"
-          : "flex-row items-center gap-1 rounded-md px-1.5 py-0.5"
+          ? "flex-row items-center gap-1.5 rounded-lg border bg-brand-primary-soft px-3 py-2"
+          : "flex-row items-center gap-1.5 rounded-lg border px-3 py-2"
       }
-      style={isMine ? undefined : { marginLeft: -6 }}
+      // Border colour inline, not `border-brand-secondary/40`: the /opacity
+      // modifier doesn't compile under react-native-css (same reason the
+      // thumbnail overlay above uses inline rgba).
+      style={{ borderColor: isMine ? colors.brandPrimary : colors.border }}
     >
       <Ionicons
         name={isMine ? "hourglass-outline" : "play-circle"}
-        size={13}
+        size={17}
         color={isMine ? colors.brandPrimary : colors.brandSecondary}
       />
       <Text
         className={
           isMine
-            ? "text-[11px] font-semibold text-brand-primary"
-            : "text-[11px] font-semibold text-brand-secondary"
+            ? "text-[13px] font-bold text-brand-primary"
+            : "text-[13px] font-bold text-brand-secondary"
         }
       >
         {t("program.restLabel", { seconds })}
