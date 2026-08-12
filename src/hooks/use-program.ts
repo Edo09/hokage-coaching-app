@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 
 import { useAuth } from "@/src/hooks/use-auth";
+import { useRealtimeInvalidate } from "@/src/hooks/use-realtime-invalidate";
 import { qk } from "@/src/lib/query-keys";
 import type { ProgramWithDetails } from "@/src/types/database";
 import { supabase } from "@/src/utils/supabase";
@@ -63,6 +64,15 @@ export function useProgram() {
     queryFn: () => fetchActiveProgram(user!.id),
     enabled: !!user,
   });
+
+  // A coach saving in the panel touches the parent row, which pushes an event
+  // here and refetches the graph — no pull-to-refresh needed (and mobile web
+  // has none to offer).
+  useRealtimeInvalidate(
+    "programs",
+    user ? `user_id=eq.${user.id}` : undefined,
+    qk.program(user?.id),
+  );
 
   const autoWeek = useMemo(
     () =>

@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 
 import { useAuth } from "@/src/hooks/use-auth";
+import { useRealtimeInvalidate } from "@/src/hooks/use-realtime-invalidate";
 import { qk } from "@/src/lib/query-keys";
 import type { SupplementPlanWithDetails } from "@/src/types/database";
 import { supabase } from "@/src/utils/supabase";
@@ -45,6 +46,12 @@ export function useSupplementPlan() {
     queryFn: () => fetchActivePlan(user!.id),
     enabled: !!user,
   });
+
+  useRealtimeInvalidate(
+    "supplement_plans",
+    user ? `user_id=eq.${user.id}` : undefined,
+    qk.supplementPlan(user?.id),
+  );
 
   return { plan, loading, error, refreshing, refresh: refetch };
 }

@@ -3,6 +3,7 @@ import { useState } from "react";
 
 import { useAuth } from "@/src/hooks/use-auth";
 import { useProgram } from "@/src/hooks/use-program";
+import { useRealtimeInvalidate } from "@/src/hooks/use-realtime-invalidate";
 import { qk } from "@/src/lib/query-keys";
 import type { NutritionPlanWithDetails } from "@/src/types/database";
 import { supabase } from "@/src/utils/supabase";
@@ -70,6 +71,12 @@ export function useNutritionPlan() {
     queryFn: () => fetchActivePlan(user!.id),
     enabled: !!user,
   });
+
+  useRealtimeInvalidate(
+    "nutrition_plans",
+    user ? `user_id=eq.${user.id}` : undefined,
+    qk.nutritionPlan(user?.id),
+  );
 
   const autoDay = resolveDayType(program);
 
