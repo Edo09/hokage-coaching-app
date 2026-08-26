@@ -259,6 +259,8 @@ export default {
     restEyebrow: "Rest day",
     restStart: "Start {{seconds}} second rest after {{name}}",
     restDone: "Rest complete!",
+    restNotifBody: "Back to it — next set is up.",
+    restNotifNext: "Back to it — {{name}}",
     restPause: "Pause rest",
     restResume: "Resume rest",
     restSkip: "Skip rest",

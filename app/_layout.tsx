@@ -7,6 +7,7 @@ import i18n from "@/src/i18n";
 import { setupOnlineManager } from "@/src/lib/online";
 import { flushOutbox } from "@/src/lib/outbox";
 import { persister, PERSIST_MAX_AGE, queryClient } from "@/src/lib/query-client";
+import { setupRestAlerts } from "@/src/lib/rest-alert";
 import { AuthProvider } from "@/src/providers/auth-provider";
 import { RestTimerProvider } from "@/src/providers/rest-timer-provider";
 import { useColors } from "@/src/theme/colors";
@@ -40,6 +41,10 @@ SplashScreen.preventAutoHideAsync();
 // returning to the app refetches stale queries. Foregrounding also restarts
 // the auth token refresh timer and retries any queued offline writes.
 setupOnlineManager();
+// Audio session, Android notification channel and the foreground notification
+// handler for the rest timer. Module scope, not an effect: the notification
+// handler has to be installed before any scheduled rest can fire.
+setupRestAlerts();
 AppState.addEventListener("change", (status) => {
   focusManager.setFocused(status === "active");
   if (status === "active") {

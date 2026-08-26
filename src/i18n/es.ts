@@ -259,6 +259,8 @@ export default {
     restEyebrow: "Descanso",
     restStart: "Iniciar descanso de {{seconds}} segundos tras {{name}}",
     restDone: "¡Descanso terminado!",
+    restNotifBody: "A darle — toca la siguiente serie.",
+    restNotifNext: "A darle — {{name}}",
     restPause: "Pausar descanso",
     restResume: "Reanudar descanso",
     restSkip: "Saltar descanso",

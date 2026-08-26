@@ -10,6 +10,13 @@ import React, {
 } from "react";
 import { AppState } from "react-native";
 
+import {
+  cancelRestDoneNotification,
+  playRestDoneAlert,
+  primeRestAlert,
+  scheduleRestDoneNotification,
+} from "@/src/lib/rest-alert";
+
 /**
  * The rest timer between sets.
  *
@@ -24,9 +31,10 @@ import { AppState } from "react-native";
  * has put the phone down to lift. Recomputing `endsAt - now` means backgrounding
  * for the whole rest and coming back reads correctly.
  *
- * No sound and no local notification: the app ships neither expo-av nor
- * expo-notifications, so completion is signalled with haptics while the app is
- * foregrounded. A backgrounded finish is silent — documented, not hidden.
+ * Completion is signalled three ways — vibration, chime, local notification —
+ * all of which live in `@/src/lib/rest-alert`. Only the notification survives a
+ * backgrounded app, so it is scheduled up front from the end timestamp rather
+ * than fired at 0:00, when JS may not be running at all.
  */
 
 type RestTimer = {
@@ -44,6 +52,13 @@ type RestTimer = {
   /** Add (or subtract, with a negative) seconds mid-rest. Never goes below 0. */
   addTime: (seconds: number) => void;
 };
+
+/**
+ * How far past 0:00 a finish still counts as "happening now". Beyond it the app
+ * was backgrounded through the end of the rest, the notification already fired,
+ * and the in-app alert stays quiet — see the alert effect.
+ */
+const LATE_MS = 3000;
 
 const RestTimerContext = createContext<RestTimer | null>(null);
 
@@ -85,11 +100,45 @@ export function RestTimerProvider({ children }: { children: React.ReactNode }) {
     return () => sub.remove();
   }, []);
 
-  // Completion: buzz once, then clear so the bar leaves the screen.
+  // One place owns everything that has to be readied ahead of 0:00: warm the
+  // audio player, and reschedule the notification whenever the end timestamp
+  // moves (start, resume, +30s) or cancel it when the timestamp clears (skip,
+  // pause, finish). Deriving that from the timestamp instead of wiring it into
+  // each action means no path can leave an orphan to fire after a skipped rest.
+  useEffect(() => {
+    if (endsAt == null) {
+      cancelRestDoneNotification();
+      return;
+    }
+    primeRestAlert();
+    scheduleRestDoneNotification(Math.ceil((endsAt - Date.now()) / 1000), label);
+  }, [endsAt, label]);
+
+  // The buzz and the chime fire off their own one-shot timer, aimed at the end
+  // timestamp — deliberately NOT off the 250ms render tick above. A hidden
+  // browser tab throttles intervals to once a second, and to once a MINUTE once
+  // it has been hidden a while, so the tick would notice 0:00 long after the
+  // fact. That is also the moment the alert matters most: on web there is no
+  // notification to fall back on. Re-running on `endsAt` (start, resume, +30s)
+  // cancels the previous timer, so the alert can never double up.
+  useEffect(() => {
+    if (endsAt == null) return;
+    const id = setTimeout(
+      () => {
+        // A finish we did not witness: the app was backgrounded through the
+        // whole rest and this timer only ran on resume. The notification
+        // already did the job — chiming minutes late reads as a bug.
+        if (Date.now() - endsAt <= LATE_MS) playRestDoneAlert();
+      },
+      Math.max(0, endsAt - Date.now()),
+    );
+    return () => clearTimeout(id);
+  }, [endsAt]);
+
+  // Completion: clear once, so the bar leaves the screen.
   useEffect(() => {
     if (endsAt == null || firedRef.current || remaining > 0) return;
     firedRef.current = true;
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
     // Hold at 00:00 briefly so the client sees it land instead of the bar just
     // vanishing under their thumb.
     const id = setTimeout(() => {
