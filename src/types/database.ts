@@ -282,7 +282,12 @@ export type ProgramWithDetails = Program & {
 export type WorkoutSetLog = {
   id: string;
   user_id: string;
-  program_exercise_id: string;
+  // null once the coach removed the prescription — the log survives, detached.
+  program_exercise_id: string | null;
+  // Snapshot stamped server-side on insert (20260925120000) so a detached log
+  // still reads correctly; absent on the app's own optimistic rows.
+  exercise_name?: string | null;
+  is_unilateral?: boolean | null;
   week_number: number;
   date: string;
   set_index: number;
@@ -296,7 +301,9 @@ export type WorkoutSetLog = {
 export type ProgramExerciseCompletion = {
   id: string;
   user_id: string;
-  program_exercise_id: string;
+  // null once the coach removed the prescription (see WorkoutSetLog).
+  program_exercise_id: string | null;
+  exercise_name?: string | null;
   week_number: number;
   completed_at: string;
   created_at: string;

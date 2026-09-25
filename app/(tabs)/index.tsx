@@ -141,7 +141,10 @@ export default function HomeScreen() {
     return programLogging.completions
       .filter((c) => toDateKey(new Date(c.completed_at)) === todayKey)
       .sort((a, b) => b.completed_at.localeCompare(a.completed_at))
-      .map((c) => ({ id: c.id, name: names.get(c.program_exercise_id) ?? "" }));
+      .map((c) => ({
+        id: c.id,
+        name: (c.program_exercise_id != null ? names.get(c.program_exercise_id) : null) ?? "",
+      }));
   }, [program, programLogging.completions]);
 
   const activityRows = [

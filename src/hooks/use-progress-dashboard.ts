@@ -66,13 +66,15 @@ const setLogsKey = (userId: string | undefined) => ["set-logs", userId] as const
 
 // Logged program sets (last 60d) enriched with the exercise name + laterality,
 // so the dashboard can show REAL volume/PRs (Phase 4) instead of plan
-// estimates. Degrades to [] when the tables aren't present yet.
+// estimates. Sets whose prescription the coach later removed come back
+// detached (no program_exercise) and fall back to the snapshot stamped when
+// they were logged. Degrades to [] when the tables aren't present yet.
 async function fetchSetLogs(userId: string): Promise<SetLogEntry[]> {
   const cutoff = addDays(toDateKey(), -60);
   const { data, error } = await supabase
     .from("workout_set_logs")
     .select(
-      "date, weight_kg, reps, program_exercise:program_exercises(custom_name, is_unilateral, exercise:exercises(name))",
+      "date, weight_kg, reps, exercise_name, is_unilateral, program_exercise:program_exercises(custom_name, is_unilateral, exercise:exercises(name))",
     )
     .eq("user_id", userId)
     .gte("date", cutoff);
@@ -82,6 +84,8 @@ async function fetchSetLogs(userId: string): Promise<SetLogEntry[]> {
       date: string;
       weight_kg: number | null;
       reps: number | null;
+      exercise_name: string | null;
+      is_unilateral: boolean | null;
       program_exercise: {
         custom_name: string | null;
         is_unilateral: boolean;
@@ -92,8 +96,14 @@ async function fetchSetLogs(userId: string): Promise<SetLogEntry[]> {
       date: r.date,
       weight_kg: r.weight_kg,
       reps: r.reps,
-      name: r.program_exercise?.exercise?.name ?? r.program_exercise?.custom_name ?? "—",
-      isUnilateral: r.program_exercise?.is_unilateral ?? false,
+      name:
+        r.program_exercise?.exercise?.name ??
+        r.program_exercise?.custom_name ??
+        r.exercise_name ??
+        "—",
+      // Laterality at log time, not today's prescription: a coach flipping the
+      // flag later must not double (or halve) volume already lifted.
+      isUnilateral: r.is_unilateral ?? r.program_exercise?.is_unilateral ?? false,
     };
   });
 }

@@ -42,7 +42,10 @@ export function ProgramSetLogger({
 }: Props) {
   const { t } = useTranslation();
   const unit = useWeightUnit();
-  const indexes = Array.from({ length: prescribedSets }, (_, i) => i + 1);
+  // Sets already logged beyond the prescription (the coach lowered the count
+  // after the client logged them) stay visible and editable, not hidden.
+  const maxLogged = logged.reduce((max, s) => Math.max(max, s.set_index), 0);
+  const indexes = Array.from({ length: Math.max(prescribedSets, maxLogged) }, (_, i) => i + 1);
   const repPlaceholder = repMax != null ? String(repMax) : repMin != null ? String(repMin) : "—";
   const prescribedRir = rirText(rirMin, rirMax);
 
