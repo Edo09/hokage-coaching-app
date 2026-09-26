@@ -27,6 +27,7 @@ import {
   muscleDistribution,
   nutritionStats,
   personalRecords,
+  programWork,
   realVolume,
   realVolumeSeries8w,
   ruleInsights,
@@ -35,6 +36,7 @@ import {
   weekDayDots,
   weeklyStreak,
   weightStats,
+  type CompletionEntry,
   type Periodo,
   type SetLogEntry,
 } from "@/src/utils/progress";
@@ -74,7 +76,7 @@ async function fetchSetLogs(userId: string): Promise<SetLogEntry[]> {
   const { data, error } = await supabase
     .from("workout_set_logs")
     .select(
-      "date, weight_kg, reps, exercise_name, is_unilateral, program_exercise:program_exercises(custom_name, is_unilateral, exercise:exercises(name))",
+      "date, weight_kg, reps, exercise_name, is_unilateral, program_exercise_id, week_number, program_exercise:program_exercises(custom_name, is_unilateral, exercise:exercises(name))",
     )
     .eq("user_id", userId)
     .gte("date", cutoff);
@@ -86,6 +88,8 @@ async function fetchSetLogs(userId: string): Promise<SetLogEntry[]> {
       reps: number | null;
       exercise_name: string | null;
       is_unilateral: boolean | null;
+      program_exercise_id: string | null;
+      week_number: number | null;
       program_exercise: {
         custom_name: string | null;
         is_unilateral: boolean;
@@ -104,25 +108,60 @@ async function fetchSetLogs(userId: string): Promise<SetLogEntry[]> {
       // Laterality at log time, not today's prescription: a coach flipping the
       // flag later must not double (or halve) volume already lifted.
       isUnilateral: r.is_unilateral ?? r.program_exercise?.is_unilateral ?? false,
+      programExerciseId: r.program_exercise_id,
+      week: r.week_number,
     };
   });
 }
 
-const completionDatesKey = (userId: string | undefined) =>
-  ["program-completion-dates", userId] as const;
+// New key: the cached shape changed (dates → entries), and the query cache
+// is persisted on the device.
+const completionsKey = (userId: string | undefined) =>
+  ["program-completions", userId] as const;
 
-// Local dates (last 60d) the client checked off any program exercise. A coach
-// program records completions, not workout_logs, so these are what make a
-// program day count as a session in the dashboard. Degrades to [] if absent.
-async function fetchCompletionDates(userId: string): Promise<string[]> {
+// Program exercises the client checked off (last 60d). A coach program
+// records completions, not workout_logs, so their dates are what make a
+// program day count as a session; with each exercise's prescribed sets for
+// that week they also count as muscle work when no sets were logged.
+// Degrades to [] if the table is absent.
+async function fetchCompletions(userId: string): Promise<CompletionEntry[]> {
   const cutoff = addDays(toDateKey(), -60);
   const { data, error } = await supabase
     .from("program_exercise_completions")
-    .select("completed_at")
+    .select(
+      "completed_at, week_number, program_exercise_id, exercise_name, program_exercise:program_exercises(sets, week_overrides, custom_name, exercise:exercises(name), program_day:program_days(program:programs(program_weeks(week_number, sets_override))))",
+    )
     .eq("user_id", userId)
     .gte("completed_at", cutoff);
   if (error || data == null) return [];
-  return (data as { completed_at: string }[]).map((r) => toDateKey(new Date(r.completed_at)));
+  return (data as unknown[]).map((row) => {
+    const r = row as {
+      completed_at: string;
+      week_number: number;
+      program_exercise_id: string | null;
+      exercise_name: string | null;
+      program_exercise: {
+        sets: number;
+        week_overrides: Record<string, { sets?: number }> | null;
+        custom_name: string | null;
+        exercise: { name: string } | null;
+        program_day: {
+          program: { program_weeks: { week_number: number; sets_override: number | null }[] } | null;
+        } | null;
+      } | null;
+    };
+    const pe = r.program_exercise;
+    const weekRow = pe?.program_day?.program?.program_weeks?.find((w) => w.week_number === r.week_number);
+    return {
+      date: toDateKey(new Date(r.completed_at)),
+      week: r.week_number,
+      programExerciseId: r.program_exercise_id,
+      name: pe?.exercise?.name ?? pe?.custom_name ?? r.exercise_name ?? "—",
+      // Same precedence as utils/program.ts effectivePrescription; 3 when the
+      // prescription is gone (as muscleDistribution assumes for routines).
+      sets: pe?.week_overrides?.[String(r.week_number)]?.sets ?? weekRow?.sets_override ?? pe?.sets ?? 3,
+    };
+  });
 }
 
 export function useProgressDashboard(periodo: Periodo) {
@@ -146,9 +185,9 @@ export function useProgressDashboard(periodo: Periodo) {
     enabled: !!user,
   });
 
-  const { data: completionDates = [] } = useQuery({
-    queryKey: completionDatesKey(user?.id),
-    queryFn: () => fetchCompletionDates(user!.id),
+  const { data: completions = [] } = useQuery({
+    queryKey: completionsKey(user?.id),
+    queryFn: () => fetchCompletions(user!.id),
     enabled: !!user,
   });
 
@@ -169,7 +208,7 @@ export function useProgressDashboard(periodo: Periodo) {
     routinesRefresh();
     queryClient.invalidateQueries({ queryKey: ["body-measurements"] });
     queryClient.invalidateQueries({ queryKey: ["set-logs"] });
-    queryClient.invalidateQueries({ queryKey: ["program-completion-dates"] });
+    queryClient.invalidateQueries({ queryKey: ["program-completions"] });
   }, [progressRefresh, mealsRefresh, routinesRefresh, queryClient]);
 
   /** Quick weight log. Writes profiles.weight_kg through the offline-first
@@ -223,7 +262,7 @@ export function useProgressDashboard(periodo: Periodo) {
     // math uses distinctDays(), which dedups against real logs on shared dates,
     // so merging can't double-count. Only session metrics (ring/dots/streak)
     // read this — muscles, volume, minutes and kcal keep their own sources.
-    const programDates = new Set<string>([...completionDates, ...setLogs.map((s) => s.date)]);
+    const programDates = new Set<string>([...completions.map((c) => c.date), ...setLogs.map((s) => s.date)]);
     const sessionLogs: WorkoutLog[] =
       programDates.size === 0
         ? logs
@@ -257,8 +296,11 @@ export function useProgressDashboard(periodo: Periodo) {
     const nutrition = nutritionStats(meals, goalKcal, periodo === "week" ? 7 : 30, now);
 
     const windowDays = periodo === "week" ? 14 : 30;
-    const muscles = muscleDistribution(logs, exercises, plan, windowDays, now);
-    const alert = muscleAlert(muscles, logs, exercises, plan, routines, now);
+    // Program work counts too — for a coach-program client it's the only
+    // training data (they have no routine logs).
+    const work = programWork(setLogs, completions);
+    const muscles = muscleDistribution(logs, exercises, plan, windowDays, now, work);
+    const alert = muscleAlert(muscles, logs, exercises, plan, routines, now, work);
 
     const weekLogs =
       periodo === "week"
@@ -336,7 +378,7 @@ export function useProgressDashboard(periodo: Periodo) {
     // session, summed. Programs log no duration, so this is the only time/kcal
     // source now that manual workout logging is gone.
     const programExByDay = new Map<string, number>();
-    for (const d of completionDates) {
+    for (const { date: d } of completions) {
       if (d >= periodFrom && d <= today) programExByDay.set(d, (programExByDay.get(d) ?? 0) + 1);
     }
     let programMinutes = 0;
@@ -373,7 +415,7 @@ export function useProgressDashboard(periodo: Periodo) {
       }),
       logros: achievements(totalWorkouts, streak, lifetimeVolume),
     };
-  }, [logs, routines, exercises, meals, profile, measurements, setLogs, completionDates, user?.id, periodo]);
+  }, [logs, routines, exercises, meals, profile, measurements, setLogs, completions, user?.id, periodo]);
 
   // AI weekly analysis (P3). Keyed per user+week+language: generated once
   // per Monday-based week, regenerated on language switch, served from the

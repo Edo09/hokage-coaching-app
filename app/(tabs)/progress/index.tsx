@@ -116,6 +116,7 @@ export default function ProgressScreen() {
                   periodo={periodo}
                   rows={dashboard.muscles.rows}
                   alert={dashboard.muscles.alert}
+                  sex={dashboard.profile?.sex}
                 />
               </AnimatedView>
 

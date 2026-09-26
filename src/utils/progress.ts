@@ -322,13 +322,60 @@ function groupOf(
 
 export type MuscleRow = { group: MuscleGroup; sets: number };
 
-/** Sets per muscle group inside the window, sorted desc, "other" last. */
+/** Program training in muscle terms: one entry per exercise and date, with
+ *  the sets it counts for. Built by programWork(). */
+export type ProgramWork = { date: string; name: string; sets: number };
+
+/** An exercise the client checked off in a program week. */
+export type CompletionEntry = {
+  date: string;
+  week: number;
+  /** null once the coach removed the prescription (the row survives). */
+  programExerciseId: string | null;
+  name: string;
+  /** Prescribed sets that week: the exercise's own override, else the week's
+   *  deload count, else its base sets (utils/program.ts effectivePrescription). */
+  sets: number;
+};
+
+/**
+ * Program work as muscle stimulus. A logged set counts as one set; an
+ * exercise checked off without any logged sets counts its prescribed sets.
+ * A check-off is matched to its logged sets by prescription + program week
+ * (sets can be logged on a different day than the check-off), or by date +
+ * name for rows whose prescription the coach has since removed.
+ */
+export function programWork(setLogs: SetLogEntry[], completions: CompletionEntry[]): ProgramWork[] {
+  const byDay = new Map<string, ProgramWork>();
+  const logged = new Set<string>();
+  const add = (date: string, name: string, sets: number) => {
+    const k = `${date}|${norm(name)}`;
+    const w = byDay.get(k);
+    if (w != null) w.sets += sets;
+    else byDay.set(k, { date, name, sets });
+  };
+  for (const s of setLogs) {
+    add(s.date, s.name, 1);
+    if (s.programExerciseId != null && s.week != null) logged.add(`pe|${s.programExerciseId}|${s.week}`);
+    logged.add(`day|${s.date}|${norm(s.name)}`);
+  }
+  for (const c of completions) {
+    const key =
+      c.programExerciseId != null ? `pe|${c.programExerciseId}|${c.week}` : `day|${c.date}|${norm(c.name)}`;
+    if (!logged.has(key)) add(c.date, c.name, c.sets);
+  }
+  return [...byDay.values()];
+}
+
+/** Sets per muscle group inside the window, sorted desc, "other" last.
+ *  Counts routine logs and, when given, program work. */
 export function muscleDistribution(
   logs: WorkoutLog[],
   catalog: Exercise[],
   plan: PlanIndex,
   windowDays: 14 | 30,
   now = new Date(),
+  work: ProgramWork[] = [],
 ): MuscleRow[] {
   const cutoff = addDays(toDateKey(now), -(windowDays - 1));
   const catalogByName = new Map(catalog.map((e) => [norm(e.name), e]));
@@ -340,6 +387,11 @@ export function muscleDistribution(
       sums.set(group, (sums.get(group) ?? 0) + sets);
     }
   }
+  for (const w of work) {
+    if (w.date < cutoff) continue;
+    const group = muscleGroupForBodyPart(catalogByName.get(norm(w.name))?.body_part?.name);
+    sums.set(group, (sums.get(group) ?? 0) + w.sets);
+  }
   return [...sums.entries()]
     .map(([group, sets]) => ({ group, sets }))
     .sort((a, b) => {
@@ -347,6 +399,13 @@ export function muscleDistribution(
       if (b.group === "other") return -1;
       return b.sets - a.sets;
     });
+}
+
+/** A group under a quarter of the busiest one (`max` = the largest sets in
+ *  the distribution). Never "other". Shared by the muscles card's bars and
+ *  heat map so both flag the same groups. */
+export function isWeakGroup(row: MuscleRow, max: number): boolean {
+  return row.group !== "other" && row.sets < 0.25 * max;
 }
 
 export type MuscleAlert = {
@@ -366,18 +425,24 @@ export function muscleAlert(
   plan: PlanIndex,
   routines: RoutineWithExercises[],
   now = new Date(),
+  work: ProgramWork[] = [],
 ): MuscleAlert | null {
   const today = toDateKey(now);
   const catalogByName = new Map(catalog.map((e) => [norm(e.name), e]));
 
   const lastTrained = new Map<MuscleGroup, string>();
+  const trained = (group: MuscleGroup, date: string) => {
+    if (group === "other") return;
+    const prev = lastTrained.get(group);
+    if (prev == null || date > prev) lastTrained.set(group, date);
+  };
   for (const log of logs) {
     for (const name of log.completed_exercises ?? []) {
-      const { group } = groupOf(name, catalogByName, plan, log.routine_id);
-      if (group === "other") continue;
-      const prev = lastTrained.get(group);
-      if (prev == null || log.date > prev) lastTrained.set(group, log.date);
+      trained(groupOf(name, catalogByName, plan, log.routine_id).group, log.date);
     }
+  }
+  for (const w of work) {
+    trained(muscleGroupForBodyPart(catalogByName.get(norm(w.name))?.body_part?.name), w.date);
   }
 
   const daysSince = (date: string) =>
@@ -591,6 +656,10 @@ export type SetLogEntry = {
   reps: number | null;
   name: string;
   isUnilateral: boolean;
+  /** Prescription and program week the set was logged against (null when
+   *  detached; absent in caches written before these were fetched). */
+  programExerciseId?: string | null;
+  week?: number | null;
 };
 
 /** Real kg volume (Σ weight·reps) for sets logged in [from, to]. Unilateral
