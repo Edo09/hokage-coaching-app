@@ -1,6 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { Linking } from "react-native";
 
 import { CoachSection } from "@/src/components/coach-section";
 import { Button, Card, Input, Screen, useToast } from "@/src/components/ui";
@@ -128,6 +129,11 @@ function ChangePasswordCard() {
   );
 }
 
+// Public privacy-policy page (the panel serves it at /privacidad.html). Set
+// per deployment in EAS, since the URL is the coach's domain; the row is
+// hidden until it is set.
+const PRIVACY_POLICY_URL = process.env.EXPO_PUBLIC_PRIVACY_POLICY_URL;
+
 export default function SettingsScreen() {
   const { t, i18n } = useTranslation();
   const scheme = useThemeScheme();
@@ -159,6 +165,18 @@ export default function SettingsScreen() {
       </Card>
 
       <ChangePasswordCard />
+
+      {PRIVACY_POLICY_URL ? (
+        <Card className="py-0">
+          <SettingsRow
+            icon="shield-checkmark-outline"
+            label={t("settings.privacyPolicy")}
+            value=""
+            onPress={() => void Linking.openURL(PRIVACY_POLICY_URL).catch(() => {})}
+            last
+          />
+        </Card>
+      ) : null}
 
       {/* Coach + membership (moved from Profile — read-only, coach manages on web) */}
       <CoachSection />

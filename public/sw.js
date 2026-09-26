@@ -1,5 +1,5 @@
 // Bump this when you want to force-clear previously cached assets on deploy.
-const CACHE_NAME = "habbito-v1";
+const CACHE_NAME = "hokage-v1";
 
 self.addEventListener("install", (event) => {
   self.skipWaiting();

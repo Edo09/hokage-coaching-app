@@ -238,6 +238,7 @@ export default {
     confirmPassword: "Confirmar contraseña",
     passwordsDontMatch: "Las contraseñas no coinciden",
     passwordChanged: "Contraseña actualizada",
+    privacyPolicy: "Política de privacidad",
   },
 
   // Programa multi-semana del coach

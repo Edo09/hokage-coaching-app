@@ -238,6 +238,7 @@ export default {
     confirmPassword: "Confirm password",
     passwordsDontMatch: "Passwords don't match",
     passwordChanged: "Password updated",
+    privacyPolicy: "Privacy policy",
   },
 
   // Coach multi-week program

@@ -1,50 +1,55 @@
-# Welcome to your Expo app 👋
+# The Hokage Coaching App
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Private, coach-branded mobile app (iOS + Android, Expo) for the clients of one
+coach. The coach runs everything from the companion web panel
+([`hokage-web-panel`](https://github.com/Edo09/hokage-web-panel)); clients see
+their program, nutrition and supplement plans, log sets and meals, and follow
+their progress here. UI in Spanish (English available).
 
-## Get started
+See `CLAUDE.md` for the product context (white-label, single coach) and
+`docs/ADMIN_WEB_DB_CONNECTION.md` for the data/security model.
 
-1. Install dependencies
+## Stack
 
-   ```bash
-   npm install
-   ```
+Expo (expo-router, dev client) · React Native · NativeWind / gluestack-ui ·
+TanStack Query (persisted, with an offline outbox) · Supabase (Postgres + RLS,
+Auth, Storage, Edge Functions) · i18next.
 
-2. Start the app
-
-   ```bash
-   npx expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
+## Run it
 
 ```bash
-npm run reset-project
+npm install
+cp .env.example .env   # fill in the values
+npm start              # Metro for the dev client (npm run android / ios to build one)
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+There is no sign-up: sign in with an account created by the coach in the panel.
+iPhone testing without a paid Apple account: `docs/IOS-LOCAL-TESTING.md`.
 
-## Learn more
+## Backend
 
-To learn more about developing your project with Expo, look at the following resources:
+- **Supabase project** `rzgwkwxskrovxnnymxqo` (shared with the web panel).
+- **Schema:** `supabase/migrations` is the source of truth, applied in order in
+  the SQL editor. `supabase/scripts` holds one-off scripts that are not part of a rebuild.
+- **Edge Functions** (`supabase/functions`): `create-client` and
+  `reset-client-password`, called by the panel. Deploy and configure them as in
+  `docs/ADMIN_WEB_DB_CONNECTION.md` §6.1 (they need the `ALLOWED_ORIGINS` secret).
+- **Auth:** "Allow new users to sign up" stays **off**.
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+## Builds & stores
 
-## Join the community
+EAS profiles are in `eas.json` (`development`, `preview`, `production`). Set the
+`.env.example` variables in the EAS environments before building.
 
-Join our community of developers creating universal apps.
+```bash
+eas build --profile production --platform all
+eas submit --platform ios   # / android
+```
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+Store identifiers are in `app.json` (`ios.bundleIdentifier`, `android.package`).
+The Expo `slug` is still the legacy `habbito`: it is tied to the linked EAS
+project (`extra.eas.projectId`), so rename it only together with that project,
+e.g. when moving the app to the coach's own Expo account.
+
+Store listings need the privacy policy URL (`EXPO_PUBLIC_PRIVACY_POLICY_URL`,
+served by the panel at `/privacidad.html`).
