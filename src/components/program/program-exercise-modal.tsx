@@ -43,7 +43,7 @@ export function ProgramExerciseModal({
   const colors = useColors();
   const insets = useSafeAreaInsets();
 
-  const p = exercise != null ? effectivePrescription(exercise, week) : null;
+  const p = exercise != null ? effectivePrescription(exercise, week, weekNumber) : null;
   const done = exercise != null && logging.isDone(exercise.id, weekNumber);
   const videoUrl = exercise?.exercise?.video_url ?? null;
   const hasVideo = videoUrl != null && videoUrl !== "";

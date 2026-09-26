@@ -273,11 +273,31 @@ function DayCard({
 
       {collapsed ? null : (
         <View>
-          {day.program_exercises.map((ex, i) => (
-            <View key={ex.id} className={i === 0 ? "" : "border-t border-border"}>
+          {day.program_exercises.map((ex, i) => {
+            // Consecutive rows sharing a letter are one superset: a red bar
+            // runs down the group and its first row carries the label.
+            const group = ex.superset_group ?? null;
+            const prevGroup = i > 0 ? (day.program_exercises[i - 1].superset_group ?? null) : null;
+            const nextGroup = day.program_exercises[i + 1]?.superset_group ?? null;
+            const inGroup = group != null && (group === prevGroup || group === nextGroup);
+            const startsGroup = inGroup && group !== prevGroup;
+            return (
+            <View
+              key={ex.id}
+              className={[
+                i === 0 || (inGroup && !startsGroup) ? "" : "border-t border-border",
+                inGroup ? "border-l-[3px] border-l-brand-primary pl-2.5" : "",
+              ].join(" ")}
+            >
+              {startsGroup && (
+                <Text className="pt-2 text-[10px] font-bold uppercase text-brand-primary" style={{ letterSpacing: 1.2 }}>
+                  {t("program.superset", { letter: group })}
+                </Text>
+              )}
               <ProgramExerciseRow
                 exercise={ex}
                 week={week}
+                weekNumber={selectedWeek}
                 done={logging.isDone(ex.id, selectedWeek)}
                 onToggleDone={() =>
                   logging.setCompletion(ex.id, selectedWeek, !logging.isDone(ex.id, selectedWeek))
@@ -287,7 +307,8 @@ function DayCard({
                 loggedCount={logging.setsFor(ex.id, selectedWeek).length}
               />
             </View>
-          ))}
+            );
+          })}
         </View>
       )}
     </Card>

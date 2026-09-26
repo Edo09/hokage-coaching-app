@@ -243,6 +243,8 @@ export default {
 
   // Programa multi-semana del coach
   program: {
+    superset: "Superserie {{letter}}",
+    weekAdjusted: "Ajustado esta semana",
     setsReps: "{{sets}} × {{reps}}",
     setsRepsPerSide: "{{sets}} × {{reps}} / lado",
     load_light: "ligero",

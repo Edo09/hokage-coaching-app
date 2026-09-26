@@ -160,7 +160,7 @@ export function ProgramHomeCard({ program, notStarted, onPress }: Props) {
           {/* Exercise rows — the actual session preview */}
           <View>
             {exercises.map((ex) => (
-              <ExerciseMiniRow key={ex.id} exercise={ex} week={week} done={logging.isDone(ex.id, displayWeek)} />
+              <ExerciseMiniRow key={ex.id} exercise={ex} week={week} weekNumber={displayWeek} done={logging.isDone(ex.id, displayWeek)} />
             ))}
           </View>
         </>
@@ -195,15 +195,17 @@ export function ProgramHomeCard({ program, notStarted, onPress }: Props) {
 function ExerciseMiniRow({
   exercise,
   week,
+  weekNumber,
   done,
 }: {
   exercise: ProgramExercise;
   week: ProgramWeek | null;
+  weekNumber: number;
   done: boolean;
 }) {
   const { t } = useTranslation();
   const colors = useColors();
-  const p = effectivePrescription(exercise, week);
+  const p = effectivePrescription(exercise, week, weekNumber);
   const videoUrl = exercise.exercise?.video_url ?? null;
   const isInlineGif = videoUrl != null && videoUrl !== "" && IS_IMAGE.test(videoUrl.split("?")[0]);
   const setsReps = p.isUnilateral

@@ -231,10 +231,24 @@ export type ProgramExercise = {
   notes: string | null;
   sort_order: number;
   created_at: string;
+  /** Letter (A..Z) shared by the rows of one superset in a day; null = straight set. */
+  superset_group?: string | null;
+  /** This exercise's own prescription for specific weeks, keyed by week number. */
+  week_overrides?: Record<string, WeekOverride> | null;
   // Joined via `exercise:exercises(*, body_part:bodyparts(name))`; absent when
   // the prescription is a custom_name with no catalog entry.
   exercise?: Exercise | null;
 };
+
+/** Per-week values an exercise can override (20260926130000). */
+export type WeekOverride = Partial<{
+  sets: number;
+  rep_min: number;
+  rep_max: number;
+  rir_min: number;
+  rir_max: number;
+  load_pct_1rm: number;
+}>;
 
 export type ProgramWeek = {
   id: string;

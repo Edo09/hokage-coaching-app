@@ -67,35 +67,43 @@ export type EffectivePrescription = {
   tempo: string | null;
   restSeconds: number | null;
   notes: string | null;
+  /** True when the coach set this exercise's own values for the week. */
+  weekAdjusted: boolean;
 };
 
 export function effectivePrescription(
   ex: ProgramExercise,
   week: ProgramWeek | null,
+  // Week being viewed. Needed on its own because a program may have no
+  // program_weeks row for it while the exercise still overrides that week.
+  weekNumber: number | null = week?.week_number ?? null,
 ): EffectivePrescription {
   // The week's global RIR/%load is shown ONCE in the week summary — don't
   // repeat it on every row. A row shows only the exercise's OWN specifics
   // (its pinned %1RM or qualitative load, and RIR if it pins one), matching
   // how the PDFs annotate individual lifts ("60% 1RM", "moderado", "ligero").
-  // The one thing the week does modulate per row is the set count (deload).
-  const sets = week?.sets_override ?? ex.sets;
+  // The week modulates the set count (deload); an exercise's own override for
+  // that week (week_overrides) wins over both.
+  const o = weekNumber != null ? (ex.week_overrides?.[String(weekNumber)] ?? null) : null;
+  const pick = <T,>(v: T | undefined, base: T): T => (v !== undefined && v !== null ? v : base);
 
   return {
     name: ex.exercise?.name ?? ex.custom_name ?? "—",
     hasCatalog: ex.exercise != null,
-    sets,
-    repMin: ex.rep_min,
-    repMax: ex.rep_max,
+    sets: pick(o?.sets, week?.sets_override ?? ex.sets),
+    repMin: pick(o?.rep_min, ex.rep_min),
+    repMax: pick(o?.rep_max, ex.rep_max),
     isUnilateral: ex.is_unilateral,
-    rirMin: ex.rir_min,
-    rirMax: ex.rir_max,
-    loadPct: ex.load_pct_1rm,
+    rirMin: pick(o?.rir_min, ex.rir_min),
+    rirMax: pick(o?.rir_max, ex.rir_max),
+    loadPct: pick(o?.load_pct_1rm, ex.load_pct_1rm),
     loadPctIsRange: false,
     loadPctMax: null,
     loadQualitative: ex.load_qualitative,
     tempo: ex.tempo ?? null,
     restSeconds: ex.rest_seconds,
     notes: ex.notes,
+    weekAdjusted: o != null && Object.keys(o).length > 0,
   };
 }
 

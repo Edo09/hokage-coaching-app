@@ -243,6 +243,8 @@ export default {
 
   // Coach multi-week program
   program: {
+    superset: "Superset {{letter}}",
+    weekAdjusted: "Adjusted this week",
     setsReps: "{{sets}} × {{reps}}",
     setsRepsPerSide: "{{sets}} × {{reps}} / side",
     load_light: "light",

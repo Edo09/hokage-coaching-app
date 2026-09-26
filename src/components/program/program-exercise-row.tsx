@@ -17,6 +17,8 @@ import {
 type Props = {
   exercise: ProgramExercise;
   week: ProgramWeek | null;
+  /** The week being viewed (week_overrides apply even with no week row). */
+  weekNumber?: number;
   /** Opens the demo video for a catalog exercise that has a video_url. */
   onPlay?: (uri: string) => void;
   /** Phase 3 completion checkbox. */
@@ -35,6 +37,7 @@ type Props = {
 export function ProgramExerciseRow({
   exercise,
   week,
+  weekNumber,
   onPlay,
   done = false,
   onToggleDone,
@@ -43,7 +46,7 @@ export function ProgramExerciseRow({
 }: Props) {
   const { t } = useTranslation();
   const colors = useColors();
-  const p = effectivePrescription(exercise, week);
+  const p = effectivePrescription(exercise, week, weekNumber ?? week?.week_number ?? null);
   const videoUrl = exercise.exercise?.video_url ?? null;
 
   const setsReps = p.isUnilateral
@@ -168,6 +171,11 @@ export function ProgramExerciseRow({
           <Text className="text-[13px] font-medium text-content-secondary" style={TABULAR}>
             {setsReps}
           </Text>
+          {p.weekAdjusted && (
+            <Text className="rounded bg-warning-soft px-1.5 py-0.5 text-[10px] font-bold uppercase text-warning">
+              {t("program.weekAdjusted")}
+            </Text>
+          )}
 
           {loadPct != null && (
             <Chip tone="info" style={TABULAR}>
