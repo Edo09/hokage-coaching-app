@@ -36,6 +36,12 @@ iPhone testing without a paid Apple account: `docs/IOS-LOCAL-TESTING.md`.
   the panel. Deploy and configure them as in `docs/ADMIN_WEB_DB_CONNECTION.md`
   §6.1 and §6.3 (they need the `ALLOWED_ORIGINS` secret; `generate-program` also
   needs `GEMINI_API_KEY` and/or `GROQ_API_KEY`).
+- **App AI** (meal estimates from a name or photo, the weekly progress insight)
+  goes through the `ai-complete` Edge Function, which holds the same
+  `GEMINI_API_KEY` / `GROQ_API_KEY` secrets and caps each user at 30 requests/hour
+  and 100/day. The app has no model keys. Apply migration
+  `20260926140000_ai_request_quota.sql`, then deploy it as in
+  `docs/ADMIN_WEB_DB_CONNECTION.md` §6.4.
 - **Auth:** "Allow new users to sign up" stays **off**.
 
 ## Builds & stores

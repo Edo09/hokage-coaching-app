@@ -15,7 +15,7 @@ self.addEventListener("activate", (event) => {
 });
 
 // Network-first, cache fallback — same-origin GETs only. Cross-origin
-// requests (Supabase, Gemini/Groq) are left untouched so auth/data calls
+// requests (Supabase, including its Edge Functions) are left untouched so auth/data calls
 // never get served stale or intercepted by mistake.
 self.addEventListener("fetch", (event) => {
   const { request } = event;

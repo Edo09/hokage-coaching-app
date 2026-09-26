@@ -346,9 +346,32 @@ supabase functions deploy generate-program --project-ref rzgwkwxskrovxnnymxqo
 supabase secrets set GEMINI_API_KEY=<key> GROQ_API_KEY=<key> --project-ref rzgwkwxskrovxnnymxqo
 ```
 
+### 6.4 App AI (`ai-complete`)
+
+The **mobile app's** AI features — estimating a meal's nutrition from its name or a photo, and the weekly analysis card on the progress dashboard — call `ai-complete` instead of Groq/Gemini directly, so the model keys are function secrets and never ship in the app bundle. The app's `src/services/llm.ts` (`completeJSON` / `completeJSONWithImage`) is a thin `supabase.functions.invoke("ai-complete")` wrapper; the prompts are still built in the app.
+
+| Body | Returns |
+|---|---|
+| `{ system, user, image?: { base64, mimeType } }` | `{ result, provider }` (`result` = the model's JSON, parsed) |
+
+- Callers are **clients**, so any signed-in user may call it (it checks `auth.getUser()`, not the coach role). Requests from the native app carry no `Origin`, so `ALLOWED_ORIGINS` doesn't affect them. The app's **web** build (`vercel.json`), if deployed, is a browser: add its origin to `ALLOWED_ORIGINS` (§6.1) or its AI calls are refused.
+- **Quota:** 30 requests per hour and 100 per day per user, enforced by `take_ai_quota()` from migration `20260926140000_ai_request_quota.sql` before any model call; over the limit the function answers `429`. The migration must be applied first: until it is, the function answers `503` to every request.
+- **Limits:** `system` and `user` at most 6,000 characters each; `image.base64` at most 7,000,000 characters (~5 MB; the app's photos at quality 0.5 are typically 1–3 MB of base64). `mimeType`: `image/jpeg`, `png`, `webp`, `heic` or `heif`. Supabase doesn't document a request-body limit for Edge Functions; Gemini accepts up to 20 MB per request.
+- Models: text goes to Groq (Llama 3.3 70B) first with Gemini 2.5 Flash as the fallback, as the app did before; photos go to Gemini first with Groq (`qwen/qwen3.8-27b`) as the fallback. The app's old Groq vision model, `llama-4-scout`, was shut down on 2026-07-17.
+
+```bash
+# 1. SQL editor: run supabase/migrations/20260926140000_ai_request_quota.sql
+# 2. Deploy. The keys are the same secrets as generate-program (§6.3); set them once.
+supabase functions deploy ai-complete --project-ref rzgwkwxskrovxnnymxqo
+supabase secrets set GEMINI_API_KEY=<key> GROQ_API_KEY=<key> --project-ref rzgwkwxskrovxnnymxqo
+```
+
+App builds need no AI env at all: `EXPO_PUBLIC_GROQ_API_KEY` / `EXPO_PUBLIC_GEMINI_API_KEY` are gone, and should not be set in EAS (an `EXPO_PUBLIC_*` value is readable by anyone who downloads the app).
+
 ## 7. Security Checklist
 
 - [ ] **Service-role key is never in the SPA** — only inside the Edge Functions (§6).
+- [ ] **No model keys in the SPA or the app** — `GEMINI_API_KEY` / `GROQ_API_KEY` are function secrets only (§6.3, §6.4); no `EXPO_PUBLIC_*` / `VITE_*` AI keys in `.env` files or EAS.
 - [ ] The SPA uses the **anon** key; all access is mediated by RLS.
 - [ ] Post-login **`role === 'coach'` guard** on every admin route (`assertCoach`).
 - [ ] The Edge Functions **verify the caller is a coach** before using the service role.
