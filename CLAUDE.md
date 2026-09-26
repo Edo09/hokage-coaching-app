@@ -35,7 +35,10 @@ What this means when working here:
 - App env: `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_KEY` (EAS). Panel env:
   `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`.
 - Auth sign-ups are OFF; client accounts are created only by the
-  `create-client` Edge Function (`Hkg-` temp passwords).
+  `create-client` Edge Function, and forgotten passwords are reset only by
+  `reset-client-password` (both hand out `Hkg-` temp passwords; no email is
+  sent). Both only answer browser origins listed in the `ALLOWED_ORIGINS`
+  function secret.
 - Schema source of truth: `supabase/migrations`. Migrations here do not reach
   Zyron's database (and vice versa).
 - `supabase/scripts/convert_shared_db_to_hokage_only.sql` was a one-off, already

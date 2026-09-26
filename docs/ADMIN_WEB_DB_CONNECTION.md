@@ -285,94 +285,42 @@ await supabase
 
 ---
 
-## 6. Creating Client Accounts (the one server-side piece)
+## 6. Client Accounts (the one server-side piece)
 
-Creating a login is the **only** operation that cannot run in the browser: it needs the Supabase Admin API (`auth.admin.createUser`), which requires the **service-role key**. That key must never touch the SPA. Put it behind a Supabase **Edge Function** named `create-client`.
+Creating a login and resetting a forgotten password are the **only** operations that cannot run in the browser: they need the Supabase Admin API (`auth.admin.*`), which requires the **service-role key**. That key must never touch the SPA, so both live in Supabase **Edge Functions** in this repo:
 
-### 6.1 The Edge Function
+| Function | Body | Returns | Does |
+|---|---|---|---|
+| `create-client` | `{ email, display_name }` | `{ user_id, temp_password }` | Creates the auth user (confirmed, no email sent); `handle_new_user` creates the profile with `role = 'user'`. |
+| `reset-client-password` | `{ user_id }` | `{ temp_password }` | Sets a new password on an existing **client** (`role = 'user'` only — a coach account is refused). |
 
-`supabase/functions/create-client/index.ts`:
+Both verify the caller's JWT belongs to the coach before using the service role (`supabase/functions/_shared/coach.ts`), and both answer browsers only from the origins in the `ALLOWED_ORIGINS` secret (`supabase/functions/_shared/cors.ts`).
 
-```ts
-import { createClient } from "jsr:@supabase/supabase-js@2";
+There is no email delivery anywhere: the function returns a one-time temporary password (`Hkg-…`) that the panel shows once, the coach shares it over WhatsApp, and the client changes it in the app's **Ajustes → Cambiar contraseña**. The app's login screen tells a client who forgot their password to ask their coach.
 
-const cors = {
-  "Access-Control-Allow-Origin": "*", // tighten to your panel's origin in production
-  "Access-Control-Allow-Headers": "authorization, content-type",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-};
-
-Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
-
-  try {
-    const authHeader = req.headers.get("Authorization") ?? "";
-
-    // 1) Verify the CALLER is the coach, using their JWT + the anon key (RLS applies).
-    const caller = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_ANON_KEY")!,
-      { global: { headers: { Authorization: authHeader } } },
-    );
-    const { data: { user } } = await caller.auth.getUser();
-    if (!user) return json({ error: "unauthenticated" }, 401);
-
-    const { data: me } = await caller
-      .from("profiles").select("role").eq("id", user.id).single();
-    if (me?.role !== "coach") return json({ error: "forbidden" }, 403);
-
-    // 2) Do the privileged work with the SERVICE ROLE (server-only secret).
-    const admin = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
-    );
-
-    const { email, display_name } = await req.json();
-
-    const { data: created, error } = await admin.auth.admin.createUser({
-      email,
-      email_confirm: true,
-      user_metadata: { display_name },
-      // Omit password and send an invite/reset instead (preferred — see below).
-    });
-    if (error) return json({ error: error.message }, 400);
-
-    // The handle_new_user trigger auto-creates the profile row (role defaults to 'user').
-    // Optionally trigger a password-set email so the client chooses their own:
-    await admin.auth.admin.generateLink({ type: "recovery", email });
-
-    return json({ user_id: created.user?.id }, 200);
-  } catch (e) {
-    return json({ error: String(e) }, 500);
-  }
-});
-
-function json(body: unknown, status = 200) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { ...cors, "Content-Type": "application/json" },
-  });
-}
-```
-
-Deploy and set the secret:
+### 6.1 Deploy
 
 ```bash
-supabase functions deploy create-client
-supabase secrets set SUPABASE_SERVICE_ROLE_KEY=<service role key>
-# SUPABASE_URL and SUPABASE_ANON_KEY are provided to functions automatically.
+supabase functions deploy create-client         --project-ref rzgwkwxskrovxnnymxqo
+supabase functions deploy reset-client-password --project-ref rzgwkwxskrovxnnymxqo
+# The panel's real origin(s), comma-separated, exact scheme + host, no trailing slash.
+# Add http://localhost:5173 only if you run the panel locally against this project.
+supabase secrets set ALLOWED_ORIGINS=https://<panel-domain> --project-ref rzgwkwxskrovxnnymxqo
 ```
 
-> **Prefer invite/reset email over returning a plaintext password.** `generateLink({ type: 'recovery' })` (or `inviteUserByEmail`) lets the client set their own password and avoids handling secrets in the UI.
+`SUPABASE_URL`, `SUPABASE_ANON_KEY` and `SUPABASE_SERVICE_ROLE_KEY` are provided to functions automatically (the CLI refuses to set `SUPABASE_*` secrets). Until `ALLOWED_ORIGINS` is set, every browser call is refused with `origin not allowed`.
 
-### 6.2 Calling it from the SPA
+### 6.2 Calling them from the SPA
 
 ```ts
 const { data, error } = await supabase.functions.invoke("create-client", {
   body: { email: "client@example.com", display_name: "Jane Doe" },
 });
+const { data: reset } = await supabase.functions.invoke("reset-client-password", {
+  body: { user_id: clientId },
+});
 // supabase.functions.invoke automatically attaches the coach's JWT as the
-// Authorization header, which the function uses to verify role === 'coach'.
+// Authorization header, which the functions use to verify role === 'coach'.
 ```
 
 The new account is created with `role = 'user'` (the default), so the coach immediately sees it in the clients list (§5) and can start assigning plans.
@@ -381,14 +329,14 @@ The new account is created with `role = 'user'` (the default), so the coach imme
 
 ## 7. Security Checklist
 
-- [ ] **Service-role key is never in the SPA** — only in the `create-client` function's secrets.
+- [ ] **Service-role key is never in the SPA** — only inside the Edge Functions (§6).
 - [ ] The SPA uses the **anon** key; all access is mediated by RLS.
 - [ ] Post-login **`role === 'coach'` guard** on every admin route (`assertCoach`).
-- [ ] The `create-client` function **verifies the caller is a coach** before using the service role.
+- [ ] The Edge Functions **verify the caller is a coach** before using the service role.
 - [ ] Rely on RLS for data isolation — do **not** re-implement authorization in the browser (belt-and-suspenders UI checks are fine, but the DB is the boundary).
 - [ ] The **role-escalation trigger** and **restrictive read-only guards** are already in the DB; do not weaken them.
 - [ ] Validate inputs on write: emails (create-client), and **WhatsApp as international digits only** (`^\d{8,15}$`, no `+`/spaces) so `https://wa.me/<digits>` works on mobile.
-- [ ] Tighten the Edge Function CORS `Allow-Origin` to the panel's real domain before launch.
+- [ ] `ALLOWED_ORIGINS` lists only the panel's real domain (§6.1).
 
 ---
 
@@ -446,6 +394,6 @@ Against a scratch Vite app wired to the same project:
 2. List clients → returns all `role='user'` profiles.
 3. Assign a routine to a client (`assigned_by = coachId`) → open the **mobile** app as that client → it appears under **"From your coach"**, badged and non-deletable.
 4. Upsert a membership with `expires_at` a few days out → the client's mobile Profile shows the status + renewal reminder.
-5. Call `create-client` → a new `role='user'` account is created and appears in the clients list; the client receives a set-password email.
+5. Call `create-client` → a new `role='user'` account is created and appears in the clients list and the panel shows its temporary password once.
 
 Every SQL object referenced here exists in the applied migration `20260707120000_coaching_platform.sql`.

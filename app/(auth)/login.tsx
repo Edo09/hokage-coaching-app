@@ -135,10 +135,12 @@ export default function Login() {
           {t("auth.signIn")}
         </Button>
 
-        {/* No self-signup: the coach creates every account from the admin
-            panel. The "or / Registrarse" pair and the /register screen were
-            removed with it. A "contact your coach" flow is planned to take
-            this space. */}
+        {/* No self-signup or self-service recovery: the coach creates every
+            account from the admin panel and resets forgotten passwords there
+            (reset-client-password Edge Function). */}
+        <Text className="text-content-tertiary text-sm text-center mt-2">
+          {t("auth.forgotPasswordHint")}
+        </Text>
       </View>
     </Screen>
   );

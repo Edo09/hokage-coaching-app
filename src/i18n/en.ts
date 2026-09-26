@@ -51,6 +51,7 @@ export default {
     showPassword: "Show password",
     hidePassword: "Hide password",
     enterPassword: "Enter your password",
+    forgotPasswordHint: "Forgot your password? Ask your coach for a new one.",
   },
 
   // Onboarding
