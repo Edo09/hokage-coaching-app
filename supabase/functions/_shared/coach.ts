@@ -1,17 +1,24 @@
 // Helpers shared by the coach-only Edge Functions (create-client,
-// reset-client-password): verify the caller is the coach, get a service-role
-// client, and generate the one-time temporary passwords the coach hands out.
+// reset-client-password, generate-program): verify the caller is the coach,
+// get a caller-scoped or service-role client, and generate the one-time
+// temporary passwords the coach hands out.
 
 import { createClient, type SupabaseClient } from 'jsr:@supabase/supabase-js@2';
 
-/** Whether the request's JWT belongs to the coach. Checked with the
- *  caller's own token + the anon key, so RLS applies to the lookup. */
-export async function verifyCoach(req: Request): Promise<'coach' | 'unauthenticated' | 'forbidden'> {
-  const caller = createClient(
+/** A client acting as the caller: their own token + the anon key, so RLS
+ *  applies to everything it reads. */
+export function callerClient(req: Request): SupabaseClient {
+  return createClient(
     Deno.env.get('SUPABASE_URL')!,
     Deno.env.get('SUPABASE_ANON_KEY')!,
     { global: { headers: { Authorization: req.headers.get('Authorization') ?? '' } } },
   );
+}
+
+/** Whether the request's JWT belongs to the coach. Checked with the
+ *  caller's own token + the anon key, so RLS applies to the lookup. */
+export async function verifyCoach(req: Request): Promise<'coach' | 'unauthenticated' | 'forbidden'> {
+  const caller = callerClient(req);
   const { data: { user } } = await caller.auth.getUser();
   if (!user) return 'unauthenticated';
 

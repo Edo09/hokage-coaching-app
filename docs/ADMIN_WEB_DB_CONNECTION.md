@@ -327,6 +327,25 @@ The new account is created with `role = 'user'` (the default), so the coach imme
 
 ---
 
+### 6.3 AI program drafts (`generate-program`)
+
+The panel's program builder has a **Generar / Editar con IA** assistant. The coach describes a program (or a change to the current draft) and `generate-program` returns it as JSON, which the panel loads into the builder. The function **writes nothing**: the coach reviews the draft and saves it through the normal `save_coach_program` RPC, so every check still applies. It runs with the caller's JWT (RLS applies) and never uses the service role; it is server-side only to keep the model keys out of the browser.
+
+| Body | Returns |
+|---|---|
+| `{ prompt, current?, client_id?, include_notes? }` | `{ program, unresolved, provider }` |
+
+- `current` = the builder's draft (edit mode); omitted = a new program. Days and exercises carry a `ref` so the panel maps kept rows back to their DB ids (logged sets stay attached).
+- `client_id` adds the client's profile fields (goal, age, sex, weight, days, session length; never name or email). `include_notes: true` also sends the coach's private `client_notes` body.
+- Exercise names are forced onto the catalog (exact, then accent/case-insensitive, then one follow-up call for the closest catalog movement); the panel drops anything still unresolved.
+- Model: Gemini 2.5 Flash with a response schema, Groq (Llama 3.3 70B) as the fallback.
+
+```bash
+supabase functions deploy generate-program --project-ref rzgwkwxskrovxnnymxqo
+# Either key alone works; with both, Groq is only the fallback.
+supabase secrets set GEMINI_API_KEY=<key> GROQ_API_KEY=<key> --project-ref rzgwkwxskrovxnnymxqo
+```
+
 ## 7. Security Checklist
 
 - [ ] **Service-role key is never in the SPA** — only inside the Edge Functions (§6).
