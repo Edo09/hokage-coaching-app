@@ -139,24 +139,6 @@ export type MealWithItems = Meal & {
 };
 
 // Insert types (omit auto-generated fields)
-export type RoutineInsert = Pick<Routine, "name"> &
-  Partial<Pick<Routine, "description" | "day_of_week" | "source">>;
-
-export type RoutineExerciseInsert = Pick<
-  RoutineExercise,
-  "routine_id" | "exercise_id"
-> &
-  Partial<
-    Pick<
-      RoutineExercise,
-      "sets" | "reps" | "weight_kg" | "rest_seconds" | "sort_order" | "notes"
-    >
-  >;
-
-// Carries the already-fetched catalog row through the add-exercise mutation
-// so the optimistic cache entry can render name/video before the next sync.
-export type AddRoutineExerciseInput = RoutineExerciseInsert & { exercise: Exercise };
-
 export type MealInsert = Pick<Meal, "name" | "meal_type"> &
   Partial<Pick<Meal, "date">>;
 

@@ -1,26 +1,17 @@
 import { useAuth } from "@/src/hooks/use-auth";
-import { enqueue } from "@/src/lib/outbox";
 import { overlayRoutines } from "@/src/lib/outbox-overlay";
-import { newId } from "@/src/lib/ids";
 import { qk } from "@/src/lib/query-keys";
-import type {
-  AddRoutineExerciseInput,
-  Exercise,
-  Routine,
-  RoutineExercise,
-  RoutineInsert,
-  RoutineWithExercises,
-} from "@/src/types/database";
+import type { Exercise, RoutineWithExercises } from "@/src/types/database";
 import { supabase } from "@/src/utils/supabase";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 function exercisesById(list: Exercise[] | undefined): Map<string, Exercise> {
   return new Map((list ?? []).map((e) => [e.id, e]));
 }
 
-// Exercises ride along with the list so the routines tab (list + detail) is a
-// single persisted query that works offline.
+// Legacy flat routines (the coach app now delivers programs). Read-only: the
+// progress dashboard still reads them to estimate volume for clients whose
+// history predates programs. Exercises ride along in the same persisted query.
 async function fetchRoutines(
   userId: string,
   catalog: Map<string, Exercise>,
@@ -62,147 +53,5 @@ export function useRoutines() {
     enabled: !!user,
   });
 
-  // Split by provenance: coach-assigned (read-only) vs the client's own.
-  const assignedRoutines = useMemo(
-    () => routines.filter((r) => r.assigned_by != null),
-    [routines],
-  );
-  const myRoutines = useMemo(
-    () => routines.filter((r) => r.assigned_by == null),
-    [routines],
-  );
-
-  const createRoutineMutation = useMutation({
-    mutationFn: async (data: RoutineInsert) => {
-      const now = new Date().toISOString();
-      const routine: Routine = {
-        id: newId(),
-        user_id: user!.id,
-        name: data.name,
-        description: data.description ?? null,
-        day_of_week: data.day_of_week ?? null,
-        assigned_by: null,
-        // 'user' unless the AI generator says otherwise ('coach' only ever
-        // comes from the admin panel, never from this client-side path).
-        source: data.source ?? "user",
-        created_at: now,
-        updated_at: now,
-      };
-      queryClient.setQueryData<RoutineWithExercises[]>(listKey, (old = []) => [
-        { ...routine, routine_exercises: [] },
-        ...old,
-      ]);
-      await enqueue({
-        userId: user!.id,
-        table: "routines",
-        kind: "insert",
-        payload: routine,
-      });
-      return routine;
-    },
-  });
-
-  const deleteRoutineMutation = useMutation({
-    mutationFn: async (id: string) => {
-      queryClient.setQueryData<RoutineWithExercises[]>(listKey, (old = []) =>
-        old.filter((r) => r.id !== id),
-      );
-      await enqueue({
-        userId: user!.id,
-        table: "routines",
-        kind: "delete",
-        payload: { id },
-      });
-    },
-  });
-
-  const addExerciseMutation = useMutation({
-    mutationFn: async (data: AddRoutineExerciseInput) => {
-      const siblings =
-        queryClient
-          .getQueryData<RoutineWithExercises[]>(listKey)
-          ?.find((r) => r.id === data.routine_id)?.routine_exercises ?? [];
-      // Real table columns only — this is what actually gets sent to
-      // Supabase. Embedding the joined `exercise` object here would make the
-      // insert fail (PostgREST rejects payload keys the table doesn't have).
-      const dbRow: Omit<RoutineExercise, "exercise"> = {
-        id: newId(),
-        routine_id: data.routine_id,
-        user_id: user!.id,
-        exercise_id: data.exercise_id,
-        sets: data.sets ?? 3,
-        reps: data.reps ?? 10,
-        weight_kg: data.weight_kg ?? null,
-        rest_seconds: data.rest_seconds ?? 60,
-        sort_order: data.sort_order ?? siblings.length,
-        notes: data.notes ?? null,
-        created_at: new Date().toISOString(),
-      };
-      // What the UI actually renders — dbRow plus the picked catalog entry,
-      // so the exercise shows its name/video immediately, pre-sync.
-      const cacheRow: RoutineExercise = { ...dbRow, exercise: data.exercise };
-      queryClient.setQueryData<RoutineWithExercises[]>(listKey, (old = []) =>
-        old.map((r) =>
-          r.id === cacheRow.routine_id
-            ? { ...r, routine_exercises: [...r.routine_exercises, cacheRow] }
-            : r,
-        ),
-      );
-      await enqueue({
-        userId: user!.id,
-        table: "routine_exercises",
-        kind: "insert",
-        payload: dbRow,
-      });
-      return cacheRow;
-    },
-  });
-
-  const removeExerciseMutation = useMutation({
-    mutationFn: async (id: string) => {
-      queryClient.setQueryData<RoutineWithExercises[]>(listKey, (old = []) =>
-        old.map((r) => ({
-          ...r,
-          routine_exercises: r.routine_exercises.filter((ex) => ex.id !== id),
-        })),
-      );
-      await enqueue({
-        userId: user!.id,
-        table: "routine_exercises",
-        kind: "delete",
-        payload: { id },
-      });
-    },
-  });
-
-  return {
-    routines,
-    assignedRoutines,
-    myRoutines,
-    loading,
-    error,
-    refreshing,
-    createRoutine: createRoutineMutation.mutateAsync,
-    deleteRoutine: deleteRoutineMutation.mutateAsync,
-    addExercise: addExerciseMutation.mutateAsync,
-    removeExercise: removeExerciseMutation.mutateAsync,
-    refresh: refetch,
-  };
-}
-
-// Detail view derived from the (persisted) list cache — renders offline.
-export function useRoutineDetail(id: string | undefined) {
-  const { user } = useAuth();
-  const queryClient = useQueryClient();
-  return useQuery({
-    queryKey: qk.routines(user?.id),
-    queryFn: () =>
-      fetchRoutines(
-        user!.id,
-        exercisesById(queryClient.getQueryData<Exercise[]>(qk.exercises())),
-      ),
-    enabled: !!user && !!id,
-    select: (all: RoutineWithExercises[]) =>
-      all.find((r) => r.id === id) ?? null,
-  });
+  return { routines, loading, error, refreshing, refresh: refetch };
 }
