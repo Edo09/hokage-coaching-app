@@ -99,15 +99,39 @@ Deno.serve(withCors(async (req) => {
       40_000,
     );
     const program = asProgram(raw);
-    if (!program) return json({ error: 'La IA no devolvió un programa válido. Intenta de nuevo.' }, 502);
+    if (!program) {
+      const detail = `${provider} answered without usable days (keys: ${isObj(raw) ? Object.keys(raw).join(', ') : typeof raw})`;
+      console.error('generate-program failed:', detail);
+      return json({ error: 'La IA no devolvió un programa válido. Intenta de nuevo.', detail }, 502);
+    }
 
     const unresolved = await resolveNames(program, catalog, current, Date.now() - started < 120_000);
     return json({ program, unresolved, provider }, 200);
   } catch (e) {
     console.error('generate-program failed:', e);
-    return json({ error: 'No se pudo generar el programa. Intenta de nuevo en un momento.' }, 502);
+    // `detail` is the providers' own error text (status + message, never a
+    // key), so the panel can show the coach what actually went wrong.
+    const detail = (e instanceof Error ? e.message : String(e)).slice(0, 800);
+    return json({ error: friendlyError(detail), detail }, 502);
   }
 }));
+
+/** The usual failures, in words the coach can act on. */
+function friendlyError(detail: string): string {
+  if (/GEMINI_API_KEY is not set/.test(detail) && /GROQ_API_KEY is not set/.test(detail)) {
+    return 'Faltan las claves de IA (GEMINI_API_KEY / GROQ_API_KEY) en los secretos de Supabase.';
+  }
+  if (/API key not valid|API_KEY_INVALID|invalid_api_key|Invalid API Key/i.test(detail)) {
+    return 'Una clave de IA no es válida. Revisa GEMINI_API_KEY / GROQ_API_KEY en los secretos de Supabase.';
+  }
+  if (/\b429\b|rate.?limit|quota|RESOURCE_EXHAUSTED/i.test(detail)) {
+    return 'Se alcanzó el límite de uso de la IA. Espera un minuto y vuelve a intentarlo.';
+  }
+  if (/timeout/i.test(detail)) {
+    return 'La IA tardó demasiado en responder. Intenta de nuevo o pide un programa más corto.';
+  }
+  return 'No se pudo generar el programa. Intenta de nuevo en un momento.';
+}
 
 /* ---------------- context ---------------- */
 
@@ -238,7 +262,7 @@ async function resolveNames(
         schema: REPAIR_SCHEMA,
         timeoutMs: 15_000,
         maxOutputTokens: 4096,
-        thinkingBudget: 0,
+        thinking: 'low',
       },
       10_000,
     );

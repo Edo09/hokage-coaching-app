@@ -338,7 +338,7 @@ The panel's program builder has a **Generar / Editar con IA** assistant. The coa
 - `current` = the builder's draft (edit mode); omitted = a new program. Days and exercises carry a `ref` so the panel maps kept rows back to their DB ids (logged sets stay attached).
 - `client_id` adds the client's profile fields (goal, age, sex, weight, days, session length; never name or email). `include_notes: true` also sends the coach's private `client_notes` body.
 - Exercise names are forced onto the catalog (exact, then accent/case-insensitive, then one follow-up call for the closest catalog movement); the panel drops anything still unresolved.
-- Model: Gemini 2.5 Flash with a response schema, Groq (Llama 3.3 70B) as the fallback.
+- Model: Gemini 3.8 Flash (`gemini-3.8-flash`, override with an optional `GEMINI_MODEL` secret; `gemini-2.5-flash` only if the key can't use it) with a response schema, Groq (Llama 3.3 70B) as the fallback. A failed call returns `{ error, detail }` with a 502: `error` in Spanish for the coach, `detail` the providers' own error text (shown in the panel toast).
 
 ```bash
 supabase functions deploy generate-program --project-ref rzgwkwxskrovxnnymxqo
