@@ -127,6 +127,9 @@ function friendlyError(detail: string): string {
   if (/\b429\b|rate.?limit|quota|RESOURCE_EXHAUSTED/i.test(detail)) {
     return 'Se alcanzó el límite de uso de la IA. Espera un minuto y vuelve a intentarlo.';
   }
+  if (/\b503\b|UNAVAILABLE|high demand|overloaded/i.test(detail)) {
+    return 'La IA está saturada en este momento. Intenta de nuevo en unos minutos.';
+  }
   if (/timeout/i.test(detail)) {
     return 'La IA tardó demasiado en responder. Intenta de nuevo o pide un programa más corto.';
   }
