@@ -10,15 +10,28 @@
 //   - image: Gemini first, Groq vision on any failure. The app's Groq vision
 //            model (llama-4-scout) was shut down on 2026-07-17, so Gemini was
 //            already answering every photo; its replacement is the fallback.
-// Either key alone works.
+// Either key alone works. GEMINI_MODEL (optional secret) overrides the first
+// Gemini model tried.
 
-const GEMINI_MODEL = 'gemini-2.5-flash';
+// Google limits gemini-2.5-flash to projects that already used it; a key
+// from a new project gets an error, so a current model goes first and 2.5 is
+// only tried when that one isn't available to the key.
+const GEMINI_MODELS = [...new Set([Deno.env.get('GEMINI_MODEL') || 'gemini-3.8-flash', 'gemini-2.5-flash'])];
+// Standard Gemini API keys (AIza...) use generativelanguage.googleapis.com;
+// Vertex AI express-mode keys use aiplatform.googleapis.com.
+const GEMINI_BASES = [
+  'https://generativelanguage.googleapis.com/v1beta/models',
+  'https://aiplatform.googleapis.com/v1/publishers/google/models',
+];
 const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
 const GROQ_MODEL = 'llama-3.3-70b-versatile';
 const GROQ_VISION_MODEL = 'qwen/qwen3.8-27b';
 
 /** Answers are a few fields of JSON; this only bounds a runaway reply. */
 const MAX_OUTPUT_TOKENS = 1024;
+/** Gemini 3 always thinks a little, and thinking counts toward its output
+ *  limit — the answer itself is still bounded by the prompt's shape. */
+const GEMINI_MAX_OUTPUT_TOKENS = 4096;
 const TEXT_TIMEOUT_MS = 20_000;
 const IMAGE_TIMEOUT_MS = 30_000;
 
@@ -38,45 +51,53 @@ async function callGemini(r: CompleteRequest, timeoutMs: number): Promise<string
   const parts: Record<string, unknown>[] = [{ text: r.user }];
   if (r.image) parts.push({ inline_data: { mime_type: r.image.mimeType, data: r.image.base64 } });
 
-  const body = JSON.stringify({
-    systemInstruction: { parts: [{ text: r.system }] },
-    contents: [{ role: 'user', parts }],
-    generationConfig: {
-      responseMimeType: 'application/json',
-      temperature: r.image ? 0.4 : 0.7,
-      maxOutputTokens: MAX_OUTPUT_TOKENS,
-      // Short lookups: thinking only adds latency and eats the token budget.
-      thinkingConfig: { thinkingBudget: 0 },
-    },
-  });
-
-  // Standard Gemini API keys (AIza...) use generativelanguage.googleapis.com;
-  // Vertex AI express-mode keys use aiplatform.googleapis.com. Try both.
-  const endpoints = [
-    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`,
-    `https://aiplatform.googleapis.com/v1/publishers/google/models/${GEMINI_MODEL}:generateContent`,
-  ];
   const signal = AbortSignal.timeout(timeoutMs);
-
-  let lastError = '';
-  for (const url of endpoints) {
-    const res = await fetch(url, {
+  const post = (url: string, full: boolean) =>
+    fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
-      body,
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: r.system }] },
+        contents: [{ role: 'user', parts }],
+        generationConfig: {
+          responseMimeType: 'application/json',
+          temperature: r.image ? 0.4 : 0.7,
+          maxOutputTokens: GEMINI_MAX_OUTPUT_TOKENS,
+          // Short lookups: as little thinking as the model allows.
+          ...(full ? { thinkingConfig: { thinkingLevel: 'low' } } : {}),
+        },
+      }),
       signal,
     });
-    if (!res.ok) {
-      lastError = `Gemini ${res.status}: ${(await res.text().catch(() => '')).slice(0, 300)}`;
-      if (res.status === 401 || res.status === 403 || res.status === 400) continue;
+
+  let lastError = '';
+  for (const model of GEMINI_MODELS) {
+    for (const base of GEMINI_BASES) {
+      const url = `${base}/${model}:generateContent`;
+      let res = await post(url, true);
+      // 400 = the request itself was refused (e.g. a config field this model
+      // doesn't take): retry once without the thinking config.
+      if (res.status === 400) {
+        lastError = `Gemini ${model} 400: ${(await res.text().catch(() => '')).slice(0, 300)}`;
+        console.warn(lastError, '— retrying without thinking config');
+        res = await post(url, false);
+      }
+      if (res.ok) {
+        const data = await res.json();
+        const candidate = data?.candidates?.[0];
+        if (candidate?.finishReason === 'MAX_TOKENS') throw new Error(`Gemini ${model} response truncated (MAX_TOKENS)`);
+        const text = candidate?.content?.parts?.find((p: { text?: string; thought?: boolean }) => !p.thought && p.text)?.text;
+        if (typeof text !== 'string') throw new Error(`Empty Gemini ${model} response (${candidate?.finishReason ?? 'no candidate'})`);
+        return text;
+      }
+      lastError = `Gemini ${model} ${res.status}: ${(await res.text().catch(() => '')).slice(0, 300)}`;
+      // 400/401/403: wrong key type for this endpoint (or model not allowed
+      // for it) — try the other endpoint. 404: model unavailable — next model.
+      // Anything else (429 quota, 5xx): Gemini is out for this request.
+      if (res.status === 400 || res.status === 401 || res.status === 403) continue;
+      if (res.status === 404) break;
       throw new Error(lastError);
     }
-    const data = await res.json();
-    const candidate = data?.candidates?.[0];
-    if (candidate?.finishReason === 'MAX_TOKENS') throw new Error('Gemini response truncated (MAX_TOKENS)');
-    const text = candidate?.content?.parts?.find((p: { text?: string; thought?: boolean }) => !p.thought && p.text)?.text;
-    if (typeof text !== 'string') throw new Error(`Empty Gemini response (${candidate?.finishReason ?? 'no candidate'})`);
-    return text;
   }
   throw new Error(lastError || 'Gemini call failed');
 }
