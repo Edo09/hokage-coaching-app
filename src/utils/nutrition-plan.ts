@@ -91,6 +91,42 @@ export function targetFor(
   );
 }
 
+/**
+ * The single kcal number a calorie ring can aim at when a plan is assigned:
+ * the midpoint of `day`'s target range (or its one bound). Null when the plan
+ * sets no kcal target — callers then fall back to profiles.calorie_goal.
+ */
+export function planCalorieGoal(
+  plan: NutritionPlanWithDetails | null,
+  day: ResolvedDay,
+): number | null {
+  const target = plan ? targetFor(plan, day) : null;
+  if (target == null) return null;
+  const { kcal_min: lo, kcal_max: hi } = target;
+  if (lo != null && hi != null) return Math.round((lo + hi) / 2);
+  return lo ?? hi ?? null;
+}
+
+/**
+ * Every food the plan can call for, once each, in plan order — the grocery
+ * list. Case/whitespace-insensitive dedupe ("Arroz" and "arroz " are one
+ * line); the first spelling wins. Covers every slot, rotation option and day
+ * type, since the client shops for the whole week, not for one day.
+ */
+export function shoppingList(plan: NutritionPlanWithDetails): string[] {
+  const seen = new Map<string, string>();
+  for (const meal of plan.nutrition_plan_meals) {
+    for (const option of meal.nutrition_plan_options) {
+      for (const item of option.nutrition_plan_option_items) {
+        const name = item.name.trim();
+        const key = name.toLowerCase().replace(/\s+/g, " ");
+        if (name !== "" && !seen.has(key)) seen.set(key, name);
+      }
+    }
+  }
+  return [...seen.values()];
+}
+
 /** "150" + "155" -> "150–155"; equal bounds collapse; one-sided is allowed. */
 export function formatRange(
   a: number | null,

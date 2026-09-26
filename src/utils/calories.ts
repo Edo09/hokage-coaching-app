@@ -107,3 +107,19 @@ export function caloriesConsumed(meals: MealWithItems[]): number {
     0,
   );
 }
+
+export type MacroTotals = { kcal: number; protein_g: number; carbs_g: number; fat_g: number };
+
+/** kcal + macro grams across the given meals' items. */
+export function macrosConsumed(meals: MealWithItems[]): MacroTotals {
+  const totals: MacroTotals = { kcal: 0, protein_g: 0, carbs_g: 0, fat_g: 0 };
+  for (const meal of meals) {
+    for (const item of meal.meal_items) {
+      totals.kcal += item.calories;
+      totals.protein_g += item.protein_g;
+      totals.carbs_g += item.carbs_g;
+      totals.fat_g += item.fat_g;
+    }
+  }
+  return totals;
+}

@@ -195,6 +195,7 @@ export function ProgramExerciseModal({
                   rirMin={p.rirMin}
                   rirMax={p.rirMax}
                   logged={logging.setsFor(exercise.id, weekNumber)}
+                  previous={logging.previousSetsFor(exercise.id, weekNumber)}
                   onLogSet={(setIndex, input) =>
                     logging.logSet(exercise.id, weekNumber, setIndex, input)
                   }

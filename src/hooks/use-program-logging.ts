@@ -155,6 +155,26 @@ export function useProgramLogging(program: ProgramWithDetails | null) {
     [data.setLogs],
   );
 
+  /** The most recent EARLIER week this exercise has logged sets for — what the
+      client beat (or not) last time, for double progression. Null in week 1
+      or when nothing was logged before. */
+  const previousSetsFor = useCallback(
+    (exerciseId: string, week: number) => {
+      const earlier = data.setLogs.filter(
+        (s) => s.program_exercise_id === exerciseId && s.week_number < week,
+      );
+      if (earlier.length === 0) return null;
+      const last = Math.max(...earlier.map((s) => s.week_number));
+      return {
+        week: last,
+        sets: earlier
+          .filter((s) => s.week_number === last)
+          .sort((a, b) => a.set_index - b.set_index),
+      };
+    },
+    [data.setLogs],
+  );
+
   /** Upsert one set's actuals. Logging any set does not auto-complete the
       exercise — the checkbox stays the explicit "done" signal (the decided
       "checkbox + optional sets" model). */
@@ -220,6 +240,7 @@ export function useProgramLogging(program: ProgramWithDetails | null) {
     dayProgress,
     setDayCompletion,
     setsFor,
+    previousSetsFor,
     logSet,
     deleteSet,
   };

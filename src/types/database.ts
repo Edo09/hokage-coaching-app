@@ -470,6 +470,16 @@ export type SupplementPlanItem = {
   created_at: string;
 };
 
+/** One supplement ticked as taken on one day (supplement_intake_logs). Keyed
+ *  by name, since plan items get new ids on every coach save. */
+export type SupplementIntakeLog = {
+  id: string;
+  user_id: string;
+  taken_on: string;
+  supplement_name: string;
+  created_at: string;
+};
+
 export type SupplementPlanWithDetails = SupplementPlan & {
   supplement_plan_items: SupplementPlanItem[];
 };

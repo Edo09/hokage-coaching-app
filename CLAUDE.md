@@ -44,3 +44,8 @@ What this means when working here:
 - `supabase/scripts/convert_shared_db_to_hokage_only.sql` was a one-off, already
   applied (Sept 2026) when Zyron moved to its own project. Do not run it again
   as part of a rebuild.
+
+## Git workflow
+
+- Work directly on the default branch (`main`); never create or switch branches.
+- Commit and push finished changes to `origin/main`. Do not open PRs unless asked.

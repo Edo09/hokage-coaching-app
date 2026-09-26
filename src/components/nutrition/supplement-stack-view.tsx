@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 
 import { Card } from "@/src/components/ui";
 import { useColors } from "@/src/theme/colors";
-import { Text, View } from "@/src/tw";
+import { Pressable, Text, View } from "@/src/tw";
 import type {
   SupplementPlanItem,
   SupplementPlanWithDetails,
@@ -22,11 +22,16 @@ export function SupplementStackView({
   plan,
   day,
   cycling,
+  isTaken,
+  onToggleTaken,
 }: {
   plan: SupplementPlanWithDetails;
   day: ResolvedDay;
   /** Only filter by day type when the nutrition plan actually cycles. */
   cycling: boolean;
+  /** Today's check-off, by supplement name (use-supplement-log.ts). */
+  isTaken: (name: string) => boolean;
+  onToggleTaken: (name: string) => void;
 }) {
   const { t } = useTranslation();
   const colors = useColors();
@@ -36,6 +41,7 @@ export function SupplementStackView({
     : plan.supplement_plan_items;
   // The "horario" table is derived, never stored — group by when it's taken.
   const schedule = supplementSchedule(items);
+  const takenCount = items.filter((i) => isTaken(i.name)).length;
 
   return (
     <View className="gap-3">
@@ -48,6 +54,12 @@ export function SupplementStackView({
         </Text>
         <Text className="text-[10px] font-bold tracking-widest text-brand-primary">COACH</Text>
       </Card>
+
+      {items.length > 0 && (
+        <Text className="px-1 text-xs text-content-tertiary" style={{ fontVariant: ["tabular-nums"] }}>
+          {t("supplements.takenToday", { done: takenCount, total: items.length })}
+        </Text>
+      )}
 
       {TIERS.map((tier) => {
         const rows = items.filter((i) => i.tier === tier);
@@ -63,7 +75,12 @@ export function SupplementStackView({
               </Text>
             </View>
             {rows.map((item) => (
-              <SupplementRow key={item.id} item={item} />
+              <SupplementRow
+                key={item.id}
+                item={item}
+                taken={isTaken(item.name)}
+                onToggle={() => onToggleTaken(item.name)}
+              />
             ))}
           </Card>
         );
@@ -96,26 +113,51 @@ export function SupplementStackView({
   );
 }
 
-function SupplementRow({ item }: { item: SupplementPlanItem }) {
+function SupplementRow({
+  item,
+  taken,
+  onToggle,
+}: {
+  item: SupplementPlanItem;
+  taken: boolean;
+  onToggle: () => void;
+}) {
   const { t } = useTranslation();
+  const colors = useColors();
   return (
-    <View className="rounded-lg bg-surface-elevated p-2.5 gap-0.5">
-      <Text className="text-sm font-bold text-content-primary">{item.name}</Text>
-      {item.dose != null && (
-        <Text className="text-sm text-content-secondary">{item.dose}</Text>
-      )}
-      {(item.timing_note ?? item.timing_slot !== "any") && (
-        <Text className="text-xs text-content-tertiary">
-          {item.timing_note ??
-            t(`supplements.timing_${item.timing_slot}` as "supplements.timing_any")}
-        </Text>
-      )}
-      {item.purpose != null && (
-        <Text className="text-xs text-content-tertiary">{item.purpose}</Text>
-      )}
-      {item.notes != null && (
-        <Text className="text-xs text-content-tertiary italic">{item.notes}</Text>
-      )}
+    <View className="flex-row gap-2.5 rounded-lg bg-surface-elevated p-2.5">
+      <View className="flex-1 gap-0.5">
+        <Text className="text-sm font-bold text-content-primary">{item.name}</Text>
+        {item.dose != null && (
+          <Text className="text-sm text-content-secondary">{item.dose}</Text>
+        )}
+        {(item.timing_note ?? item.timing_slot !== "any") && (
+          <Text className="text-xs text-content-tertiary">
+            {item.timing_note ??
+              t(`supplements.timing_${item.timing_slot}` as "supplements.timing_any")}
+          </Text>
+        )}
+        {item.purpose != null && (
+          <Text className="text-xs text-content-tertiary">{item.purpose}</Text>
+        )}
+        {item.notes != null && (
+          <Text className="text-xs text-content-tertiary italic">{item.notes}</Text>
+        )}
+      </View>
+      <Pressable
+        onPress={onToggle}
+        accessibilityRole="checkbox"
+        accessibilityState={{ checked: taken }}
+        accessibilityLabel={t(taken ? "supplements.markNotTaken" : "supplements.markTaken", { name: item.name })}
+        hitSlop={8}
+        className={
+          taken
+            ? "mt-0.5 h-6 w-6 items-center justify-center rounded-full bg-success"
+            : "mt-0.5 h-6 w-6 items-center justify-center rounded-full border-2 border-border-strong"
+        }
+      >
+        {taken && <Ionicons name="checkmark" size={15} color={colors.white} />}
+      </Pressable>
     </View>
   );
 }

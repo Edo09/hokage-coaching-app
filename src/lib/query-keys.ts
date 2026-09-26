@@ -21,6 +21,9 @@ export const qk = {
   nutritionPlan: (userId: string | undefined) => ["nutrition-plan", userId] as const,
   supplementPlan: (userId: string | undefined) =>
     ["supplement-plan", userId] as const,
+  // The client's own daily supplement ticks.
+  supplementLog: (userId: string | undefined, dateKey: string) =>
+    ["supplement-log", userId, dateKey] as const,
 };
 
 export const qkPrefixes = [
@@ -29,4 +32,5 @@ export const qkPrefixes = [
   ["progress"],
   ["profile"],
   ["program-log"],
+  ["supplement-log"],
 ] as const;

@@ -24,8 +24,15 @@ import { useMeals } from "@/src/hooks/use-meals";
 import { useNutritionPlan } from "@/src/hooks/use-nutrition-plan";
 import { useProfile } from "@/src/hooks/use-profile";
 import { useRefreshOnFocus } from "@/src/hooks/use-refresh-on-focus";
+import { useSupplementLog } from "@/src/hooks/use-supplement-log";
 import { useSupplementPlan } from "@/src/hooks/use-supplement-plan";
-import { mealTypeToDiarySlot, visibleItems } from "@/src/utils/nutrition-plan";
+import { useProgram } from "@/src/hooks/use-program";
+import {
+  mealTypeToDiarySlot,
+  planCalorieGoal,
+  resolveDayType,
+  visibleItems,
+} from "@/src/utils/nutrition-plan";
 import { PressableScale, slideEnter, staggered } from "@/src/lib/motion";
 import { useColors } from "@/src/theme/colors";
 import { Pressable, ScrollView, Text, View } from "@/src/tw";
@@ -38,6 +45,7 @@ import type {
 } from "@/src/types/database";
 import {
   caloriesConsumed,
+  macrosConsumed,
   recommendedCalorieGoal,
 } from "@/src/utils/calories";
 import { addDays, formatDayLabel, toDateKey } from "@/src/utils/dates";
@@ -106,7 +114,7 @@ export default function NutritionScreen() {
       </View>
 
       {resolvedPane === "diary" ? (
-        <DiaryPane />
+        <DiaryPane nutritionPlan={plan.plan} />
       ) : resolvedPane === "plan" ? (
         <PlanPane plan={plan} onRegister={registerOption} />
       ) : (
@@ -124,6 +132,12 @@ function PlanPane({
   onRegister: (meal: NutritionPlanMeal, option: NutritionPlanOption) => void;
 }) {
   const { t } = useTranslation();
+  const { meals } = useMeals();
+  const todayKey = toDateKey();
+  const consumed = useMemo(
+    () => macrosConsumed(meals.filter((m) => m.date === todayKey)),
+    [meals, todayKey],
+  );
 
   if (plan.loading && plan.plan == null) return <LoadingBlock />;
   if (plan.error && plan.plan == null) return <ErrorState onRetry={plan.refresh} />;
@@ -152,6 +166,7 @@ function PlanPane({
         overridden={plan.overridden}
         onSelectDay={plan.setViewDay}
         onRegister={onRegister}
+        consumed={consumed}
       />
     </Screen>
   );
@@ -167,6 +182,7 @@ function SupplementsPane({
   cycling: boolean;
 }) {
   const { t } = useTranslation();
+  const intake = useSupplementLog();
 
   if (supplements.loading && supplements.plan == null) return <LoadingBlock />;
   if (supplements.error && supplements.plan == null) {
@@ -190,7 +206,16 @@ function SupplementsPane({
       onRefresh={supplements.refresh}
       contentContainerClassName="p-4 gap-3 pb-24"
     >
-      <SupplementStackView plan={supplements.plan} day={day} cycling={cycling} />
+      <SupplementStackView
+        plan={supplements.plan}
+        day={day}
+        cycling={cycling}
+        isTaken={intake.isTaken}
+        onToggleTaken={(name) => {
+          Haptics.selectionAsync().catch(() => {});
+          void intake.setTaken(name, !intake.isTaken(name));
+        }}
+      />
     </Screen>
   );
 }
@@ -198,12 +223,17 @@ function SupplementsPane({
 // The diary, unchanged from when it was its own Comidas tab — date navigation,
 // day summary, per-slot entries, the add-food FAB and photo logging. It is now
 // one of three panes inside Nutrición.
-function DiaryPane() {
+function DiaryPane({
+  nutritionPlan,
+}: {
+  nutritionPlan: ReturnType<typeof useNutritionPlan>["plan"];
+}) {
   const colors = useColors();
   const { t, i18n } = useTranslation();
   const toast = useToast();
   const { user } = useAuth();
   const { profile } = useProfile(user?.id);
+  const { program } = useProgram();
   const { meals, loading, error, refreshing, refresh, removeDiaryItem } = useMeals();
   useRefreshOnFocus(refresh);
 
@@ -257,7 +287,11 @@ function DiaryPane() {
   }, [dayMeals]);
 
   const consumed = caloriesConsumed(dayMeals);
-  const goal = profile?.calorie_goal ?? recommendedCalorieGoal(profile);
+  // An assigned plan's target for that day's type wins over the profile goal.
+  const goal =
+    planCalorieGoal(nutritionPlan, resolveDayType(program, dateKey)) ??
+    profile?.calorie_goal ??
+    recommendedCalorieGoal(profile);
   const numberLocale = i18n.language === "es" ? "es-ES" : "en-US";
   const kcalFmt = (v: number) => Math.round(v).toLocaleString(numberLocale);
 

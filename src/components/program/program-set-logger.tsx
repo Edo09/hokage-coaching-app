@@ -17,6 +17,8 @@ type Props = {
   rirMin: number | null;
   rirMax: number | null;
   logged: WorkoutSetLog[];
+  /** Sets logged the last time (an earlier week), shown for reference. */
+  previous: { week: number; sets: WorkoutSetLog[] } | null;
   onLogSet: (setIndex: number, input: SetInput) => void;
 };
 
@@ -38,6 +40,7 @@ export function ProgramSetLogger({
   rirMin,
   rirMax,
   logged,
+  previous,
   onLogSet,
 }: Props) {
   const { t } = useTranslation();
@@ -48,9 +51,21 @@ export function ProgramSetLogger({
   const indexes = Array.from({ length: Math.max(prescribedSets, maxLogged) }, (_, i) => i + 1);
   const repPlaceholder = repMax != null ? String(repMax) : repMin != null ? String(repMin) : "—";
   const prescribedRir = rirText(rirMin, rirMax);
+  const previousLine = previous?.sets
+    .filter((s) => s.weight_kg != null || s.reps != null)
+    .map((s) => `${s.weight_kg != null ? kgToUnit1(s.weight_kg, unit) : "—"} × ${s.reps ?? "—"}`)
+    .join(" · ");
 
   return (
     <View className="mt-1 gap-1.5 rounded-lg bg-brand-dark px-3 py-2.5">
+      {previous != null && previousLine ? (
+        <Text className="pb-1 text-[12px] text-content-tertiary" style={TABULAR}>
+          <Text className="font-semibold text-content-secondary">
+            {t("program.previousWeek", { week: previous.week })}
+          </Text>{" "}
+          {previousLine}
+        </Text>
+      ) : null}
       <View className="flex-row items-center gap-2 pb-0.5">
         <Text className="w-10 text-[10px] font-bold uppercase text-content-muted" style={{ letterSpacing: 0.3 }}>
           {t("program.setCol")}

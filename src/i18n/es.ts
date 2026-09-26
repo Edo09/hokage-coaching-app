@@ -296,6 +296,7 @@ export default {
     setCol: "Serie",
     weightCol: "Peso ({{unit}})",
     repsCol: "Reps",
+    previousWeek: "Semana {{week}}:",
     openExercise: "Abrir {{name}}",
     watchDemoShort: "Ver demo",
     howTo: "Cómo hacerlo",
@@ -538,6 +539,8 @@ export default {
 
   // Coach-assigned nutrition plan (docs/COACH-NUTRITION-SPEC.md)
   nutritionPlan: {
+    shoppingList: "Lista de compras",
+    shoppingListClear: "Desmarcar todo",
     segmentPlan: "Plan",
     segmentSupplements: "Suplementos",
     segmentDiary: "Diario",
@@ -549,6 +552,7 @@ export default {
     autoFromProgram: "Según tu programa",
     overridden: "Cambiado por ti",
     targetTitle: "Objetivo de hoy",
+    loggedVsTarget: "Registrado en tu diario hoy / objetivo",
     kcal: "kcal",
     protein: "P",
     carbs: "C",
@@ -564,6 +568,9 @@ export default {
 
   // Coach-assigned supplement stack
   supplements: {
+    takenToday: "Hoy: {{done}} de {{total}} tomados",
+    markTaken: "Marcar {{name}} como tomado",
+    markNotTaken: "Marcar {{name}} como no tomado",
     noPlanTitle: "Sin plan de suplementación",
     noPlanHint: "Se asigna por separado del plan nutricional.",
     tierBase: "Base",

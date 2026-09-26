@@ -2,6 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import React from "react";
 import { useTranslation } from "react-i18next";
 
+import { ShoppingListCard } from "@/src/components/nutrition/shopping-list-card";
 import { Card, SegmentedControl } from "@/src/components/ui";
 import { PressableScale } from "@/src/lib/motion";
 import { useColors } from "@/src/theme/colors";
@@ -12,6 +13,7 @@ import type {
   NutritionPlanWithDetails,
   PlanMealType,
 } from "@/src/types/database";
+import type { MacroTotals } from "@/src/utils/calories";
 import {
   appliesOn,
   formatRange,
@@ -28,6 +30,8 @@ type Props = {
   overridden: boolean;
   onSelectDay: (day: ResolvedDay | null) => void;
   onRegister: (meal: NutritionPlanMeal, option: NutritionPlanOption) => void;
+  /** What the client has logged in the diary today, shown against the target. */
+  consumed: MacroTotals;
 };
 
 // Read-only render of the coach's protocol. Two filters run at once: applies_to
@@ -40,6 +44,7 @@ export function NutritionPlanView({
   overridden,
   onSelectDay,
   onRegister,
+  consumed,
 }: Props) {
   const { t } = useTranslation();
   const colors = useColors();
@@ -103,26 +108,29 @@ export function NutritionPlanView({
           <Text className="text-[10px] font-bold tracking-widest text-content-tertiary">
             {t("nutritionPlan.targetTitle").toUpperCase()}
           </Text>
+          <Text className="text-xs text-content-tertiary">
+            {t("nutritionPlan.loggedVsTarget")}
+          </Text>
           {kcal != null && (
             <Text
               className="text-2xl font-bold text-content-primary"
               style={{ fontVariant: ["tabular-nums"] }}
             >
-              {kcal}{" "}
+              {Math.round(consumed.kcal)}
               <Text className="text-sm font-normal text-content-tertiary">
-                {t("nutritionPlan.kcal")}
+                {" / "}{kcal} {t("nutritionPlan.kcal")}
               </Text>
             </Text>
           )}
           <View className="flex-row flex-wrap gap-x-4 gap-y-1">
             {protein != null && (
-              <MacroBit label={t("nutritionPlan.protein")} value={protein} color={colors.macroProtein} />
+              <MacroBit label={t("nutritionPlan.protein")} logged={consumed.protein_g} value={protein} color={colors.macroProtein} />
             )}
             {carbs != null && (
-              <MacroBit label={t("nutritionPlan.carbs")} value={carbs} color={colors.macroCarbs} />
+              <MacroBit label={t("nutritionPlan.carbs")} logged={consumed.carbs_g} value={carbs} color={colors.macroCarbs} />
             )}
             {fat != null && (
-              <MacroBit label={t("nutritionPlan.fat")} value={fat} color={colors.macroFat} />
+              <MacroBit label={t("nutritionPlan.fat")} logged={consumed.fat_g} value={fat} color={colors.macroFat} />
             )}
           </View>
         </Card>
@@ -138,6 +146,8 @@ export function NutritionPlanView({
         />
       ))}
 
+      <ShoppingListCard plan={plan} />
+
       {plan.notes != null && (
         <Card className="gap-1.5">
           <Text className="text-[10px] font-bold tracking-widest text-content-tertiary">
@@ -152,10 +162,12 @@ export function NutritionPlanView({
 
 function MacroBit({
   label,
+  logged,
   value,
   color,
 }: {
   label: string;
+  logged: number;
   value: string;
   color: string;
 }) {
@@ -164,7 +176,9 @@ function MacroBit({
       <Text className="font-bold" style={{ color }}>
         {label}{" "}
       </Text>
-      <Text className="text-content-secondary">{value} g</Text>
+      <Text className="text-content-secondary">
+        {Math.round(logged)} / {value} g
+      </Text>
     </Text>
   );
 }

@@ -28,6 +28,7 @@ import {
 } from "@/src/components/ui";
 import { useAuth } from "@/src/hooks/use-auth";
 import { useMeals } from "@/src/hooks/use-meals";
+import { useNutritionPlan } from "@/src/hooks/use-nutrition-plan";
 import { useProfile } from "@/src/hooks/use-profile";
 import { useProgram } from "@/src/hooks/use-program";
 import { useProgramLogging } from "@/src/hooks/use-program-logging";
@@ -45,6 +46,7 @@ import {
 } from "@/src/utils/calories";
 import { toDateKey } from "@/src/utils/dates";
 import { MEAL_SLOTS, suggestedSlot } from "@/src/utils/meal-slots";
+import { planCalorieGoal } from "@/src/utils/nutrition-plan";
 
 export default function HomeScreen() {
   const colors = useColors();
@@ -61,13 +63,19 @@ export default function HomeScreen() {
     refresh: refreshProgram,
   } = useProgram();
   const programLogging = useProgramLogging(program);
+  const nutrition = useNutritionPlan();
 
   const { todaysMeals } = meals;
   const { todaysLogs } = progress;
 
   // Daily calorie KPIs — recompute whenever today's meals/logs change, so
   // logging a meal or workout updates the dashboard immediately.
-  const calorieGoal = profile?.calorie_goal ?? recommendedCalorieGoal(profile);
+  // An assigned nutrition plan's target for today's day type (training/rest)
+  // wins over the profile's single calorie goal.
+  const calorieGoal =
+    planCalorieGoal(nutrition.plan, nutrition.autoDay) ??
+    profile?.calorie_goal ??
+    recommendedCalorieGoal(profile);
   const consumed = caloriesConsumed(todaysMeals);
   // Burned = logged sessions (legacy) + an estimate from today's program
   // check-offs, since checking exercises off records no duration of its own.
