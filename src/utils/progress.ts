@@ -2,12 +2,14 @@ import type {
   Exercise,
   MealWithItems,
   Profile,
+  ProgramWithDetails,
   RoutineExercise,
   RoutineWithExercises,
   WorkoutLog,
 } from "@/src/types/database";
 import { estimateCaloriesBurned } from "@/src/utils/calories";
 import { addDays, dateKeyToDate, toDateKey } from "@/src/utils/dates";
+import { currentWeekOf, effectivePrescription, isBeforeStart, weekByNumber } from "@/src/utils/program";
 
 // Pure, synchronous calculations behind the progress dashboard. Everything
 // here works on the same offline-first data the rest of the app renders
@@ -399,6 +401,65 @@ export function muscleDistribution(
       if (b.group === "other") return -1;
       return b.sets - a.sets;
     });
+}
+
+/** The client's current program week in muscle terms, for the "Esta semana"
+ *  view of the muscles card. */
+export type MuscleWeek = {
+  week: number;
+  totalWeeks: number;
+  notStarted: boolean;
+  /** Sets the program assigns per group this week (all its days). */
+  assigned: Partial<Record<MuscleGroup, number>>;
+  /** Sets done per group in this same program week. */
+  done: Partial<Record<MuscleGroup, number>>;
+};
+
+/**
+ * What the program assigns this week per group, and what the client has done
+ * in that same program week: a logged set counts one; an exercise checked off
+ * with nothing logged counts its prescribed sets (never both). Logs and
+ * check-offs carry their program week, so this matches the prescription
+ * exactly — the same rule the coach panel's muscle map uses. Rows whose
+ * prescription was since removed aren't counted.
+ */
+export function programMuscleWeek(
+  program: ProgramWithDetails,
+  setLogs: SetLogEntry[],
+  completions: CompletionEntry[],
+  now = new Date(),
+): MuscleWeek {
+  const week = currentWeekOf(program.start_date, program.duration_weeks, now);
+  const weekRow = weekByNumber(program, week);
+  const groupOf = new Map<string, MuscleGroup>();
+  const assigned: Partial<Record<MuscleGroup, number>> = {};
+  for (const day of program.program_days) {
+    for (const ex of day.program_exercises) {
+      const group = muscleGroupForBodyPart(ex.exercise?.body_part?.name);
+      groupOf.set(ex.id, group);
+      assigned[group] = (assigned[group] ?? 0) + effectivePrescription(ex, weekRow, week).sets;
+    }
+  }
+  const done: Partial<Record<MuscleGroup, number>> = {};
+  const logged = new Set<string>();
+  for (const s of setLogs) {
+    const group = s.programExerciseId != null && s.week === week ? groupOf.get(s.programExerciseId) : undefined;
+    if (group == null) continue;
+    done[group] = (done[group] ?? 0) + 1;
+    logged.add(s.programExerciseId!);
+  }
+  for (const c of completions) {
+    if (c.programExerciseId == null || c.week !== week || logged.has(c.programExerciseId)) continue;
+    const group = groupOf.get(c.programExerciseId);
+    if (group != null) done[group] = (done[group] ?? 0) + c.sets;
+  }
+  return {
+    week,
+    totalWeeks: program.duration_weeks,
+    notStarted: isBeforeStart(program.start_date, now),
+    assigned,
+    done,
+  };
 }
 
 /** A group under a quarter of the busiest one (`max` = the largest sets in

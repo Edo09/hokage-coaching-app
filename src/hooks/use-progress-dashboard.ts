@@ -8,6 +8,7 @@ import { generateWeeklyInsight, type WeeklyInsightStats } from "@/src/services/a
 import { useExercises } from "@/src/hooks/use-exercises";
 import { useMeals } from "@/src/hooks/use-meals";
 import { useProfile } from "@/src/hooks/use-profile";
+import { useProgram } from "@/src/hooks/use-program";
 import { useProgress } from "@/src/hooks/use-progress";
 import { useRoutines } from "@/src/hooks/use-routines";
 import type { BodyMeasurement, WorkoutLog } from "@/src/types/database";
@@ -27,6 +28,7 @@ import {
   muscleDistribution,
   nutritionStats,
   personalRecords,
+  programMuscleWeek,
   programWork,
   realVolume,
   realVolumeSeries8w,
@@ -172,6 +174,9 @@ export function useProgressDashboard(periodo: Periodo) {
   const { exercises, loading: exercisesLoading } = useExercises();
   const mealsData = useMeals();
   const { profile, updateProfile } = useProfile(user?.id);
+  // The active coach program (shared, cached query) — for the muscles card's
+  // "Esta semana" view: what's assigned this week vs what's done.
+  const { program } = useProgram();
 
   const { data: measurements = [] } = useQuery({
     queryKey: measurementsKey(user?.id),
@@ -301,6 +306,7 @@ export function useProgressDashboard(periodo: Periodo) {
     const work = programWork(setLogs, completions);
     const muscles = muscleDistribution(logs, exercises, plan, windowDays, now, work);
     const alert = muscleAlert(muscles, logs, exercises, plan, routines, now, work);
+    const muscleWeek = program != null ? programMuscleWeek(program, setLogs, completions, now) : null;
 
     const weekLogs =
       periodo === "week"
@@ -403,7 +409,7 @@ export function useProgressDashboard(periodo: Periodo) {
       strength,
       nutrition: { ...nutrition, goal: goalKcal, hasData: hasMeals },
       insightStats,
-      muscles: { rows: muscles, alert },
+      muscles: { rows: muscles, alert, week: muscleWeek },
       insight: ruleInsights({
         alert,
         avgProtein: nutrition.avgProtein,
@@ -415,7 +421,7 @@ export function useProgressDashboard(periodo: Periodo) {
       }),
       logros: achievements(totalWorkouts, streak, lifetimeVolume),
     };
-  }, [logs, routines, exercises, meals, profile, measurements, setLogs, completions, user?.id, periodo]);
+  }, [logs, routines, exercises, meals, profile, measurements, setLogs, completions, program, user?.id, periodo]);
 
   // AI weekly analysis (P3). Keyed per user+week+language: generated once
   // per Monday-based week, regenerated on language switch, served from the

@@ -78,7 +78,21 @@ export default function ProgressScreen() {
             </AnimatedView>
           )}
 
-          <AnimatedView entering={staggered(1)}>
+          {/* Muscles first: what's assigned this week and what's been worked.
+              Also shown before any logging when there's a program to show. */}
+          {(!isEmpty || dashboard.muscles.week != null) && (
+            <AnimatedView entering={staggered(1)}>
+              <MusclesCard
+                periodo={periodo}
+                rows={dashboard.muscles.rows}
+                alert={dashboard.muscles.alert}
+                week={dashboard.muscles.week}
+                sex={dashboard.profile?.sex}
+              />
+            </AnimatedView>
+          )}
+
+          <AnimatedView entering={staggered(2)}>
             <HeroCard
               periodo={periodo}
               hero={dashboard.hero}
@@ -87,7 +101,7 @@ export default function ProgressScreen() {
             />
           </AnimatedView>
 
-          <AnimatedView entering={staggered(2)}>
+          <AnimatedView entering={staggered(3)}>
             <WeightCard
               weight={dashboard.weight}
               profile={dashboard.profile}
@@ -97,7 +111,7 @@ export default function ProgressScreen() {
 
           {!isEmpty && (
             <>
-              <AnimatedView entering={staggered(3)}>
+              <AnimatedView entering={staggered(4)}>
                 <StrengthCard
                   weekVolume={dashboard.strength.weekVolume}
                   series={dashboard.strength.series}
@@ -107,17 +121,8 @@ export default function ProgressScreen() {
                 />
               </AnimatedView>
 
-              <AnimatedView entering={staggered(4)}>
-                <NutritionCard periodo={periodo} nutrition={dashboard.nutrition} />
-              </AnimatedView>
-
               <AnimatedView entering={staggered(5)}>
-                <MusclesCard
-                  periodo={periodo}
-                  rows={dashboard.muscles.rows}
-                  alert={dashboard.muscles.alert}
-                  sex={dashboard.profile?.sex}
-                />
+                <NutritionCard periodo={periodo} nutrition={dashboard.nutrition} />
               </AnimatedView>
 
               {(dashboard.insight != null || dashboard.aiInsight != null) && (
@@ -126,7 +131,7 @@ export default function ProgressScreen() {
                 </AnimatedView>
               )}
 
-              <AnimatedView entering={staggered(6)}>
+              <AnimatedView entering={staggered(7)}>
                 <AchievementChips chips={dashboard.logros} />
               </AnimatedView>
             </>
