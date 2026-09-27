@@ -2,6 +2,7 @@ import React, { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import Body, { type ExtendedBodyPart, type Slug } from "react-native-body-highlighter";
 
+import type { MuscleMapView } from "@/src/lib/muscle-map-view";
 import { useColors } from "@/src/theme/colors";
 import { Text, View } from "@/src/tw";
 import {
@@ -51,12 +52,10 @@ function heatScale(brand: string, untrained: string): string[] {
   return [untrained, withAlpha(brand, 0.38), withAlpha(brand, 0.68), brand];
 }
 
-export type MuscleMapMode = "week" | "volume";
-
 type MuscleHeatMapProps = {
   /** "week": this program week — sin asignar / asignado / trabajado.
    *  "volume": sets per group over the period, as a heat map. */
-  mode: MuscleMapMode;
+  mode: MuscleMapView;
   rows: MuscleRow[];
   alert: MuscleAlert | null;
   week: MuscleWeek | null;

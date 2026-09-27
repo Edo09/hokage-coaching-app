@@ -2,8 +2,9 @@ import { Ionicons } from "@expo/vector-icons";
 import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { MuscleHeatMap, type MuscleMapMode } from "@/src/components/progress/muscle-heat-map";
+import { MuscleHeatMap } from "@/src/components/progress/muscle-heat-map";
 import { Card, SegmentedControl } from "@/src/components/ui";
+import { setMuscleMapView, useMuscleMapView, type MuscleMapView } from "@/src/lib/muscle-map-view";
 import { useColors } from "@/src/theme/colors";
 import { Pressable, Text, View } from "@/src/tw";
 import {
@@ -33,15 +34,17 @@ type MusclesCardProps = {
 //    worked (red), what isn't in the week (slate); the list gives done/assigned.
 //  - "Volumen": sets per group over the period — the heat map and bars, with
 //    amber for a group under 25% of the leader ("other" is never flagged).
-// Without a program only "Volumen" exists. Tapping a muscle or a row selects
-// its group in both the figure and the list. No LLM.
+// Without a program only "Volumen" exists. The last view picked is remembered
+// on the device (src/lib/muscle-map-view.ts). Tapping a muscle or a row
+// selects its group in both the figure and the list. No LLM.
 export function MusclesCard({ periodo, rows, alert, week, sex }: MusclesCardProps) {
   const colors = useColors();
   const { t } = useTranslation();
-  const [picked, setPicked] = useState<MuscleMapMode | null>(null);
+  const picked = useMuscleMapView();
   const [selected, setSelected] = useState<MuscleGroup | null>(null);
-  // Opens on "Esta semana" when there's a program to show.
-  const mode: MuscleMapMode = week == null ? "volume" : (picked ?? "week");
+  // The last view picked; "Esta semana" until the client chooses, when
+  // there's a program to show.
+  const mode: MuscleMapView = week == null ? "volume" : (picked ?? "week");
 
   const groupName = (group: string) => t(`progress.musculo_${group}`);
   const toggle = (group: MuscleGroup) => setSelected((g) => (g === group ? null : group));
@@ -69,7 +72,7 @@ export function MusclesCard({ periodo, rows, alert, week, sex }: MusclesCardProp
             { key: "volume", label: t("progress.mapaVistaVolumen") },
           ]}
           value={mode}
-          onChange={(k) => setPicked(k as MuscleMapMode)}
+          onChange={(k) => void setMuscleMapView(k as MuscleMapView)}
         />
       )}
 
