@@ -4,6 +4,7 @@ import React from "react";
 import { useTranslation } from "react-i18next";
 import { View } from "react-native";
 
+import { AppMenu } from "@/src/components/app-menu";
 import { RestTimerBar } from "@/src/components/program/rest-timer-bar";
 import { useColors } from "@/src/theme/colors";
 import { Pressable } from "@/src/tw";
@@ -97,6 +98,8 @@ export default function TabsLayout() {
         options={{
           title: t("tabs.profile"),
           tabBarIcon: ({ focused }) => <TabIcon name="person" focused={focused} />,
+          // Same menu as the home header (settings, sign out).
+          headerRight: () => <AppMenu className="mr-4" />,
         }}
       />
       {/* Reached from the home menu, not the tab bar (href: null hides it).

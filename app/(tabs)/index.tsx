@@ -1,18 +1,10 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { router } from "expo-router";
-import React, { useState } from "react";
+import React from "react";
 import { useTranslation } from "react-i18next";
 
-import {
-  Actionsheet,
-  ActionsheetBackdrop,
-  ActionsheetContent,
-  ActionsheetDragIndicator,
-  ActionsheetDragIndicatorWrapper,
-  ActionsheetItem,
-  ActionsheetItemText,
-} from "@/components/ui/actionsheet";
+import { AppMenu } from "@/src/components/app-menu";
 import { ProgramHomeCard } from "@/src/components/program/program-home-card";
 import { Ring } from "@/src/components/progress/ring";
 import {
@@ -50,9 +42,8 @@ import { planCalorieGoal } from "@/src/utils/nutrition-plan";
 
 export default function HomeScreen() {
   const colors = useColors();
-  const [menuOpen, setMenuOpen] = useState(false);
   const { t, i18n } = useTranslation();
-  const { user, signOut } = useAuth();
+  const { user } = useAuth();
   const meals = useMeals();
   const progress = useProgress();
   const { profile } = useProfile(user?.id);
@@ -210,14 +201,7 @@ export default function HomeScreen() {
               The Hokage Coaching
             </Text>
           </Pressable>
-          <Pressable
-            onPress={() => setMenuOpen(true)}
-            accessibilityRole="button"
-            accessibilityLabel={t("common.menu")}
-            className="w-11 h-11 rounded-xl bg-surface items-center justify-center border border-border"
-          >
-            <Ionicons name="ellipsis-vertical" size={18} color={colors.contentSecondary} />
-          </Pressable>
+          <AppMenu />
         </View>
         <View className="mt-5">
           <PosterText size={27} numberOfLines={1} adjustsFontSizeToFit>
@@ -226,45 +210,6 @@ export default function HomeScreen() {
           <DashLabel className="mt-2.5">{today}</DashLabel>
         </View>
       </HeaderPanel>
-
-      <Actionsheet isOpen={menuOpen} onClose={() => setMenuOpen(false)}>
-        <ActionsheetBackdrop />
-        <ActionsheetContent>
-          <ActionsheetDragIndicatorWrapper>
-            <ActionsheetDragIndicator />
-          </ActionsheetDragIndicatorWrapper>
-          <ActionsheetItem
-            onPress={() => {
-              setMenuOpen(false);
-              router.push("/(tabs)/profile");
-            }}
-          >
-            <Ionicons name="person-outline" size={20} color={colors.contentSecondary} />
-            <ActionsheetItemText>{t("tabs.profile")}</ActionsheetItemText>
-          </ActionsheetItem>
-          {/* Theme/language/unit toggles live in Settings now */}
-          <ActionsheetItem
-            onPress={() => {
-              setMenuOpen(false);
-              router.push("/(tabs)/settings");
-            }}
-          >
-            <Ionicons name="settings-outline" size={20} color={colors.contentSecondary} />
-            <ActionsheetItemText>{t("settings.title")}</ActionsheetItemText>
-          </ActionsheetItem>
-          <ActionsheetItem
-            onPress={() => {
-              setMenuOpen(false);
-              signOut();
-            }}
-          >
-            <Ionicons name="log-out-outline" size={20} color={colors.error} />
-            <ActionsheetItemText className="text-error">
-              {t("auth.signOut")}
-            </ActionsheetItemText>
-          </ActionsheetItem>
-        </ActionsheetContent>
-      </Actionsheet>
 
       {loading && !hasData ? (
         <LoadingBlock />
