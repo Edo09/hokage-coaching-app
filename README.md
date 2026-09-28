@@ -39,8 +39,9 @@ iPhone testing without a paid Apple account: `docs/IOS-LOCAL-TESTING.md`.
 - **App AI** (meal estimates from a name or photo, the weekly progress insight)
   goes through the `ai-complete` Edge Function, which holds the same
   `GEMINI_API_KEY` / `GROQ_API_KEY` secrets and caps each user at 30 requests/hour
-  and 100/day. The app has no model keys. Apply migration
-  `20260926140000_ai_request_quota.sql`, then deploy it as in
+  and 100/day (failed model calls are refunded). The app has no model keys.
+  Apply migrations `20260926140000_ai_request_quota.sql` and
+  `20260928120000_ai_quota_refund.sql`, then deploy it as in
   `docs/ADMIN_WEB_DB_CONNECTION.md` §6.4.
 - **Auth:** "Allow new users to sign up" stays **off**.
 

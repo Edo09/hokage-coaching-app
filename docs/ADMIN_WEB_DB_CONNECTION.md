@@ -338,7 +338,7 @@ The panel's program builder has a **Generar / Editar con IA** assistant. The coa
 - `current` = the builder's draft (edit mode); omitted = a new program. Days and exercises carry a `ref` so the panel maps kept rows back to their DB ids (logged sets stay attached).
 - `client_id` adds the client's profile fields (goal, age, sex, weight, days, session length; never name or email). `include_notes: true` also sends the coach's private `client_notes` body.
 - Exercise names are forced onto the catalog (exact, then accent/case-insensitive, then one follow-up call for the closest catalog movement); the panel drops anything still unresolved.
-- Models (shared with `ai-complete`, in `supabase/functions/_shared/llm.ts`): Gemini with a response schema — `gemini-3.8-flash` (optional `GEMINI_MODEL` secret overrides), then `gemini-3.5-flash-lite`, then `gemini-2.5-flash`; a model that's overloaded (503, after one retry), out of quota (429) or not available to the key (404) hands over to the next. Groq is the fallback: `openai/gpt-oss-120b`, then `openai/gpt-oss-20b` (Llama 3.3 70B is enterprise-only now). A failed call returns `{ error, detail }` with a 502: `error` in Spanish for the coach, `detail` the providers' own error text (shown in the panel toast).
+- Models (shared with `ai-complete`, in `supabase/functions/_shared/llm.ts`): Gemini with a response schema — `gemini-3.8-flash` (optional `GEMINI_MODEL` secret overrides), then `gemini-3.5-flash-lite`, then `gemini-2.5-flash`; a model that's overloaded (503, after one retry), out of quota (429) or not available to the key (404) hands over to the next. Groq is the fallback: `openai/gpt-oss-120b`, then `openai/gpt-oss-20b` (Llama 3.3 70B is enterprise-only now), moving on the same way on 404, 429 or 5xx. A failed call returns `{ error, detail }` with a 502: `error` in Spanish for the coach, `detail` the providers' own error text (shown in the panel toast).
 
 ```bash
 supabase functions deploy generate-program --project-ref rzgwkwxskrovxnnymxqo
@@ -355,12 +355,13 @@ The **mobile app's** AI features — estimating a meal's nutrition from its name
 | `{ system, user, image?: { base64, mimeType } }` | `{ result, provider }` (`result` = the model's JSON, parsed) |
 
 - Callers are **clients**, so any signed-in user may call it (it checks `auth.getUser()`, not the coach role). Requests from the native app carry no `Origin`, so `ALLOWED_ORIGINS` doesn't affect them. The app's **web** build (`vercel.json`), if deployed, is a browser: add its origin to `ALLOWED_ORIGINS` (§6.1) or its AI calls are refused.
-- **Quota:** 30 requests per hour and 100 per day per user, enforced by `take_ai_quota()` from migration `20260926140000_ai_request_quota.sql` before any model call; over the limit the function answers `429`. The migration must be applied first: until it is, the function answers `503` to every request.
+- **Quota:** 30 requests per hour and 100 per day per user, enforced by `take_ai_quota()` from migration `20260926140000_ai_request_quota.sql` before any model call; over the limit the function answers `429`. The migration must be applied first: until it is, the function answers `503` to every request. A request whose model call fails (`502`) is given back by `refund_ai_quota()` from `20260928120000_ai_quota_refund.sql`, so a provider outage doesn't use up users' quota; without that migration the refund is skipped (logged) and the failure still counts.
 - **Limits:** `system` and `user` at most 6,000 characters each; `image.base64` at most 7,000,000 characters (~5 MB; the app's photos at quality 0.5 are typically 1–3 MB of base64). `mimeType`: `image/jpeg`, `png`, `webp`, `heic` or `heif`. Supabase doesn't document a request-body limit for Edge Functions; Gemini accepts up to 20 MB per request.
 - Models (same lists and retries as §6.3, `_shared/llm.ts`): text goes to Groq (`openai/gpt-oss-120b`, then `-20b`) first with Gemini as the fallback, as the app did before; photos go to Gemini first with Groq (`qwen/qwen3.8-27b`) as the fallback. The app's old Groq vision model, `llama-4-scout`, was shut down on 2026-07-17.
 
 ```bash
-# 1. SQL editor: run supabase/migrations/20260926140000_ai_request_quota.sql
+# 1. SQL editor: run supabase/migrations/20260926140000_ai_request_quota.sql,
+#    then 20260928120000_ai_quota_refund.sql
 # 2. Deploy. The keys are the same secrets as generate-program (§6.3); set them once.
 supabase functions deploy ai-complete --project-ref rzgwkwxskrovxnnymxqo
 supabase secrets set GEMINI_API_KEY=<key> GROQ_API_KEY=<key> --project-ref rzgwkwxskrovxnnymxqo
