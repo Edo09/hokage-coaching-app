@@ -100,6 +100,21 @@ export function ProgramExerciseRow({
 
   return (
     <View className="flex-row items-start gap-3 py-2.5">
+      {/* Backdrop so the row's empty space (beside the rest timer, under the
+          checkbox) opens the sheet too. It sits BEHIND the controls as a
+          sibling rather than wrapping them — wrapping would nest buttons on
+          RN Web. Non-interactive content above it uses pointerEvents so taps
+          fall through; screen readers already have the body button. */}
+      {onOpen != null && (
+        <Pressable
+          onPress={onOpen}
+          accessible={false}
+          tabIndex={-1}
+          aria-hidden
+          className="absolute inset-0"
+        />
+      )}
+
       {isInlineGif ? (
         <Pressable
           onPress={onThumbPress}
@@ -127,7 +142,10 @@ export function ProgramExerciseRow({
           {icon}
         </Pressable>
       ) : (
-        <View className="mt-0.5 h-7 w-7 items-center justify-center rounded-lg bg-brand-dark">
+        <View
+          pointerEvents="none"
+          className="mt-0.5 h-7 w-7 items-center justify-center rounded-lg bg-brand-dark"
+        >
           {icon}
         </View>
       )}
@@ -136,7 +154,7 @@ export function ProgramExerciseRow({
           timer can be its own button — nesting it inside this Pressable made
           RN Web emit a <button> inside a <button>, which is invalid HTML and
           fails hydration. */}
-      <View className="flex-1 gap-1">
+      <View pointerEvents="box-none" className="flex-1 gap-1">
       <Pressable
         onPress={onOpen}
         disabled={onOpen == null}
@@ -195,13 +213,20 @@ export function ProgramExerciseRow({
       {/* Meta line — sibling of the body, never a child, so RestButton is a
           top-level button. */}
       {(p.tempo != null || p.restSeconds != null || p.notes != null) && (
-        <View className="mt-0.5 flex-row flex-wrap items-center gap-x-3 gap-y-1.5">
+        <View
+          pointerEvents="box-none"
+          className="mt-0.5 flex-row flex-wrap items-center gap-x-3 gap-y-1.5"
+        >
           {p.tempo != null && (
             <Meta icon="time-outline">{t("program.tempoLabel", { tempo: p.tempo })}</Meta>
           )}
           {p.restSeconds != null && <RestButton seconds={p.restSeconds} name={p.name} />}
           {p.notes != null && p.notes !== "" && (
-            <Text className="text-[11px] text-content-tertiary">{p.notes}</Text>
+            // Text has no pointerEvents prop; the wrapper lets taps reach the
+            // backdrop.
+            <View pointerEvents="none">
+              <Text className="text-[11px] text-content-tertiary">{p.notes}</Text>
+            </View>
           )}
         </View>
       )}
@@ -320,8 +345,9 @@ function Meta({
   children: React.ReactNode;
 }) {
   const colors = useColors();
+  // Display-only: taps pass through to the row backdrop.
   return (
-    <View className="flex-row items-center gap-1">
+    <View pointerEvents="none" className="flex-row items-center gap-1">
       <Ionicons name={icon} size={11} color={colors.contentMuted} />
       <Text className="text-[11px] text-content-tertiary">{children}</Text>
     </View>
