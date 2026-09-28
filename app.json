@@ -7,7 +7,6 @@
     "icon": "./assets/images/app-icon/icon.png",
     "scheme": "hokagecoaching",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.edo09.hokagecoaching",
@@ -101,7 +100,8 @@
             "./assets/sounds/rest_silent.wav"
           ]
         }
-      ]
+      ],
+      "expo-asset"
     ],
     "experiments": {
       "typedRoutes": true,
