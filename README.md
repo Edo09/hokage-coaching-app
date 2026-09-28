@@ -35,7 +35,10 @@ iPhone testing without a paid Apple account: `docs/IOS-LOCAL-TESTING.md`.
   `reset-client-password` and `generate-program` (AI program drafts), called by
   the panel. Deploy and configure them as in `docs/ADMIN_WEB_DB_CONNECTION.md`
   §6.1 and §6.3 (they need the `ALLOWED_ORIGINS` secret; `generate-program` also
-  needs `GEMINI_API_KEY` and/or `GROQ_API_KEY`).
+  needs `GEMINI_API_KEY` and/or `GROQ_API_KEY`). All four functions deploy from
+  GitHub (`.github/workflows/deploy-functions.yml`): automatically when
+  `supabase/functions` changes on `main`, or via Actions → Deploy Edge Functions
+  → Run workflow. It needs the `SUPABASE_ACCESS_TOKEN` repository secret.
 - **App AI** (meal estimates from a name or photo, the weekly progress insight)
   goes through the `ai-complete` Edge Function, which holds the same
   `GEMINI_API_KEY` / `GROQ_API_KEY` secrets and caps each user at 30 requests/hour
