@@ -10,8 +10,11 @@
 // 20260926140000_ai_request_quota.sql, 30 requests/hour and 100/day. Native
 // app requests carry no Origin, so ../_shared/cors.ts lets them through.
 //
-// Apply that migration first (without it every request gets 503), then
-// deploy and give it the provider keys (see llm.ts):
+// A failed model call gives the request back (refund_ai_quota() in
+// 20260928120000_ai_quota_refund.sql), so outages don't use up quota.
+//
+// Apply those migrations first (without the quota one every request gets
+// 503), then deploy and give it the provider keys (see llm.ts):
 //   supabase functions deploy ai-complete --project-ref rzgwkwxskrovxnnymxqo
 
 import { callerClient } from '../_shared/coach.ts';
@@ -77,8 +80,17 @@ Deno.serve(withCors(async (req) => {
     }
     if (allowed !== true) return json({ error: 'rate limited' }, 429);
 
-    const { json: result, provider } = await completeJSON({ system, user: prompt, image });
-    return json({ result, provider }, 200);
+    try {
+      const { json: result, provider } = await completeJSON({ system, user: prompt, image });
+      return json({ result, provider }, 200);
+    } catch (e) {
+      // The model call failed (providers down, keys missing, bad output):
+      // give the request back so an outage doesn't use up the user's quota.
+      // Best-effort — without migration 20260928120000 it's just a no-op.
+      const { error: refundError } = await db.rpc('refund_ai_quota');
+      if (refundError) console.warn('refund_ai_quota failed (migration applied?):', refundError.message);
+      throw e;
+    }
   } catch (e) {
     console.error('ai-complete failed:', e);
     return json({ error: 'AI request failed' }, 502);

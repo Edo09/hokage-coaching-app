@@ -16,7 +16,7 @@ import {
   estimateMealNutritionFromPhoto,
 } from "@/src/services/ai-nutrition";
 import { uploadMealPhoto } from "@/src/services/meal-photos";
-import type { ImageInput } from "@/src/services/llm";
+import { AiError, aiErrorKind, type AiErrorKind, type ImageInput } from "@/src/services/llm";
 import { useColors } from "@/src/theme/colors";
 import { Pressable, Text, View } from "@/src/tw";
 import { AnimatedView } from "@/src/tw/animated";
@@ -32,6 +32,17 @@ const PICKER_OPTIONS: ImagePicker.ImagePickerOptions = {
   base64: true,
   allowsEditing: false,
   exif: false,
+};
+
+/** What to tell a user whose photo couldn't be analyzed (and who typed no
+ *  name to fall back on). */
+const PHOTO_ERROR_KEY: Record<AiErrorKind, string> = {
+  no_food: "meals.noFoodDetected",
+  too_large: "meals.photoTooLarge",
+  rate_limited: "meals.aiRateLimited",
+  offline: "meals.photoRequiresInternet",
+  unavailable: "meals.aiPhotoFailed",
+  failed: "meals.aiPhotoFailed",
 };
 
 type Estimate = {
@@ -133,39 +144,43 @@ export default function AddFoodScreen() {
       // Resolve nutrition BEFORE touching data, so a failed photo analysis
       // never creates an orphan slot container.
       let estimate: Estimate | null = null;
-      let aiFailed = false;
+      // Why the AI estimate is missing, when it is.
+      let aiFailure: AiErrorKind | null = null;
 
       if (photo != null) {
         try {
-          if (!online) throw new Error("offline");
+          if (!online) throw new AiError("offline", "offline");
           estimate = await estimateMealNutritionFromPhoto(
             photo,
             i18n.language,
             trimmed || undefined,
           );
-        } catch {
+        } catch (e) {
+          aiFailure = aiErrorKind(e);
           if (!trimmed) {
             // Nothing to name the food with — surface and stop.
-            setNameError(t("meals.noFoodDetected"));
+            setNameError(t(PHOTO_ERROR_KEY[aiFailure]));
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => {});
             return;
           }
           // Photo analysis failed but the user named the food — estimate
           // from the name instead of dropping the AI estimate entirely.
-          try {
-            estimate = online
-              ? await estimateMealNutrition(trimmed, mealType, i18n.language)
-              : null;
-          } catch {
-            estimate = null;
+          // Not when the AI itself is out (quota spent, not deployed): the
+          // second call would fail the same way.
+          if (online && aiFailure !== "rate_limited" && aiFailure !== "unavailable") {
+            try {
+              estimate = await estimateMealNutrition(trimmed, mealType, i18n.language);
+              aiFailure = null;
+            } catch (e2) {
+              aiFailure = aiErrorKind(e2);
+            }
           }
-          aiFailed = estimate == null;
         }
       } else if (aiEstimate && online) {
         try {
           estimate = await estimateMealNutrition(trimmed, mealType, i18n.language);
-        } catch {
-          aiFailed = true;
+        } catch (e) {
+          aiFailure = aiErrorKind(e);
         }
       }
 
@@ -192,9 +207,12 @@ export default function AddFoodScreen() {
       });
 
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-      if (aiFailed) {
+      if (aiFailure != null) {
         // Item landed, but with zero macros — tell the user why
-        toast.show({ type: "info", message: t("meals.aiEstimateFailed") });
+        toast.show({
+          type: "info",
+          message: t(aiFailure === "rate_limited" ? "meals.aiRateLimitedSaved" : "meals.aiEstimateFailed"),
+        });
       } else {
         toast.show({
           type: "success",

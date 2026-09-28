@@ -25,7 +25,7 @@ const GEMINI_BASES = [
 const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
 
 /** Groq text models, tried in order when one isn't available to the key
- *  (Llama 3.3 70B became enterprise-only). */
+ *  (Llama 3.3 70B became enterprise-only), rate-limited or down. */
 export const GROQ_TEXT_MODELS = ['openai/gpt-oss-120b', 'openai/gpt-oss-20b'];
 export const GROQ_VISION_MODELS = ['qwen/qwen3.8-27b'];
 
@@ -153,8 +153,10 @@ export async function callGroq(r: GroqRequest): Promise<string> {
       return content;
     }
     errors.push(`${model} ${res.status}: ${await snippet(res)}`);
-    // Model retired or not on this key's plan: try the next one.
-    if (res.status === 404) continue;
+    // 404 (retired or not on this key's plan), 429 (this model's rate limit —
+    // Groq counts each model separately), 5xx: try the next one. 400/401/403
+    // would fail the same way on every model.
+    if (res.status === 404 || res.status === 429 || res.status >= 500) continue;
     break;
   }
   throw new Error(`Groq — ${errors.join('; ')}`);

@@ -10,6 +10,8 @@
 // the panel re-validates every number before anything is saved.
 
 const WEEKDAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+/** The letters the panel builder offers (its SUPERSET_LETTERS): it drops any other. */
+const SUPERSET_LETTERS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
 
 /* ---- Gemini responseSchema (OpenAPI subset) ---- */
 
@@ -37,7 +39,7 @@ const EXERCISE = obj(
   {
     ref: NSTR,
     name: STR,
-    superset: NSTR,
+    superset: { type: 'STRING', nullable: true, enum: SUPERSET_LETTERS },
     sets: INT,
     rep_min: NINT,
     rep_max: NINT,
@@ -126,7 +128,7 @@ const SHAPE = `{
     "exercises": [{                   // in execution order
       "ref": string | null,
       "name": string,                 // VERBATIM from exercise_catalog
-      "superset": "A".."Z" | null,
+      "superset": "A".."H" | null,
       "sets": integer,
       "rep_min": integer | null, "rep_max": integer | null,
       "is_unilateral": boolean,       // true = reps are PER SIDE
@@ -158,7 +160,7 @@ HARD LIMITS — the app rejects the program if any is broken
 - rest_seconds: 0–900.
 - weeks: exactly duration_weeks entries, numbered 1..duration_weeks.
 - overrides[].week: 1..duration_weeks, at most one entry per week per exercise.
-- superset: one uppercase letter or null. weekday: monday..sunday or null, never the same weekday on two days.
+- superset: one letter A–H or null (at most 8 supersets per day). weekday: monday..sunday or null, never the same weekday on two days.
 - Exercise "name" MUST be copied character for character from "exercise_catalog" in the user message. Never invent, translate, pluralize or reword a name. If the exact movement is not in the catalog, use the closest catalog exercise (same pattern and muscle) and mention the swap in "summary".
 
 HOW THE APP READS THE PROGRAM

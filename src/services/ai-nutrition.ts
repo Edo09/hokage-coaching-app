@@ -1,4 +1,4 @@
-import { completeJSON, completeJSONWithImage, type ImageInput } from "@/src/services/llm";
+import { AiError, completeJSON, completeJSONWithImage, type ImageInput } from "@/src/services/llm";
 import type { MealType } from "@/src/types/database";
 
 export type NutritionEstimate = {
@@ -102,7 +102,7 @@ export async function estimateMealNutritionFromPhoto(
   const raw = (await completeJSONWithImage(system, user, image)) as Record<string, unknown>;
 
   const name = typeof raw?.name === "string" ? raw.name.trim().slice(0, 80) : "";
-  if (name.length === 0) throw new Error("No food detected in photo");
+  if (name.length === 0) throw new AiError("no_food", "No food detected in photo");
 
   const calories = clampNum(raw?.calories, 0, 5000);
   if (calories == null) throw new Error("AI returned no calories");

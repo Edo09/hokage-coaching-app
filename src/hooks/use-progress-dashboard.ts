@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { useAuth } from "@/src/hooks/use-auth";
 import { useWeightUnit } from "@/src/lib/weight-unit";
 import { generateWeeklyInsight, type WeeklyInsightStats } from "@/src/services/ai-insight";
+import { isAiRetryable } from "@/src/services/llm";
 import { useExercises } from "@/src/hooks/use-exercises";
 import { useMeals } from "@/src/hooks/use-meals";
 import { useProfile } from "@/src/hooks/use-profile";
@@ -66,7 +67,11 @@ async function fetchMeasurements(userId: string): Promise<BodyMeasurement[]> {
   return data as BodyMeasurement[];
 }
 
-const setLogsKey = (userId: string | undefined) => ["set-logs", userId] as const;
+// New key: the cached shape changed (entries gained programExerciseId and
+// week, which programWork() needs to skip completions that already have
+// logged sets), and the query cache is persisted on the device — under the
+// old key, restored entries without them would count those sets twice.
+const setLogsKey = (userId: string | undefined) => ["program-set-logs", userId] as const;
 
 // Logged program sets (last 60d) enriched with the exercise name + laterality,
 // so the dashboard can show REAL volume/PRs (Phase 4) instead of plan
@@ -173,24 +178,24 @@ export function useProgressDashboard(periodo: Periodo) {
   const routinesData = useRoutines();
   const { exercises, loading: exercisesLoading } = useExercises();
   const mealsData = useMeals();
-  const { profile, updateProfile } = useProfile(user?.id);
+  const { profile, loading: profileLoading, updateProfile } = useProfile(user?.id);
   // The active coach program (shared, cached query) — for the muscles card's
   // "Esta semana" view: what's assigned this week vs what's done.
   const { program } = useProgram();
 
-  const { data: measurements = [] } = useQuery({
+  const { data: measurements = [], isPending: measurementsPending } = useQuery({
     queryKey: measurementsKey(user?.id),
     queryFn: () => fetchMeasurements(user!.id),
     enabled: !!user,
   });
 
-  const { data: setLogs = [] } = useQuery({
+  const { data: setLogs = [], isPending: setLogsPending } = useQuery({
     queryKey: setLogsKey(user?.id),
     queryFn: () => fetchSetLogs(user!.id),
     enabled: !!user,
   });
 
-  const { data: completions = [] } = useQuery({
+  const { data: completions = [], isPending: completionsPending } = useQuery({
     queryKey: completionsKey(user?.id),
     queryFn: () => fetchCompletions(user!.id),
     enabled: !!user,
@@ -212,7 +217,7 @@ export function useProgressDashboard(periodo: Periodo) {
     mealsRefresh();
     routinesRefresh();
     queryClient.invalidateQueries({ queryKey: ["body-measurements"] });
-    queryClient.invalidateQueries({ queryKey: ["set-logs"] });
+    queryClient.invalidateQueries({ queryKey: ["program-set-logs"] });
     queryClient.invalidateQueries({ queryKey: ["program-completions"] });
   }, [progressRefresh, mealsRefresh, routinesRefresh, queryClient]);
 
@@ -432,13 +437,25 @@ export function useProgressDashboard(periodo: Periodo) {
   const { data: aiInsight = null } = useQuery({
     queryKey: ["ai-insight", user?.id, mondayOf(toDateKey()), i18n.language, weightUnit],
     queryFn: () => generateWeeklyInsight(vm.insightStats, i18n.language, weightUnit),
-    // exercisesLoading gate: muscleSets is computed through the exercise
-    // catalog — generating before it loads would freeze a wrong snapshot
-    // into the week's cached insight.
-    enabled: !!user && !loading && !exercisesLoading && !vm.isEmpty,
+    // Wait for everything the stats read: the snapshot is cached for the
+    // whole week, so generating early would freeze a wrong one (a program
+    // client's sessions, volume and muscles come only from set logs and
+    // completions; muscleSets goes through the exercise catalog; goal and
+    // weight through the profile and measurements).
+    enabled:
+      !!user &&
+      !loading &&
+      !exercisesLoading &&
+      !profileLoading &&
+      !measurementsPending &&
+      !setLogsPending &&
+      !completionsPending &&
+      !vm.isEmpty,
     staleTime: Infinity,
     gcTime: 1000 * 60 * 60 * 24 * 21,
-    retry: 1,
+    // Once, and not when the quota is spent or the AI isn't deployed: the
+    // retry would fail the same way.
+    retry: (failureCount, e) => failureCount < 1 && isAiRetryable(e),
   });
 
   return {
