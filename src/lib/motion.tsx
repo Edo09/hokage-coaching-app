@@ -74,6 +74,26 @@ type PressableScaleProps = React.ComponentProps<typeof RNPressable> & {
   exiting?: AnimatedViewProps["exiting"];
 };
 
+/**
+ * PressableScale's feedback, detached: for when the view that should shrink
+ * isn't the pressable itself (e.g. a card whose tap target is a backdrop
+ * behind its content). Put `style` on an animated view, wire the handlers to
+ * the pressable.
+ */
+export function usePressScale(scaleTo = 0.97) {
+  const scale = useSharedValue(1);
+  const style = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
+  return {
+    style,
+    // .set(), not .value=: React Compiler flags the assignment as an
+    // illegal mutation (Reanimated added get/set for compiler compat)
+    pressIn: () => scale.set(withTiming(scaleTo, { duration: 100, easing: EASE_OUT })),
+    pressOut: () => scale.set(withTiming(1, { duration: DUR.fast, easing: EASE_OUT })),
+  };
+}
+
 /** Pressable with scale-down feedback; the app's standard press affordance. */
 export function PressableScale({
   haptic = false,
@@ -84,22 +104,17 @@ export function PressableScale({
   onPressOut,
   ...rest
 }: PressableScaleProps) {
-  const scale = useSharedValue(1);
-  const pressStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: scale.value }],
-  }));
+  const press = usePressScale(scaleTo);
   return (
     <AnimatedPressable
       {...rest}
-      style={[style, pressStyle]}
+      style={[style, press.style]}
       onPressIn={(e) => {
-        // .set(), not .value=: React Compiler flags the assignment as an
-        // illegal mutation (Reanimated added get/set for compiler compat)
-        scale.set(withTiming(scaleTo, { duration: 100, easing: EASE_OUT }));
+        press.pressIn();
         onPressIn?.(e);
       }}
       onPressOut={(e) => {
-        scale.set(withTiming(1, { duration: DUR.fast, easing: EASE_OUT }));
+        press.pressOut();
         onPressOut?.(e);
       }}
       onPress={(e) => {

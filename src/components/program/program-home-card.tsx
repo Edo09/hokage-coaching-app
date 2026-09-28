@@ -1,12 +1,16 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
-import React from "react";
+import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { ExerciseVideoModal } from "@/src/components/exercise-video-modal";
+import { ProgramExerciseModal } from "@/src/components/program/program-exercise-modal";
 import { Card, CapsLabel, PosterText, Skewed } from "@/src/components/ui";
 import { useProgramLogging } from "@/src/hooks/use-program-logging";
+import { PressableScale, usePressScale } from "@/src/lib/motion";
 import { useColors } from "@/src/theme/colors";
-import { Text, View } from "@/src/tw";
+import { Pressable, Text, View } from "@/src/tw";
+import { AnimatedView } from "@/src/tw/animated";
 import type { ProgramDayWithExercises, ProgramExercise, ProgramWeek, ProgramWithDetails } from "@/src/types/database";
 import { dayLabel } from "@/src/utils/day-label";
 import { currentWeekOf, effectivePrescription, formatReps, weekByNumber } from "@/src/utils/program";
@@ -26,9 +30,16 @@ type Props = {
 // day's actual session — the exercises (with their looping demo thumbnails) and
 // prescriptions — so the client sees exactly what to train, then taps in to do
 // it. Replaces the routines carousel on home when a program is assigned.
+// Tapping an exercise row opens its detail + set-logging sheet; tapping
+// anywhere else opens the program.
 export function ProgramHomeCard({ program, notStarted, onPress }: Props) {
   const { t, i18n } = useTranslation();
   const colors = useColors();
+  const press = usePressScale();
+  // The sheet keeps the week it was opened for: checking off the day's last
+  // exercise can move the card on to the next day/week underneath it.
+  const [openExercise, setOpenExercise] = useState<{ exercise: ProgramExercise; week: number } | null>(null);
+  const [videoUri, setVideoUri] = useState<string | null>(null);
 
   const autoWeek = currentWeekOf(program.start_date, program.duration_weeks);
   const logging = useProgramLogging(program);
@@ -85,110 +96,147 @@ export function ProgramHomeCard({ program, notStarted, onPress }: Props) {
     i18n.language === "es" ? "es-ES" : "en-US",
     { day: "numeric", month: "long" },
   );
+  const cta = notStarted ? t("program.viewProgram") : t("program.trainToday");
 
   return (
-    <Card onPress={onPress} topAccent={frac} className="rounded-[20px] p-[18px] gap-3">
-      {/* Badge + week */}
-      <View className="flex-row items-center justify-between">
-        <Skewed deg={-10} className="bg-brand-primary px-2.5 py-1" contentClassName="gap-1">
-          <Ionicons name="ribbon" size={11} color="#fff" />
-          <CapsLabel size={9} em={0.14} style={{ color: "#fff" }}>
-            {t("home.coachProgram")}
-          </CapsLabel>
-        </Skewed>
-        <CapsLabel size={10} em={0.12} className="text-content-tertiary">
-          {t("program.weekOfTotal", { n: displayWeek, total: program.duration_weeks })}
-        </CapsLabel>
-      </View>
+    <>
+      <AnimatedView style={press.style}>
+        <Card topAccent={frac} className="rounded-[20px] p-[18px] gap-3">
+          {/* The card's tap target sits BEHIND the content: the exercise rows are
+              their own buttons, and wrapping them in a card-wide Pressable would
+              nest buttons on RN Web. Display-only sections use
+              pointerEvents="none" so taps fall through to it. */}
+          <Pressable
+            onPress={onPress}
+            onPressIn={press.pressIn}
+            onPressOut={press.pressOut}
+            accessibilityRole="button"
+            accessibilityLabel={`${program.name}: ${cta}`}
+            className="absolute inset-0"
+          />
 
-      {/* Title + focus / start hint */}
-      <View>
-        <PosterText size={22} numberOfLines={2}>
-          {program.name}
-        </PosterText>
-        {notStarted ? (
-          <CapsLabel size={9.5} em={0.12} className="text-brand-primary" style={{ marginTop: 5 }}>
-            {t("program.startsEyebrow")} · {startDate}
-          </CapsLabel>
-        ) : (
-          program.focus != null &&
-          program.focus !== "" && (
-            <CapsLabel size={10} em={0.1} className="text-content-tertiary" style={{ marginTop: 4 }}>
-              {program.focus}
+          {/* Badge + week */}
+          <View pointerEvents="none" className="flex-row items-center justify-between">
+            <Skewed deg={-10} className="bg-brand-primary px-2.5 py-1" contentClassName="gap-1">
+              <Ionicons name="ribbon" size={11} color="#fff" />
+              <CapsLabel size={9} em={0.14} style={{ color: "#fff" }}>
+                {t("home.coachProgram")}
+              </CapsLabel>
+            </Skewed>
+            <CapsLabel size={10} em={0.12} className="text-content-tertiary">
+              {t("program.weekOfTotal", { n: displayWeek, total: program.duration_weeks })}
             </CapsLabel>
-          )
-        )}
-      </View>
+          </View>
 
-      {day != null && (
-        <>
-          {/* Day header */}
-          <View className="mt-0.5 flex-row items-center justify-between">
-            <View className="flex-1 flex-row items-baseline gap-2">
-              <CapsLabel size={9} em={0.16} className="text-brand-primary">
-                {t("program.dayN", { n: day.day_index })}
+          {/* Title + focus / start hint */}
+          <View pointerEvents="none">
+            <PosterText size={22} numberOfLines={2}>
+              {program.name}
+            </PosterText>
+            {notStarted ? (
+              <CapsLabel size={9.5} em={0.12} className="text-brand-primary" style={{ marginTop: 5 }}>
+                {t("program.startsEyebrow")} · {startDate}
               </CapsLabel>
-              {dayTitle != null && dayTitle !== "" && (
-                <Text className="flex-1 text-[15px] font-bold text-content-primary" numberOfLines={1}>
-                  {dayTitle}
-                </Text>
-              )}
+            ) : (
+              program.focus != null &&
+              program.focus !== "" && (
+                <CapsLabel size={10} em={0.1} className="text-content-tertiary" style={{ marginTop: 4 }}>
+                  {program.focus}
+                </CapsLabel>
+              )
+            )}
+          </View>
+
+          {day != null && (
+            <>
+              {/* Day header */}
+              <View pointerEvents="none" className="mt-0.5 flex-row items-center justify-between">
+                <View className="flex-1 flex-row items-baseline gap-2">
+                  <CapsLabel size={9} em={0.16} className="text-brand-primary">
+                    {t("program.dayN", { n: day.day_index })}
+                  </CapsLabel>
+                  {dayTitle != null && dayTitle !== "" && (
+                    <Text className="flex-1 text-[15px] font-bold text-content-primary" numberOfLines={1}>
+                      {dayTitle}
+                    </Text>
+                  )}
+                </View>
+                <View
+                  className={
+                    dayDone.done > 0
+                      ? "flex-row items-center gap-1 rounded-full bg-success-soft px-2.5 py-1"
+                      : "flex-row items-center gap-1 rounded-full bg-surface-elevated px-2.5 py-1"
+                  }
+                >
+                  <Ionicons
+                    name={dayDone.done > 0 ? "checkmark-circle" : "ellipse-outline"}
+                    size={11}
+                    color={dayDone.done > 0 ? colors.success : colors.contentTertiary}
+                  />
+                  <CapsLabel
+                    size={9}
+                    em={0.08}
+                    className={dayDone.done > 0 ? "text-success" : "text-content-tertiary"}
+                    style={{ fontVariant: ["tabular-nums"] }}
+                  >
+                    {dayDone.done}/{dayDone.total}
+                  </CapsLabel>
+                </View>
+              </View>
+
+              {/* Exercise rows — the actual session preview */}
+              <View pointerEvents="box-none">
+                {exercises.map((ex) => (
+                  <ExerciseMiniRow
+                    key={ex.id}
+                    exercise={ex}
+                    week={week}
+                    weekNumber={displayWeek}
+                    done={logging.isDone(ex.id, displayWeek)}
+                    onPress={() => setOpenExercise({ exercise: ex, week: displayWeek })}
+                  />
+                ))}
+              </View>
+            </>
+          )}
+
+          {/* Block progress */}
+          <View pointerEvents="none" className="gap-1.5">
+            <View className="flex-row items-center justify-between">
+              <CapsLabel size={8.5} em={0.14} className="text-content-tertiary">
+                {t("program.blockProgress")}
+              </CapsLabel>
+              <PosterText size={12} tabular>
+                {pct}%
+              </PosterText>
             </View>
-            <View
-              className={
-                dayDone.done > 0
-                  ? "flex-row items-center gap-1 rounded-full bg-success-soft px-2.5 py-1"
-                  : "flex-row items-center gap-1 rounded-full bg-surface-elevated px-2.5 py-1"
-              }
-            >
-              <Ionicons
-                name={dayDone.done > 0 ? "checkmark-circle" : "ellipse-outline"}
-                size={11}
-                color={dayDone.done > 0 ? colors.success : colors.contentTertiary}
-              />
-              <CapsLabel
-                size={9}
-                em={0.08}
-                className={dayDone.done > 0 ? "text-success" : "text-content-tertiary"}
-                style={{ fontVariant: ["tabular-nums"] }}
-              >
-                {dayDone.done}/{dayDone.total}
-              </CapsLabel>
+            <View className="h-1.5 overflow-hidden rounded-full bg-border">
+              <View className="h-full rounded-full bg-brand-primary" style={{ width: `${pct}%` }} />
             </View>
           </View>
 
-          {/* Exercise rows — the actual session preview */}
-          <View>
-            {exercises.map((ex) => (
-              <ExerciseMiniRow key={ex.id} exercise={ex} week={week} weekNumber={displayWeek} done={logging.isDone(ex.id, displayWeek)} />
-            ))}
+          {/* CTA — visual only; taps fall through to the card's tap target. */}
+          <View pointerEvents="none">
+            <Skewed deg={-10} className="self-stretch bg-brand-primary py-2.5" contentClassName="gap-2">
+              <Ionicons name="barbell" size={14} color="#fff" />
+              <CapsLabel size={12} em={0.1} style={{ color: "#fff" }}>
+                {cta}
+              </CapsLabel>
+            </Skewed>
           </View>
-        </>
-      )}
+        </Card>
+      </AnimatedView>
 
-      {/* Block progress */}
-      <View className="gap-1.5">
-        <View className="flex-row items-center justify-between">
-          <CapsLabel size={8.5} em={0.14} className="text-content-tertiary">
-            {t("program.blockProgress")}
-          </CapsLabel>
-          <PosterText size={12} tabular>
-            {pct}%
-          </PosterText>
-        </View>
-        <View className="h-1.5 overflow-hidden rounded-full bg-border">
-          <View className="h-full rounded-full bg-brand-primary" style={{ width: `${pct}%` }} />
-        </View>
-      </View>
-
-      {/* CTA — visual only; the whole card is the tap target (no nested Pressable). */}
-      <Skewed deg={-10} className="self-stretch bg-brand-primary py-2.5" contentClassName="gap-2">
-        <Ionicons name="barbell" size={14} color="#fff" />
-        <CapsLabel size={12} em={0.1} style={{ color: "#fff" }}>
-          {notStarted ? t("program.viewProgram") : t("program.trainToday")}
-        </CapsLabel>
-      </Skewed>
-    </Card>
+      <ProgramExerciseModal
+        exercise={openExercise?.exercise ?? null}
+        week={openExercise != null ? weekByNumber(program, openExercise.week) : null}
+        weekNumber={openExercise?.week ?? displayWeek}
+        logging={logging}
+        onClose={() => setOpenExercise(null)}
+        onPlay={setVideoUri}
+      />
+      <ExerciseVideoModal uri={videoUri} onClose={() => setVideoUri(null)} />
+    </>
   );
 }
 
@@ -197,11 +245,13 @@ function ExerciseMiniRow({
   week,
   weekNumber,
   done,
+  onPress,
 }: {
   exercise: ProgramExercise;
   week: ProgramWeek | null;
   weekNumber: number;
   done: boolean;
+  onPress: () => void;
 }) {
   const { t } = useTranslation();
   const colors = useColors();
@@ -213,7 +263,13 @@ function ExerciseMiniRow({
     : t("program.setsReps", { sets: p.sets, reps: formatReps(p.repMin, p.repMax) });
 
   return (
-    <View className="flex-row items-center gap-3 border-t border-border py-2.5">
+    <PressableScale
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={t("program.openExercise", { name: p.name })}
+      scaleTo={0.98}
+      className="flex-row items-center gap-3 border-t border-border py-2.5"
+    >
       {isInlineGif ? (
         <View className="h-11 w-11 overflow-hidden rounded-lg bg-brand-dark">
           <Image
@@ -252,6 +308,6 @@ function ExerciseMiniRow({
         size={20}
         color={done ? colors.success : colors.contentMuted}
       />
-    </View>
+    </PressableScale>
   );
 }
