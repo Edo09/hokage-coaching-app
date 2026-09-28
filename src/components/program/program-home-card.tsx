@@ -5,9 +5,11 @@ import { useTranslation } from "react-i18next";
 
 import { ExerciseVideoModal } from "@/src/components/exercise-video-modal";
 import { ProgramExerciseModal } from "@/src/components/program/program-exercise-modal";
+import { DoneCheckbox } from "@/src/components/program/program-exercise-row";
 import { Card, CapsLabel, PosterText, Skewed } from "@/src/components/ui";
 import { useProgramLogging } from "@/src/hooks/use-program-logging";
-import { PressableScale, usePressScale } from "@/src/lib/motion";
+import { usePressScale } from "@/src/lib/motion";
+import { useCelebration } from "@/src/providers/celebration-context";
 import { useColors } from "@/src/theme/colors";
 import { Pressable, Text, View } from "@/src/tw";
 import { AnimatedView } from "@/src/tw/animated";
@@ -30,8 +32,9 @@ type Props = {
 // day's actual session — the exercises (with their looping demo thumbnails) and
 // prescriptions — so the client sees exactly what to train, then taps in to do
 // it. Replaces the routines carousel on home when a program is assigned.
-// Tapping an exercise row opens its detail + set-logging sheet; tapping
-// anywhere else opens the program.
+// Tapping an exercise row opens its detail + set-logging sheet, its circle
+// checks it off (same celebration as the Programa tab); tapping anywhere else
+// opens the program.
 export function ProgramHomeCard({ program, notStarted, onPress }: Props) {
   const { t, i18n } = useTranslation();
   const colors = useColors();
@@ -67,10 +70,17 @@ export function ProgramHomeCard({ program, notStarted, onPress }: Props) {
     d.program_exercises.length > 0 && logging.dayProgress(d, w).done < d.program_exercises.length;
   const dow = new Date().getDay();
   const todayDay = days.find((d) => d.weekday?.toLowerCase() === DOW[dow]) ?? null;
+  // A day just finished stays on the card until its celebration closes, so
+  // the last check's burst plays here instead of the card jumping ahead.
+  const held = useCelebration()?.holding ?? null;
+  const heldDay = held != null ? (days.find((d) => d.id === held.dayId) ?? null) : null;
 
   let displayWeek = autoWeek;
   let day: ProgramDayWithExercises | null;
-  if (todayDay != null && pending(todayDay, autoWeek)) {
+  if (held != null && heldDay != null) {
+    day = heldDay;
+    displayWeek = held.week;
+  } else if (todayDay != null && pending(todayDay, autoWeek)) {
     day = todayDay;
   } else {
     day = days.find((d) => pending(d, autoWeek)) ?? null;
@@ -194,6 +204,9 @@ export function ProgramHomeCard({ program, notStarted, onPress }: Props) {
                     weekNumber={displayWeek}
                     done={logging.isDone(ex.id, displayWeek)}
                     onPress={() => setOpenExercise({ exercise: ex, week: displayWeek })}
+                    onToggleDone={() =>
+                      logging.setCompletion(ex.id, displayWeek, !logging.isDone(ex.id, displayWeek))
+                    }
                   />
                 ))}
               </View>
@@ -246,15 +259,18 @@ function ExerciseMiniRow({
   weekNumber,
   done,
   onPress,
+  onToggleDone,
 }: {
   exercise: ProgramExercise;
   week: ProgramWeek | null;
   weekNumber: number;
   done: boolean;
   onPress: () => void;
+  onToggleDone: () => void;
 }) {
   const { t } = useTranslation();
   const colors = useColors();
+  const press = usePressScale(0.98);
   const p = effectivePrescription(exercise, week, weekNumber);
   const videoUrl = exercise.exercise?.video_url ?? null;
   const isInlineGif = videoUrl != null && videoUrl !== "" && IS_IMAGE.test(videoUrl.split("?")[0]);
@@ -263,51 +279,53 @@ function ExerciseMiniRow({
     : t("program.setsReps", { sets: p.sets, reps: formatReps(p.repMin, p.repMax) });
 
   return (
-    <PressableScale
-      onPress={onPress}
-      accessibilityRole="button"
-      accessibilityLabel={t("program.openExercise", { name: p.name })}
-      scaleTo={0.98}
-      className="flex-row items-center gap-3 border-t border-border py-2.5"
-    >
-      {isInlineGif ? (
-        <View className="h-11 w-11 overflow-hidden rounded-lg bg-brand-dark">
-          <Image
-            source={{ uri: videoUrl! }}
-            style={{ width: "100%", height: "100%" }}
-            contentFit="cover"
-            cachePolicy="memory-disk"
-            transition={150}
-          />
-        </View>
-      ) : (
-        <View className="h-11 w-11 items-center justify-center rounded-lg bg-brand-dark">
-          <Ionicons name="barbell-outline" size={16} color={colors.contentTertiary} />
-        </View>
-      )}
-      <View className="flex-1">
-        <Text
-          className={
-            done
-              ? "text-[13.5px] font-semibold text-content-muted line-through"
-              : "text-[13.5px] font-semibold text-content-primary"
-          }
-          numberOfLines={1}
-        >
-          {p.name}
-        </Text>
-        <Text
-          className="text-[12px] font-medium text-content-secondary"
-          style={{ fontVariant: ["tabular-nums"] }}
-        >
-          {setsReps}
-        </Text>
-      </View>
-      <Ionicons
-        name={done ? "checkmark-circle" : "ellipse-outline"}
-        size={20}
-        color={done ? colors.success : colors.contentMuted}
+    <AnimatedView style={press.style} className="flex-row items-center gap-3 border-t border-border py-2.5">
+      {/* The row's tap target (open the sheet) sits behind its content, like
+          the card's: the checkbox is its own button beside it. */}
+      <Pressable
+        onPress={onPress}
+        onPressIn={press.pressIn}
+        onPressOut={press.pressOut}
+        accessibilityRole="button"
+        accessibilityLabel={t("program.openExercise", { name: p.name })}
+        className="absolute inset-0"
       />
-    </PressableScale>
+      <View pointerEvents="none" className="flex-1 flex-row items-center gap-3">
+        {isInlineGif ? (
+          <View className="h-11 w-11 overflow-hidden rounded-lg bg-brand-dark">
+            <Image
+              source={{ uri: videoUrl! }}
+              style={{ width: "100%", height: "100%" }}
+              contentFit="cover"
+              cachePolicy="memory-disk"
+              transition={150}
+            />
+          </View>
+        ) : (
+          <View className="h-11 w-11 items-center justify-center rounded-lg bg-brand-dark">
+            <Ionicons name="barbell-outline" size={16} color={colors.contentTertiary} />
+          </View>
+        )}
+        <View className="flex-1">
+          <Text
+            className={
+              done
+                ? "text-[13.5px] font-semibold text-content-muted line-through"
+                : "text-[13.5px] font-semibold text-content-primary"
+            }
+            numberOfLines={1}
+          >
+            {p.name}
+          </Text>
+          <Text
+            className="text-[12px] font-medium text-content-secondary"
+            style={{ fontVariant: ["tabular-nums"] }}
+          >
+            {setsReps}
+          </Text>
+        </View>
+      </View>
+      <DoneCheckbox done={done} name={p.name} onToggle={onToggleDone} className="" />
+    </AnimatedView>
   );
 }

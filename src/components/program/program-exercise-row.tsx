@@ -11,6 +11,7 @@ import { useColors } from "@/src/theme/colors";
 import { Pressable, Text, View } from "@/src/tw";
 import { AnimatedView } from "@/src/tw/animated";
 import type { ProgramExercise, ProgramWeek } from "@/src/types/database";
+import { cn } from "@/src/utils/cn";
 import {
   effectivePrescription,
   formatLoadPct,
@@ -246,16 +247,19 @@ export function ProgramExerciseRow({
 /**
  * The completion check. Checking it off is the moment the client finished an
  * exercise, so it answers with a pop, impact lines and a haptic; unchecking
- * stays quiet.
+ * stays quiet. Shared with the home card's rows.
  */
-function DoneCheckbox({
+export function DoneCheckbox({
   done,
   name,
   onToggle,
+  className = "mt-0.5",
 }: {
   done: boolean;
   name: string;
   onToggle: () => void;
+  /** Placement of the 24px check (margins). */
+  className?: string;
 }) {
   const { t } = useTranslation();
   const colors = useColors();
@@ -272,7 +276,7 @@ function DoneCheckbox({
   };
 
   return (
-    <View className="mt-0.5 h-6 w-6">
+    <View className={cn("h-6 w-6", className)}>
       <Burst play={burst} from={15} to={27} colors={[colors.success, colors.contentPrimary]} />
       <AnimatedView style={check.style}>
         <Pressable

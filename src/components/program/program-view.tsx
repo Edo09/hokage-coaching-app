@@ -7,6 +7,7 @@ import { ProgramExerciseModal } from "@/src/components/program/program-exercise-
 import { ProgramExerciseRow } from "@/src/components/program/program-exercise-row";
 import { Card } from "@/src/components/ui";
 import { useProgramLogging } from "@/src/hooks/use-program-logging";
+import { isHeld, useCelebration } from "@/src/providers/celebration-context";
 import { useColors } from "@/src/theme/colors";
 import { Pressable, ScrollView, Text, View } from "@/src/tw";
 import type {
@@ -208,8 +209,10 @@ function DayCard({
 
   // A finished day collapses itself so the next day is one scroll away; tapping
   // the header (or the chevron) reopens it. A manual toggle pins the choice.
+  // Not while its celebration is on: the last check's burst plays in place.
+  const celebration = useCelebration();
   const [manualCollapsed, setManualCollapsed] = useState<boolean | null>(null);
-  const collapsed = manualCollapsed ?? allDone;
+  const collapsed = manualCollapsed ?? (allDone && !isHeld(celebration, day.id, selectedWeek));
   const toggleCollapsed = () => setManualCollapsed(!collapsed);
 
   return (
