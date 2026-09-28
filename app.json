@@ -21,7 +21,11 @@
         "foregroundImage": "./assets/images/app-icon/android-icon-foreground.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.edo09.hokagecoaching"
+      "package": "com.edo09.hokagecoaching",
+      "permissions": [
+        "android.permission.SCHEDULE_EXACT_ALARM",
+        "android.permission.USE_EXACT_ALARM"
+      ]
     },
     "web": {
       "output": "single",
@@ -80,11 +84,22 @@
       "expo-web-browser",
       "./plugins/with-gradle-jvm-args.js",
       "expo-video",
-      "expo-audio",
+      [
+        "expo-audio",
+        {
+          "microphonePermission": false,
+          "recordAudioAndroid": false,
+          "enableBackgroundPlayback": false
+        }
+      ],
       [
         "expo-notifications",
         {
-          "sounds": ["./assets/sounds/rest-done.wav"]
+          "sounds": [
+            "./assets/sounds/rest_done.wav",
+            "./assets/sounds/rest_start.wav",
+            "./assets/sounds/rest_silent.wav"
+          ]
         }
       ]
     ],

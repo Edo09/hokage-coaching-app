@@ -239,6 +239,15 @@ export default {
     passwordsDontMatch: "Las contraseñas no coinciden",
     passwordChanged: "Contraseña actualizada",
     privacyPolicy: "Política de privacidad",
+    restAlert: "Aviso del descanso",
+    restAlert_both: "Sonido y vibración",
+    restAlert_vibrate: "Solo vibración",
+    restAlert_sound: "Solo sonido",
+    restAlertHint: "Se usa al empezar y al terminar cada descanso. Con la app en segundo plano, el final llega como notificación.",
+    // Nombre del canal de notificaciones en los ajustes de Android
+    restAlertChannel_both: "Descanso (sonido y vibración)",
+    restAlertChannel_vibrate: "Descanso (solo vibración)",
+    restAlertChannel_sound: "Descanso (solo sonido)",
   },
 
   // Programa multi-semana del coach

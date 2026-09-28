@@ -13,6 +13,7 @@ import { AppState } from "react-native";
 import {
   cancelRestDoneNotification,
   playRestDoneAlert,
+  playRestStartAlert,
   primeRestAlert,
   scheduleRestDoneNotification,
 } from "@/src/lib/rest-alert";
@@ -32,7 +33,9 @@ import {
  * for the whole rest and coming back reads correctly.
  *
  * Completion is signalled three ways — vibration, chime, local notification —
- * all of which live in `@/src/lib/rest-alert`. Only the notification survives a
+ * all of which live in `@/src/lib/rest-alert`; the client picks sound,
+ * vibration or both in Ajustes (`@/src/lib/alert-mode`), and a start gets a
+ * short cue in the same mode. Only the notification survives a
  * backgrounded app, so it is scheduled up front from the end timestamp rather
  * than fired at 0:00, when JS may not be running at all.
  */
@@ -158,7 +161,8 @@ export function RestTimerProvider({ children }: { children: React.ReactNode }) {
     setPausedAt(null);
     setNow(t0);
     setEndsAt(t0 + seconds * 1000);
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    // Short buzz and/or cue per the client's alert mode (Ajustes).
+    playRestStartAlert();
   }, []);
 
   const stop = useCallback(() => {

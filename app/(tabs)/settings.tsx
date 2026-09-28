@@ -6,7 +6,9 @@ import { Linking } from "react-native";
 import { CoachSection } from "@/src/components/coach-section";
 import { Button, Card, Input, Screen, useToast } from "@/src/components/ui";
 import { setLanguage } from "@/src/i18n";
+import { ALERT_MODES, setAlertMode, useAlertMode } from "@/src/lib/alert-mode";
 import { useIsOnline } from "@/src/lib/online";
+import { playRestDoneAlert } from "@/src/lib/rest-alert";
 import { setWeightUnit, useWeightUnit } from "@/src/lib/weight-unit";
 import { useColors } from "@/src/theme/colors";
 import { setThemeMode } from "@/src/theme/theme-mode";
@@ -23,7 +25,8 @@ type RowProps = {
 };
 
 // Tappable preference row: label left, current value + chevron right.
-// Tapping cycles the setting (all three prefs are binary toggles today).
+// Tapping cycles a binary setting, or opens a card's options (rest alert,
+// password).
 function SettingsRow({ icon, label, value, onPress, last = false }: RowProps) {
   const colors = useColors();
   return (
@@ -129,6 +132,58 @@ function ChangePasswordCard() {
   );
 }
 
+// How the rest timer gets the client's attention when a rest starts and ends:
+// sound and vibration, vibration only, or sound only. Picking an option plays
+// the end-of-rest alert in that mode, so they feel/hear what they chose.
+function RestAlertCard() {
+  const { t } = useTranslation();
+  const colors = useColors();
+  const mode = useAlertMode();
+  const [open, setOpen] = useState(false);
+
+  return (
+    <Card className="py-0">
+      <SettingsRow
+        icon="timer-outline"
+        label={t("settings.restAlert")}
+        value={t(`settings.restAlert_${mode}`)}
+        onPress={() => setOpen((v) => !v)}
+        last={!open}
+      />
+      {open && (
+        <View accessibilityRole="radiogroup" className="gap-0.5 pb-3.5 pt-1.5">
+          {ALERT_MODES.map((m) => {
+            const selected = m === mode;
+            return (
+              <Pressable
+                key={m}
+                onPress={() => {
+                  void setAlertMode(m);
+                  playRestDoneAlert(m);
+                }}
+                accessibilityRole="radio"
+                accessibilityState={{ checked: selected }}
+                accessibilityLabel={t(`settings.restAlert_${m}`)}
+                className="flex-row items-center gap-3 py-2.5"
+              >
+                <Ionicons
+                  name={selected ? "radio-button-on" : "radio-button-off"}
+                  size={20}
+                  color={selected ? colors.brandPrimary : colors.contentMuted}
+                />
+                <Text className="flex-1 text-[15px] text-content-primary">{t(`settings.restAlert_${m}`)}</Text>
+              </Pressable>
+            );
+          })}
+          <Text className="pt-1.5 text-[12px] leading-[17px] text-content-tertiary">
+            {t("settings.restAlertHint")}
+          </Text>
+        </View>
+      )}
+    </Card>
+  );
+}
+
 // Public privacy-policy page (the panel serves it at /privacidad.html). Set
 // per deployment in EAS, since the URL is the coach's domain; the row is
 // hidden until it is set.
@@ -163,6 +218,8 @@ export default function SettingsScreen() {
           last
         />
       </Card>
+
+      <RestAlertCard />
 
       <ChangePasswordCard />
 

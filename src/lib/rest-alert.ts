@@ -1,3 +1,4 @@
+import * as Haptics from "expo-haptics";
 import * as Notifications from "expo-notifications";
 import {
   createAudioPlayer,
@@ -7,6 +8,7 @@ import {
 import { AppState, Platform, Vibration } from "react-native";
 
 import i18n from "@/src/i18n";
+import { alertSounds, alertVibrates, type AlertMode, getAlertMode } from "@/src/lib/alert-mode";
 
 /**
  * How the client learns their rest is over.
@@ -19,10 +21,29 @@ import i18n from "@/src/i18n";
  *
  * All three fail soft. A denied permission, a muted device or an audio session
  * the OS refuses must never break the countdown itself.
+ *
+ * Which of sound and vibration play is the client's choice (Ajustes, see
+ * `@/src/lib/alert-mode`), read at the moment each alert fires or is
+ * scheduled. Starting a rest gets a short cue in the same mode.
  */
 
-/** Android channel id. Must match what the scheduled notification asks for. */
-const CHANNEL_ID = "rest-timer";
+/**
+ * Android channel per alert mode. Android takes sound and vibration from the
+ * channel, and a channel is immutable once created, so each mode is its own
+ * channel and a scheduled notification asks for the one matching the mode.
+ */
+const CHANNELS: Record<AlertMode, string> = {
+  both: "rest-sound-vibrate",
+  vibrate: "rest-vibrate",
+  sound: "rest-sound",
+};
+
+/** Bundled by the expo-notifications plugin (app.json). Android resource
+    names allow only a-z, 0-9 and "_", hence the underscores. */
+const DONE_SOUND = "rest_done.wav";
+/** iOS only buzzes for a notification that has a sound, so "vibrate only"
+    plays silence. */
+const SILENT_SOUND = "rest_silent.wav";
 
 /**
  * [wait, buzz, wait, buzz]. Two pulses reads as "done" where one reads as an
@@ -31,9 +52,16 @@ const CHANNEL_ID = "rest-timer";
  */
 const VIBRATION_PATTERN = [0, 400, 180, 400];
 
+/** A single short buzz for a rest starting: acknowledged, not an alarm. */
+const START_VIBRATION_MS = 70;
+
 const isWeb = Platform.OS === "web";
 
-let player: AudioPlayer | null = null;
+const SOUNDS = {
+  done: require("@/assets/sounds/rest_done.wav"),
+  start: require("@/assets/sounds/rest_start.wav"),
+};
+const players: Partial<Record<keyof typeof SOUNDS, AudioPlayer>> = {};
 
 /**
  * Built on demand, not at import: constructing a player allocates a decoder (and
@@ -41,14 +69,56 @@ let player: AudioPlayer | null = null;
  * start a rest timer. `primeRestAlert` is what keeps that cost off the moment
  * the chime has to sound.
  */
-function getPlayer(): AudioPlayer | null {
-  if (player != null) return player;
+function getPlayer(sound: keyof typeof SOUNDS): AudioPlayer | null {
+  const existing = players[sound];
+  if (existing != null) return existing;
   try {
-    player = createAudioPlayer(require("@/assets/sounds/rest-done.wav"));
-    return player;
+    const created = createAudioPlayer(SOUNDS[sound]);
+    players[sound] = created;
+    return created;
   } catch {
     return null;
   }
+}
+
+function play(sound: keyof typeof SOUNDS) {
+  const p = getPlayer(sound);
+  if (p == null) return;
+  try {
+    // Rewind first: the player holds its position from the previous rest, and
+    // a finished player replays nothing until it is seeked back to 0. Don't
+    // await it — a seek that resolves after the play() still lands in time, and
+    // waiting would add latency to the one call that must not have any.
+    p.seekTo(0).catch(() => {});
+    p.play();
+  } catch {}
+}
+
+/** Channels already created this session (creating is idempotent, but async). */
+const createdChannels = new Set<AlertMode>();
+
+/** Create the Android channel for this mode if this session hasn't yet. */
+async function ensureChannel(mode: AlertMode): Promise<void> {
+  if (Platform.OS !== "android" || createdChannels.has(mode)) return;
+  try {
+    await Notifications.setNotificationChannelAsync(CHANNELS[mode], {
+      name: i18n.t(`settings.restAlertChannel_${mode}`),
+      importance: Notifications.AndroidImportance.HIGH,
+      // null = no sound (vibrate only).
+      sound: alertSounds(mode) ? DONE_SOUND : null,
+      enableVibrate: alertVibrates(mode),
+      vibrationPattern: alertVibrates(mode) ? VIBRATION_PATTERN : null,
+      lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+      // ALARM usage, not NOTIFICATION: it plays on the alarm stream, so a phone
+      // silenced for the gym still ends the set audibly. Same call as
+      // playsInSilentMode on iOS.
+      audioAttributes: {
+        usage: Notifications.AndroidAudioUsage.ALARM,
+        contentType: Notifications.AndroidAudioContentType.SONIFICATION,
+      },
+    });
+    createdChannels.add(mode);
+  } catch {}
 }
 
 /**
@@ -84,26 +154,10 @@ export function setupRestAlerts() {
     },
   });
 
-  if (Platform.OS === "android") {
-    // Android takes sound and vibration from the channel, not the notification,
-    // and a channel is immutable once created — changing these later needs a
-    // new id or an app reinstall.
-    Notifications.setNotificationChannelAsync(CHANNEL_ID, {
-      name: "Rest timer",
-      importance: Notifications.AndroidImportance.HIGH,
-      sound: "rest-done.wav",
-      vibrationPattern: VIBRATION_PATTERN,
-      lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
-      enableVibrate: true,
-      // ALARM usage, not NOTIFICATION: it plays on the alarm stream, so a phone
-      // silenced for the gym still ends the set audibly. Same call as
-      // playsInSilentMode on iOS.
-      audioAttributes: {
-        usage: Notifications.AndroidAudioUsage.ALARM,
-        contentType: Notifications.AndroidAudioContentType.SONIFICATION,
-      },
-    }).catch(() => {});
-  }
+  // The channel for the default mode, so Android 13+ has one to attach the
+  // notification-permission prompt to. Other modes' channels are created when
+  // first used (scheduleRestDoneNotification).
+  void ensureChannel(getAlertMode());
 }
 
 /**
@@ -112,31 +166,42 @@ export function setupRestAlerts() {
  * a 90s rest is exactly the beat the client is listening for.
  */
 export function primeRestAlert() {
-  getPlayer();
+  if (alertSounds(getAlertMode())) getPlayer("done");
 }
 
 /**
- * Buzz + chime. Needs JS to be running, so on native this only covers a
- * foregrounded finish — the notification covers the rest. On web it also fires
- * from a hidden tab, which is the only signal that surface has.
+ * Buzz and/or chime, per the alert mode. Needs JS to be running, so on native
+ * this only covers a foregrounded finish — the notification covers the rest.
+ * On web it also fires from a hidden tab, which is the only signal that
+ * surface has. `mode` defaults to the saved one (Ajustes passes the option
+ * being previewed).
  */
-export function playRestDoneAlert() {
-  if (!isWeb) {
+export function playRestDoneAlert(mode: AlertMode = getAlertMode()) {
+  if (!isWeb && alertVibrates(mode)) {
     try {
       Vibration.vibrate(VIBRATION_PATTERN);
     } catch {}
   }
+  if (alertSounds(mode)) play("done");
+}
 
-  const p = getPlayer();
-  if (p == null) return;
-  try {
-    // Rewind first: the player holds its position from the previous rest, and
-    // a finished player replays nothing until it is seeked back to 0. Don't
-    // await it — a seek that resolves after the play() still lands in time, and
-    // waiting would add latency to the one call that must not have any.
-    p.seekTo(0).catch(() => {});
-    p.play();
-  } catch {}
+/**
+ * A rest just started: a short buzz and/or a quick two-note cue, per the
+ * alert mode, so the client knows the tap landed without looking.
+ */
+export function playRestStartAlert(mode: AlertMode = getAlertMode()) {
+  if (!isWeb && alertVibrates(mode)) {
+    // iOS ignores vibration durations (every buzz is ~0.4 s, too much for an
+    // acknowledgement); a heavy haptic tap is its short buzz.
+    if (Platform.OS === "ios") {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy).catch(() => {});
+    } else {
+      try {
+        Vibration.vibrate(START_VIBRATION_MS);
+      } catch {}
+    }
+  }
+  if (alertSounds(mode)) play("start");
 }
 
 /**
@@ -185,8 +250,10 @@ export function scheduleRestDoneNotification(seconds: number, label?: string | n
 
   cancelRestDoneNotification();
   const mine = token;
+  const mode = getAlertMode();
 
   void (async () => {
+    await ensureChannel(mode);
     if (!(await ensurePermission())) return;
     try {
       const id = await Notifications.scheduleNotificationAsync({
@@ -195,15 +262,16 @@ export function scheduleRestDoneNotification(seconds: number, label?: string | n
           body: label
             ? i18n.t("program.restNotifNext", { name: label })
             : i18n.t("program.restNotifBody"),
-          // iOS reads the sound off the notification; Android ignores this one
-          // and uses the channel's.
-          sound: "rest-done.wav",
+          // iOS reads the sound off the notification (and only buzzes when
+          // there is one, hence silence for "vibrate only"); Android ignores
+          // this and uses the channel's.
+          sound: alertSounds(mode) ? DONE_SOUND : SILENT_SOUND,
         },
         trigger: {
           type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
           seconds,
           repeats: false,
-          channelId: CHANNEL_ID,
+          channelId: CHANNELS[mode],
         },
       });
       if (token !== mine) {

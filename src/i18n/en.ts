@@ -239,6 +239,15 @@ export default {
     passwordsDontMatch: "Passwords don't match",
     passwordChanged: "Password updated",
     privacyPolicy: "Privacy policy",
+    restAlert: "Rest alert",
+    restAlert_both: "Sound and vibration",
+    restAlert_vibrate: "Vibration only",
+    restAlert_sound: "Sound only",
+    restAlertHint: "Used when each rest starts and ends. With the app in the background, the end arrives as a notification.",
+    // Notification channel name in Android settings
+    restAlertChannel_both: "Rest (sound and vibration)",
+    restAlertChannel_vibrate: "Rest (vibration only)",
+    restAlertChannel_sound: "Rest (sound only)",
   },
 
   // Coach multi-week program
