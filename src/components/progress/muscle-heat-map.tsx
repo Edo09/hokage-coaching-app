@@ -13,12 +13,12 @@ import {
   type MuscleWeek,
 } from "@/src/utils/progress";
 
-type DrawnGroup = Exclude<MuscleGroup, "other">;
+export type DrawnGroup = Exclude<MuscleGroup, "other">;
 
 /** Drawn muscles per display group — utils/progress.ts collapses the
  *  catalog's body parts into these six. The drawing has no abductors, and
  *  "other" (neck, cardio) has nothing to shade. */
-const GROUP_SLUGS: Record<DrawnGroup, Slug[]> = {
+export const GROUP_SLUGS: Record<DrawnGroup, Slug[]> = {
   chest: ["chest"],
   back: ["trapezius", "upper-back", "lower-back"],
   shoulders: ["deltoids"],
@@ -32,7 +32,7 @@ const SLUG_GROUP = new Map<Slug, DrawnGroup>(
   ),
 );
 /** Not muscles: drawn quieter so the muscles read first. */
-const NON_MUSCLE: Slug[] = ["head", "hair", "neck", "hands", "feet", "knees", "ankles"];
+export const NON_MUSCLE: Slug[] = ["head", "hair", "neck", "hands", "feet", "knees", "ankles"];
 
 // The drawing is 200 × 400 at scale 1, in a 724-unit-wide viewBox.
 const BASE_W = 200;

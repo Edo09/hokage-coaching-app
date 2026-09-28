@@ -9,6 +9,7 @@ import { flushOutbox } from "@/src/lib/outbox";
 import { persister, PERSIST_MAX_AGE, queryClient } from "@/src/lib/query-client";
 import { setupRestAlerts } from "@/src/lib/rest-alert";
 import { AuthProvider } from "@/src/providers/auth-provider";
+import { CelebrationProvider } from "@/src/providers/celebration-provider";
 import { RestTimerProvider } from "@/src/providers/rest-timer-provider";
 import { useColors } from "@/src/theme/colors";
 import { WEB_MAX_WIDTH } from "@/src/theme/layout";
@@ -157,6 +158,8 @@ export default function RootLayout() {
               on an exercise survives navigating away from it. */}
           <RestTimerProvider>
           <ToastProvider>
+          {/* Finishing a program day celebrates the same way from any screen. */}
+          <CelebrationProvider>
             {/* "auto" tracks the active scheme: light icons on dark, dark on light */}
             <StatusBar style="auto" />
             <View
@@ -201,6 +204,7 @@ export default function RootLayout() {
             </View>
             </View>
             <AuthGate />
+          </CelebrationProvider>
             </ToastProvider>
           </RestTimerProvider>
           </AuthProvider>

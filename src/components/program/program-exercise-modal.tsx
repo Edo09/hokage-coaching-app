@@ -1,14 +1,17 @@
 import { Ionicons } from "@expo/vector-icons";
-import React from "react";
+import * as Haptics from "expo-haptics";
+import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { KeyboardAvoidingView, Modal, Platform } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ProgramSetLogger } from "@/src/components/program/program-set-logger";
-import { Button } from "@/src/components/ui";
+import { Burst, Button } from "@/src/components/ui";
 import type { useProgramLogging } from "@/src/hooks/use-program-logging";
+import { PressableScale, usePop } from "@/src/lib/motion";
 import { useColors } from "@/src/theme/colors";
 import { Pressable, ScrollView, Text, View } from "@/src/tw";
+import { AnimatedView } from "@/src/tw/animated";
 import type { ProgramExercise, ProgramWeek } from "@/src/types/database";
 import {
   effectivePrescription,
@@ -201,19 +204,69 @@ export function ProgramExerciseModal({
                   }
                 />
 
-                <Button
-                  variant={done ? "secondary" : "primary"}
-                  icon={done ? "checkmark-circle" : "ellipse-outline"}
-                  onPress={() => logging.setCompletion(exercise.id, weekNumber, !done)}
-                >
-                  {t(done ? "program.markedDone" : "program.markDoneCta")}
-                </Button>
+                <DoneButton
+                  done={done}
+                  onPress={() => {
+                    // The last exercise of the day: get out of the way of the
+                    // day-complete celebration rather than stack under it.
+                    const finishesDay = !done && logging.completesDay(exercise.id, weekNumber);
+                    void logging.setCompletion(exercise.id, weekNumber, !done);
+                    if (finishesDay) onClose();
+                  }}
+                />
               </ScrollView>
             </>
           )}
         </View>
       </KeyboardAvoidingView>
     </Modal>
+  );
+}
+
+/**
+ * "Mark as done", and the moment of doing it: the check pops with impact
+ * lines around it and a haptic. Same look as the primary/secondary Button.
+ */
+function DoneButton({ done, onPress }: { done: boolean; onPress: () => void }) {
+  const { t } = useTranslation();
+  const colors = useColors();
+  const check = usePop();
+  const [burst, setBurst] = useState(0);
+
+  return (
+    <PressableScale
+      scaleTo={0.98}
+      onPress={() => {
+        if (!done) {
+          check.pop();
+          setBurst((n) => n + 1);
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+        } else {
+          Haptics.selectionAsync().catch(() => {});
+        }
+        onPress();
+      }}
+      accessibilityRole="button"
+      className={
+        done
+          ? "flex-row items-center justify-center gap-2 rounded-2xl border border-border bg-surface px-5 py-3.5"
+          : "flex-row items-center justify-center gap-2 rounded-2xl bg-brand-primary px-5 py-3.5"
+      }
+    >
+      <View className="h-5 w-5 items-center justify-center">
+        <Burst play={burst} from={13} to={22} colors={[colors.success, colors.contentPrimary]} />
+        <AnimatedView style={check.style}>
+          <Ionicons
+            name={done ? "checkmark-circle" : "ellipse-outline"}
+            size={20}
+            color={done ? colors.success : colors.white}
+          />
+        </AnimatedView>
+      </View>
+      <Text className={done ? "text-base font-semibold text-content-primary" : "text-base font-semibold text-white"}>
+        {t(done ? "program.markedDone" : "program.markDoneCta")}
+      </Text>
+    </PressableScale>
   );
 }
 

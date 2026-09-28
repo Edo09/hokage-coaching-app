@@ -1,4 +1,5 @@
 export { Badge, type BadgeVariant } from "./badge";
+export { Burst } from "./burst";
 export { Button } from "./button";
 export { Card } from "./card";
 export { Chip } from "./chip";

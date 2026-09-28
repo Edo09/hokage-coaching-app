@@ -5,6 +5,7 @@ import { useAuth } from "@/src/hooks/use-auth";
 import { newId } from "@/src/lib/ids";
 import { enqueue } from "@/src/lib/outbox";
 import { qk } from "@/src/lib/query-keys";
+import { useCelebration } from "@/src/providers/celebration-context";
 import type {
   ProgramDayWithExercises,
   ProgramExerciseCompletion,
@@ -61,6 +62,7 @@ export type SetInput = {
 export function useProgramLogging(program: ProgramWithDetails | null) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const celebration = useCelebration();
   const key = qk.programLog(user?.id);
   const exIds = useMemo(() => allExerciseIds(program), [program]);
 
@@ -85,6 +87,8 @@ export function useProgramLogging(program: ProgramWithDetails | null) {
     [data.completions],
   );
 
+  /** Check or uncheck one exercise. A check-off that finishes its whole day
+      for the week sets off the day-complete celebration. */
   const setCompletion = useCallback(
     async (exerciseId: string, week: number, done: boolean) => {
       const existing = completionOf(exerciseId, week);
@@ -98,6 +102,19 @@ export function useProgramLogging(program: ProgramWithDetails | null) {
           created_at: new Date().toISOString(),
         };
         setCache((prev) => ({ ...prev, completions: [...prev.completions, row] }));
+        // Read back the cache, not `data`: setDayCompletion calls this in a
+        // loop with one stale closure, and only the fresh cache knows the
+        // earlier iterations landed.
+        const day = program?.program_days.find((d) =>
+          d.program_exercises.some((e) => e.id === exerciseId),
+        );
+        if (program != null && day != null) {
+          const fresh = queryClient.getQueryData<LogData>(key) ?? EMPTY;
+          const dayDone = day.program_exercises.every((e) =>
+            fresh.completions.some((c) => c.program_exercise_id === e.id && c.week_number === week),
+          );
+          if (dayDone) celebration?.celebrateDay({ program, dayId: day.id, week });
+        }
         await enqueue({
           userId: user!.id,
           table: "program_exercise_completions",
@@ -117,12 +134,29 @@ export function useProgramLogging(program: ProgramWithDetails | null) {
         });
       }
     },
-    [completionOf, setCache, user],
+    [completionOf, setCache, user, program, queryClient, key, celebration],
   );
 
   const isDone = useCallback(
     (exerciseId: string, week: number) => completionOf(exerciseId, week) != null,
     [completionOf],
+  );
+
+  /** Whether checking this exercise off now would finish its day for the
+      week — known before the write, so a sheet can close ahead of the
+      celebration instead of stacking under it. */
+  const completesDay = useCallback(
+    (exerciseId: string, week: number) => {
+      if (isDone(exerciseId, week)) return false;
+      const day = program?.program_days.find((d) =>
+        d.program_exercises.some((e) => e.id === exerciseId),
+      );
+      return (
+        day != null &&
+        day.program_exercises.every((e) => e.id === exerciseId || isDone(e.id, week))
+      );
+    },
+    [isDone, program],
   );
 
   const dayProgress = useCallback(
@@ -235,7 +269,9 @@ export function useProgramLogging(program: ProgramWithDetails | null) {
 
   return {
     completions: data.completions,
+    setLogs: data.setLogs,
     isDone,
+    completesDay,
     setCompletion,
     dayProgress,
     setDayCompletion,

@@ -11,7 +11,9 @@ import RNAnimated, {
   SlideInRight,
   ZoomIn,
   useAnimatedStyle,
+  useReducedMotion,
   useSharedValue,
+  withSequence,
   withTiming,
 } from "react-native-reanimated";
 
@@ -91,6 +93,32 @@ export function usePressScale(scaleTo = 0.97) {
     // illegal mutation (Reanimated added get/set for compiler compat)
     pressIn: () => scale.set(withTiming(scaleTo, { duration: 100, easing: EASE_OUT })),
     pressOut: () => scale.set(withTiming(1, { duration: DUR.fast, easing: EASE_OUT })),
+  };
+}
+
+/**
+ * A quick dip-overshoot-settle for something that just switched on (a check,
+ * a logged set). Put `style` on an animated view and call `pop()` on the
+ * change. Does nothing under reduced motion.
+ */
+export function usePop() {
+  const reduced = useReducedMotion();
+  const scale = useSharedValue(1);
+  const style = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
+  return {
+    style,
+    pop: () => {
+      if (reduced) return;
+      scale.set(
+        withSequence(
+          withTiming(0.75, { duration: 70, easing: EASE_OUT }),
+          withTiming(1.18, { duration: 130, easing: EASE_OUT }),
+          withTiming(1, { duration: DUR.fast, easing: EASE_OUT }),
+        ),
+      );
+    },
   };
 }
 

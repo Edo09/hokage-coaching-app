@@ -1,9 +1,12 @@
-import React, { useState } from "react";
+import * as Haptics from "expo-haptics";
+import React, { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { usePop } from "@/src/lib/motion";
 import { kgToUnit1, unitToKg, useWeightUnit } from "@/src/lib/weight-unit";
 import { useColors } from "@/src/theme/colors";
 import { Text, TextInput, View } from "@/src/tw";
+import { AnimatedView } from "@/src/tw/animated";
 import type { WorkoutSetLog } from "@/src/types/database";
 import type { SetInput } from "@/src/hooks/use-program-logging";
 
@@ -111,6 +114,19 @@ function SetRow({
   onSave: (input: SetInput) => void;
 }) {
   const colors = useColors();
+  // A set counts as logged once it holds a weight or reps. Turning logged is
+  // acknowledged (the number pops green, a light tick); loading an already
+  // logged set is not.
+  const isLogged = logged != null && (logged.weight_kg != null || logged.reps != null);
+  const mark = usePop();
+  const wasLogged = useRef(isLogged);
+  useEffect(() => {
+    if (isLogged && !wasLogged.current) {
+      mark.pop();
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    }
+    wasLogged.current = isLogged;
+  }, [isLogged, mark]);
   // Seed from the logged row (weight shown in the display unit).
   const [weight, setWeight] = useState(
     logged?.weight_kg != null ? String(kgToUnit1(logged.weight_kg, unit)) : "",
@@ -137,9 +153,25 @@ function SetRow({
   return (
     <View className="flex-row items-center gap-2">
       <View className="w-10">
-        <Text className="text-[12px] font-semibold text-content-tertiary" style={TABULAR}>
-          {index}
-        </Text>
+        <AnimatedView
+          style={mark.style}
+          className={
+            isLogged
+              ? "h-6 w-6 items-center justify-center rounded-full bg-success-soft"
+              : "h-6 w-6 items-center justify-center"
+          }
+        >
+          <Text
+            className={
+              isLogged
+                ? "text-[12px] font-bold text-success"
+                : "text-[12px] font-semibold text-content-tertiary"
+            }
+            style={TABULAR}
+          >
+            {index}
+          </Text>
+        </AnimatedView>
       </View>
       <TextInput
         className={inputCls}

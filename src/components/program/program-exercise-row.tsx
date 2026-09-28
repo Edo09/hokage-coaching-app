@@ -1,11 +1,15 @@
 import { Ionicons } from "@expo/vector-icons";
+import * as Haptics from "expo-haptics";
 import { Image } from "expo-image";
-import React from "react";
+import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { Burst } from "@/src/components/ui";
+import { usePop } from "@/src/lib/motion";
 import { useRestTimer } from "@/src/providers/rest-timer-provider";
 import { useColors } from "@/src/theme/colors";
 import { Pressable, Text, View } from "@/src/tw";
+import { AnimatedView } from "@/src/tw/animated";
 import type { ProgramExercise, ProgramWeek } from "@/src/types/database";
 import {
   effectivePrescription,
@@ -233,21 +237,59 @@ export function ProgramExerciseRow({
       </View>
 
       {onToggleDone != null && (
+        <DoneCheckbox done={done} name={p.name} onToggle={onToggleDone} />
+      )}
+    </View>
+  );
+}
+
+/**
+ * The completion check. Checking it off is the moment the client finished an
+ * exercise, so it answers with a pop, impact lines and a haptic; unchecking
+ * stays quiet.
+ */
+function DoneCheckbox({
+  done,
+  name,
+  onToggle,
+}: {
+  done: boolean;
+  name: string;
+  onToggle: () => void;
+}) {
+  const { t } = useTranslation();
+  const colors = useColors();
+  const check = usePop();
+  const [burst, setBurst] = useState(0);
+
+  const onPress = () => {
+    if (!done) {
+      check.pop();
+      setBurst((n) => n + 1);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+    }
+    onToggle();
+  };
+
+  return (
+    <View className="mt-0.5 h-6 w-6">
+      <Burst play={burst} from={15} to={27} colors={[colors.success, colors.contentPrimary]} />
+      <AnimatedView style={check.style}>
         <Pressable
-          onPress={onToggleDone}
+          onPress={onPress}
           accessibilityRole="checkbox"
           accessibilityState={{ checked: done }}
-          accessibilityLabel={t(done ? "program.markUndone" : "program.markDone", { name: p.name })}
+          accessibilityLabel={t(done ? "program.markUndone" : "program.markDone", { name })}
           hitSlop={8}
           className={
             done
-              ? "mt-0.5 h-6 w-6 items-center justify-center rounded-full bg-success"
-              : "mt-0.5 h-6 w-6 items-center justify-center rounded-full border-2 border-border-strong"
+              ? "h-6 w-6 items-center justify-center rounded-full bg-success"
+              : "h-6 w-6 items-center justify-center rounded-full border-2 border-border-strong"
           }
         >
           {done && <Ionicons name="checkmark" size={15} color={colors.white} />}
         </Pressable>
-      )}
+      </AnimatedView>
     </View>
   );
 }
