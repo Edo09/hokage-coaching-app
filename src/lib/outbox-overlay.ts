@@ -5,10 +5,12 @@ import type {
   MealItem,
   MealWithItems,
   Profile,
+  ProgramExerciseCompletion,
   Routine,
   RoutineExercise,
   RoutineWithExercises,
   WorkoutLog,
+  WorkoutSetLog,
 } from "@/src/types/database";
 
 // Re-applies pending outbox ops onto freshly fetched rows. Without this, a
@@ -120,6 +122,58 @@ export async function overlayLogs(
     (a, b) =>
       b.date.localeCompare(a.date) || b.created_at.localeCompare(a.created_at),
   );
+}
+
+// Scoped to exIds like the fetch it follows: a pending row for an exercise
+// outside the active program (reassigned or since removed by the coach) must
+// not surface — the home screen counts completions without re-filtering.
+export async function overlayProgramLog(
+  userId: string,
+  rows: {
+    completions: ProgramExerciseCompletion[];
+    setLogs: WorkoutSetLog[];
+  },
+  exIds: string[],
+): Promise<{
+  completions: ProgramExerciseCompletion[];
+  setLogs: WorkoutSetLog[];
+}> {
+  const ops = await getPendingOps(userId);
+  const inScope = new Set(exIds);
+  let completions = [...rows.completions];
+  let setLogs = [...rows.setLogs];
+  for (const op of ops) {
+    if (op.table === "program_exercise_completions") {
+      if (op.kind === "delete") {
+        completions = completions.filter((c) => c.id !== op.payload.id);
+      } else {
+        const row = op.payload as ProgramExerciseCompletion;
+        if (
+          row.program_exercise_id != null &&
+          inScope.has(row.program_exercise_id) &&
+          !completions.some((c) => c.id === row.id)
+        ) {
+          completions.push(row);
+        }
+      }
+    } else if (op.table === "workout_set_logs") {
+      if (op.kind === "delete") {
+        setLogs = setLogs.filter((s) => s.id !== op.payload.id);
+      } else {
+        const row = op.payload as WorkoutSetLog;
+        // Upserts edit a set's values in place; drop the server copy so the
+        // pending row always wins over the stale one.
+        setLogs = setLogs.filter((s) => s.id !== row.id);
+        if (
+          row.program_exercise_id != null &&
+          inScope.has(row.program_exercise_id)
+        ) {
+          setLogs.push(row);
+        }
+      }
+    }
+  }
+  return { completions, setLogs };
 }
 
 export async function overlayProfile(

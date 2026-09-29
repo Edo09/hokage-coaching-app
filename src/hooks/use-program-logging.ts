@@ -4,6 +4,7 @@ import { useCallback, useMemo } from "react";
 import { useAuth } from "@/src/hooks/use-auth";
 import { newId } from "@/src/lib/ids";
 import { enqueue } from "@/src/lib/outbox";
+import { overlayProgramLog } from "@/src/lib/outbox-overlay";
 import { qk } from "@/src/lib/query-keys";
 import { useCelebration } from "@/src/providers/celebration-context";
 import type {
@@ -33,7 +34,10 @@ function allExerciseIds(program: ProgramWithDetails | null): string[] {
   );
 }
 
+// Pending outbox ops are overlaid onto the fetched rows, so a reconnect
+// refetch that beats the flush can't wipe offline checks/sets from the cache.
 async function fetchLog(userId: string, exIds: string[]): Promise<LogData> {
+  // No overlay needed: it is scoped to exIds too, so it would keep nothing.
   if (exIds.length === 0) return EMPTY;
   const [completions, setLogs] = await Promise.all([
     supabase
@@ -47,10 +51,14 @@ async function fetchLog(userId: string, exIds: string[]): Promise<LogData> {
       .eq("user_id", userId)
       .in("program_exercise_id", exIds),
   ]);
-  return {
-    completions: rowsOrEmpty(completions) as ProgramExerciseCompletion[],
-    setLogs: rowsOrEmpty(setLogs) as WorkoutSetLog[],
-  };
+  return overlayProgramLog(
+    userId,
+    {
+      completions: rowsOrEmpty(completions) as ProgramExerciseCompletion[],
+      setLogs: rowsOrEmpty(setLogs) as WorkoutSetLog[],
+    },
+    exIds,
+  );
 }
 
 // A missing table (migration not applied) degrades to empty. Anything else —
