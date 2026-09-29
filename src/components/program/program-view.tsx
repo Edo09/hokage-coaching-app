@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next";
 import { ExerciseVideoModal } from "@/src/components/exercise-video-modal";
 import { ProgramExerciseModal } from "@/src/components/program/program-exercise-modal";
 import { ProgramExerciseRow } from "@/src/components/program/program-exercise-row";
-import { Card } from "@/src/components/ui";
+import { Card, DashLabel } from "@/src/components/ui";
 import { useProgramLogging } from "@/src/hooks/use-program-logging";
 import { isHeld, useCelebration } from "@/src/providers/celebration-context";
 import { useColors } from "@/src/theme/colors";
@@ -104,13 +104,13 @@ export function ProgramView({
         onSelectWeek={onSelectWeek}
       />
 
-      {/* Selected week's global periodization summary */}
+      {/* Selected week's periodization, as a section heading over its days
+          (red dash + caps label, the poster header device) rather than a
+          card that reads like one more day. Details indent under the label. */}
       {week != null && (
-        <Card className="gap-1.5 py-3">
-          <View className="flex-row items-center justify-between">
-            <Text className="text-[13px] font-bold text-content-primary">
-              {week.label ?? t("program.weekN", { n: week.week_number })}
-            </Text>
+        <View className="gap-1.5 px-1 pt-2">
+          <View className="flex-row items-center gap-2.5">
+            <DashLabel>{week.label ?? t("program.weekN", { n: week.week_number })}</DashLabel>
             {week.is_deload && (
               <View className="rounded-full bg-warning-soft px-2 py-0.5">
                 <Text className="text-[11px] font-semibold text-warning">
@@ -119,27 +119,29 @@ export function ProgramView({
               </View>
             )}
           </View>
-          <View className="flex-row flex-wrap gap-x-4 gap-y-1">
-            {weekRir(week) != null && (
-              <Text className="text-[12px] text-content-secondary" style={TABULAR}>
-                {weekRir(week)}
-              </Text>
-            )}
-            {weekLoad(week) != null && (
-              <Text className="text-[12px] text-content-secondary" style={TABULAR}>
-                {t("program.loadLabel", { load: weekLoad(week) })}
-              </Text>
-            )}
-            {week.sets_override != null && (
-              <Text className="text-[12px] text-content-secondary" style={TABULAR}>
-                {t("program.setsOverride", { sets: week.sets_override })}
-              </Text>
-            )}
-          </View>
-          {week.notes != null && week.notes !== "" && (
-            <Text className="text-[12px] text-content-tertiary">{week.notes}</Text>
+          {(weekRir(week) != null || weekLoad(week) != null || week.sets_override != null) && (
+            <View className="flex-row flex-wrap gap-x-4 gap-y-1 pl-[30px]">
+              {weekRir(week) != null && (
+                <Text className="text-[12px] text-content-secondary" style={TABULAR}>
+                  {weekRir(week)}
+                </Text>
+              )}
+              {weekLoad(week) != null && (
+                <Text className="text-[12px] text-content-secondary" style={TABULAR}>
+                  {t("program.loadLabel", { load: weekLoad(week) })}
+                </Text>
+              )}
+              {week.sets_override != null && (
+                <Text className="text-[12px] text-content-secondary" style={TABULAR}>
+                  {t("program.setsOverride", { sets: week.sets_override })}
+                </Text>
+              )}
+            </View>
           )}
-        </Card>
+          {week.notes != null && week.notes !== "" && (
+            <Text className="pl-[30px] text-[12px] text-content-tertiary">{week.notes}</Text>
+          )}
+        </View>
       )}
 
       {/* Days */}
@@ -404,7 +406,9 @@ function NoteLine({
   return (
     <View className="flex-row gap-2">
       <Ionicons name={icon} size={14} color={colors.contentTertiary} style={{ marginTop: 2 }} />
-      <Text className="flex-1 text-[12px] text-content-secondary">
+      {/* shrink, not flex-1: Android over-measures a nested Text from a zero
+          basis (same fix as the muscles card's alert). */}
+      <Text className="shrink text-[12px] text-content-secondary">
         <Text className="font-semibold text-content-primary">{label}: </Text>
         {value}
       </Text>

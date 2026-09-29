@@ -95,7 +95,9 @@ export function MusclesCard({ periodo, rows, alert, week, sex }: MusclesCardProp
       {alert != null && (
         <View className="flex-row items-start gap-2 rounded-xl bg-warning-soft px-3 py-2.5">
           <Ionicons name="pulse-outline" size={15} color={colors.warning} />
-          <Text className="flex-1 text-xs leading-4 text-warning">
+          {/* shrink, not flex-1: Android measured this (nested) Text from a
+              zero basis and left the box several lines too tall. */}
+          <Text className="shrink text-xs leading-4 text-warning">
             {alert.kind === "recency" ? (
               <>
                 <Text className="text-xs font-bold text-warning">{groupName(alert.group)}</Text>

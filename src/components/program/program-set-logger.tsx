@@ -23,6 +23,8 @@ type Props = {
   /** Sets logged the last time (an earlier week), shown for reference. */
   previous: { week: number; sets: WorkoutSetLog[] } | null;
   onLogSet: (setIndex: number, input: SetInput) => void;
+  /** An input got focus (the sheet scrolls it clear of the keyboard). */
+  onInputFocus?: () => void;
 };
 
 /** The prescribed RIR as a bare value for the column ("2", "1–2", or "—"). */
@@ -45,6 +47,7 @@ export function ProgramSetLogger({
   logged,
   previous,
   onLogSet,
+  onInputFocus,
 }: Props) {
   const { t } = useTranslation();
   const unit = useWeightUnit();
@@ -92,6 +95,7 @@ export function ProgramSetLogger({
           prescribedRir={prescribedRir}
           logged={logged.find((s) => s.set_index === i) ?? null}
           onSave={(input) => onLogSet(i, input)}
+          onFocus={onInputFocus}
         />
       ))}
     </View>
@@ -105,6 +109,7 @@ function SetRow({
   prescribedRir,
   logged,
   onSave,
+  onFocus,
 }: {
   index: number;
   unit: "kg" | "lb";
@@ -112,6 +117,7 @@ function SetRow({
   prescribedRir: string;
   logged: WorkoutSetLog | null;
   onSave: (input: SetInput) => void;
+  onFocus?: () => void;
 }) {
   const colors = useColors();
   // A set counts as logged once it holds a weight or reps. Turning logged is
@@ -180,6 +186,7 @@ function SetRow({
         placeholderTextColor={colors.contentMuted}
         value={weight}
         onChangeText={setWeight}
+        onFocus={onFocus}
         onBlur={save}
         returnKeyType="done"
       />
@@ -190,6 +197,7 @@ function SetRow({
         placeholderTextColor={colors.contentMuted}
         value={reps}
         onChangeText={setReps}
+        onFocus={onFocus}
         onBlur={save}
         returnKeyType="done"
       />

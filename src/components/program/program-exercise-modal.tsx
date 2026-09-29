@@ -1,12 +1,20 @@
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import React, { useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { KeyboardAvoidingView, Modal, Platform } from "react-native";
+import {
+  Modal,
+  Platform,
+  type ScrollView as RNScrollView,
+  TextInput,
+  useWindowDimensions,
+  type View as RNView,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ProgramSetLogger } from "@/src/components/program/program-set-logger";
 import { Burst, Button } from "@/src/components/ui";
+import { useKeyboardHeight } from "@/src/hooks/use-keyboard-height";
 import type { useProgramLogging } from "@/src/hooks/use-program-logging";
 import { PressableScale, usePop } from "@/src/lib/motion";
 import { useColors } from "@/src/theme/colors";
@@ -21,6 +29,9 @@ import {
 } from "@/src/utils/program";
 
 const TABULAR = { fontVariant: ["tabular-nums" as const] };
+
+/** How much of the sheet stays visible above a focused input (about a row). */
+const REVEAL_CONTEXT = 56;
 
 type Props = {
   exercise: ProgramExercise | null;
@@ -45,6 +56,33 @@ export function ProgramExerciseModal({
   const { t, i18n } = useTranslation();
   const colors = useColors();
   const insets = useSafeAreaInsets();
+  const { height: windowHeight } = useWindowDimensions();
+  const keyboard = useKeyboardHeight();
+  const scrollRef = useRef<RNScrollView>(null);
+  const contentRef = useRef<RNView>(null);
+
+  // Scroll the focused set input into view, with a row of context above it.
+  // Runs a frame later, once the sheet has re-laid out above the keyboard.
+  const revealFocused = useCallback(() => {
+    if (Platform.OS === "web") return;
+    requestAnimationFrame(() => {
+      const input = TextInput.State.currentlyFocusedInput();
+      const scroll = scrollRef.current;
+      const content = contentRef.current;
+      if (input == null || scroll == null || content == null) return;
+      input.measureLayout(
+        content,
+        (_x, y) => scroll.scrollTo({ y: Math.max(0, y - REVEAL_CONTEXT), animated: true }),
+        () => {},
+      );
+    });
+  }, []);
+
+  // The keyboard just opened (or changed size): the sheet shrank under the
+  // focused input.
+  useEffect(() => {
+    if (keyboard > 0) revealFocused();
+  }, [keyboard, revealFocused]);
 
   const p = exercise != null ? effectivePrescription(exercise, week, weekNumber) : null;
   const done = exercise != null && logging.isDone(exercise.id, weekNumber);
@@ -73,6 +111,10 @@ export function ProgramExerciseModal({
       visible={exercise != null}
       animationType="slide"
       transparent
+      // Full screen on Android too, so the sheet's bottom is the screen's
+      // bottom — what the keyboard height is measured from.
+      statusBarTranslucent
+      navigationBarTranslucent
       onRequestClose={onClose}
     >
       {/* Backdrop — tap to dismiss */}
@@ -82,13 +124,16 @@ export function ProgramExerciseModal({
         className="flex-1"
         style={{ backgroundColor: "rgba(0,0,0,0.5)" }}
       />
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-        className="absolute inset-x-0 bottom-0"
-      >
+      {/* Sits on the keyboard while it's up, and shrinks to the space above
+          it (the set logger scrolls). KeyboardAvoidingView did this on iOS
+          only; on Android nothing moved and the keyboard covered the sets. */}
+      <View className="absolute inset-x-0" style={{ bottom: keyboard }}>
         <View
           className="rounded-t-3xl bg-surface"
-          style={{ paddingBottom: insets.bottom + 12, maxHeight: "88%" }}
+          style={{
+            paddingBottom: keyboard > 0 ? 12 : insets.bottom + 12,
+            maxHeight: keyboard > 0 ? windowHeight - keyboard - insets.top - 12 : windowHeight * 0.88,
+          }}
         >
           {/* Grabber + header */}
           <View className="items-center pt-2.5">
@@ -136,6 +181,9 @@ export function ProgramExerciseModal({
               )}
 
               <ScrollView
+                ref={scrollRef}
+                // RN's prop type predates React 19's nullable RefObject.
+                innerViewRef={contentRef as React.RefObject<RNView>}
                 className="px-5"
                 contentContainerClassName="gap-3 pt-2 pb-3"
                 keyboardShouldPersistTaps="handled"
@@ -202,6 +250,7 @@ export function ProgramExerciseModal({
                   onLogSet={(setIndex, input) =>
                     logging.logSet(exercise.id, weekNumber, setIndex, input)
                   }
+                  onInputFocus={revealFocused}
                 />
 
                 <DoneButton
@@ -218,7 +267,7 @@ export function ProgramExerciseModal({
             </>
           )}
         </View>
-      </KeyboardAvoidingView>
+      </View>
     </Modal>
   );
 }
