@@ -15,6 +15,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { LockNote } from "@/src/components/program/lock-note";
 import { RestButton } from "@/src/components/program/program-exercise-row";
 import { ProgramSetLogger } from "@/src/components/program/program-set-logger";
 import { RestTimerBar } from "@/src/components/program/rest-timer-bar";
@@ -32,6 +33,7 @@ import {
   formatLoadPct,
   formatReps,
   formatRir,
+  type WeekLock,
 } from "@/src/utils/program";
 
 const TABULAR = { fontVariant: ["tabular-nums" as const] };
@@ -50,6 +52,9 @@ type Props = {
   exercise: ProgramExercise | null;
   week: ProgramWeek | null;
   weekNumber: number;
+  /** "Solo semana actual": set while the week isn't open yet, and the sheet
+      is view only. Always null for free programs. */
+  lock: WeekLock | null;
   logging: ReturnType<typeof useProgramLogging>;
   /** In progress (timed). False: not started yet, or done (review). */
   timed: boolean;
@@ -77,12 +82,16 @@ type Props = {
  *  - in progress: its clock, and the controls to pause, hide (to the bar),
  *    finish or quit it;
  *  - done: review, with the done toggle.
+ * On a locked week ("Solo semana actual") it is view only: a note says when
+ * the week opens in place of the done/start buttons, the sets can't be
+ * edited, and a clock already running on it can only be quit.
  * State lives in `@/src/lib/exercise-session`; this only renders it.
  */
 export function ProgramExerciseModal({
   exercise,
   week,
   weekNumber,
+  lock,
   logging,
   timed,
   elapsedMs,
@@ -249,15 +258,18 @@ export function ProgramExerciseModal({
                       </CapsLabel>
                     </View>
                   </View>
-                  <Pressable
-                    onPress={onTogglePause}
-                    accessibilityRole="button"
-                    accessibilityLabel={t(running ? "program.sessionPause" : "program.sessionResume")}
-                    hitSlop={6}
-                    className="h-12 w-12 items-center justify-center rounded-full border-2 border-border-strong"
-                  >
-                    <Ionicons name={running ? "pause" : "play"} size={20} color={colors.contentPrimary} />
-                  </Pressable>
+                  {/* No pause/resume on a locked week: the clock can only be quit. */}
+                  {lock == null && (
+                    <Pressable
+                      onPress={onTogglePause}
+                      accessibilityRole="button"
+                      accessibilityLabel={t(running ? "program.sessionPause" : "program.sessionResume")}
+                      hitSlop={6}
+                      className="h-12 w-12 items-center justify-center rounded-full border-2 border-border-strong"
+                    >
+                      <Ionicons name={running ? "pause" : "play"} size={20} color={colors.contentPrimary} />
+                    </Pressable>
+                  )}
                 </View>
               )}
 
@@ -334,68 +346,78 @@ export function ProgramExerciseModal({
                     logging.logSet(exercise.id, weekNumber, setIndex, input)
                   }
                   onInputFocus={revealFocused}
+                  readOnly={lock != null}
                 />
               </ScrollView>
 
               {/* The floating rest bar is under this modal; show it here. */}
               <RestTimerBar inline />
 
-              <View className="flex-row gap-3 px-5 pt-2">
-                {timed ? (
-                  <>
-                    <PressableScale
-                      scaleTo={0.98}
-                      onPress={confirmQuit}
-                      accessibilityRole="button"
-                      accessibilityLabel={t("program.sessionQuit")}
-                      className="flex-1 flex-row items-center justify-center gap-2 rounded-2xl border border-border bg-surface px-4 py-3.5"
-                    >
-                      <Ionicons name="exit-outline" size={19} color={colors.contentSecondary} />
-                      <Text className="text-base font-semibold text-content-primary">
-                        {t("program.sessionQuit")}
-                      </Text>
-                    </PressableScale>
+              {/* A locked week: in place of check/undo/start, when it opens.
+                  A clock already running on it (the coach switched the lock
+                  on, or moved the start) keeps only Salir below. */}
+              {lock != null && <LockNote lock={lock} className="mx-5 mt-2 py-3" />}
+
+              {(timed || lock == null) && (
+                <View className="flex-row gap-3 px-5 pt-2">
+                  {timed ? (
+                    <>
+                      <PressableScale
+                        scaleTo={0.98}
+                        onPress={confirmQuit}
+                        accessibilityRole="button"
+                        accessibilityLabel={t("program.sessionQuit")}
+                        className="flex-1 flex-row items-center justify-center gap-2 rounded-2xl border border-border bg-surface px-4 py-3.5"
+                      >
+                        <Ionicons name="exit-outline" size={19} color={colors.contentSecondary} />
+                        <Text className="text-base font-semibold text-content-primary">
+                          {t("program.sessionQuit")}
+                        </Text>
+                      </PressableScale>
+                      {lock == null && (
+                        <DoneButton
+                          done={false}
+                          label={t("program.sessionFinish")}
+                          settleMs={FINISH_SETTLE_MS}
+                          onPress={onFinish}
+                          className="flex-[2]"
+                        />
+                      )}
+                    </>
+                  ) : done ? (
                     <DoneButton
-                      done={false}
-                      label={t("program.sessionFinish")}
-                      settleMs={FINISH_SETTLE_MS}
-                      onPress={onFinish}
-                      className="flex-[2]"
-                    />
-                  </>
-                ) : done ? (
-                  <DoneButton
-                    done
-                    onPress={() => void logging.setCompletion(exercise.id, weekNumber, false)}
-                    className="flex-1"
-                  />
-                ) : (
-                  <>
-                    {/* Done without the clock (e.g. trained earlier, logging now). */}
-                    <DoneButton
-                      done={false}
-                      tone="secondary"
-                      label={t("program.markDoneShort")}
-                      onPress={() => void logging.setCompletion(exercise.id, weekNumber, true)}
+                      done
+                      onPress={() => void logging.setCompletion(exercise.id, weekNumber, false)}
                       className="flex-1"
                     />
-                    <PressableScale
-                      scaleTo={0.98}
-                      haptic
-                      onPress={onStart}
-                      accessibilityRole="button"
-                      className="flex-[2] flex-row items-center justify-center gap-2 rounded-2xl bg-brand-primary px-4 py-3.5"
-                    >
-                      <Ionicons name="play" size={18} color={colors.white} />
-                      <Text className="text-base font-bold text-white" style={TABULAR}>
-                        {elapsedMs >= 1000
-                          ? t("program.sessionContinue", { time: clock })
-                          : t("program.sessionStart")}
-                      </Text>
-                    </PressableScale>
-                  </>
-                )}
-              </View>
+                  ) : (
+                    <>
+                      {/* Done without the clock (e.g. trained earlier, logging now). */}
+                      <DoneButton
+                        done={false}
+                        tone="secondary"
+                        label={t("program.markDoneShort")}
+                        onPress={() => void logging.setCompletion(exercise.id, weekNumber, true)}
+                        className="flex-1"
+                      />
+                      <PressableScale
+                        scaleTo={0.98}
+                        haptic
+                        onPress={onStart}
+                        accessibilityRole="button"
+                        className="flex-[2] flex-row items-center justify-center gap-2 rounded-2xl bg-brand-primary px-4 py-3.5"
+                      >
+                        <Ionicons name="play" size={18} color={colors.white} />
+                        <Text className="text-base font-bold text-white" style={TABULAR}>
+                          {elapsedMs >= 1000
+                            ? t("program.sessionContinue", { time: clock })
+                            : t("program.sessionStart")}
+                        </Text>
+                      </PressableScale>
+                    </>
+                  )}
+                </View>
+              )}
             </>
           )}
         </View>

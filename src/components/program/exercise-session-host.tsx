@@ -85,8 +85,16 @@ export function ExerciseSessionHost({ tabBarHeight }: { tabBarHeight: number }) 
       ? effectivePrescription(activeExercise, weekByNumber(program, active.week), active.week).name
       : null;
 
+  // "Solo semana actual": a week that isn't open yet can't be started,
+  // paused, resumed or finished, only quit. Both null for free programs.
+  const sheetLock = sheet != null ? logging.lockOf(sheet.week) : null;
+  const activeLock = active != null ? logging.lockOf(active.week) : null;
+  const togglePause = () => {
+    if (activeLock == null) exerciseSession.togglePause();
+  };
+
   const finish = () => {
-    if (sheet == null || sheetExercise == null) return;
+    if (sheet == null || sheetExercise == null || sheetLock != null) return;
     const name = effectivePrescription(sheetExercise, weekByNumber(program!, sheet.week), sheet.week).name;
     // The day's last exercise brings the day-complete stamp; no toast under it.
     const finishesDay = logging.completesDay(sheet.exerciseId, sheet.week);
@@ -106,13 +114,16 @@ export function ExerciseSessionHost({ tabBarHeight }: { tabBarHeight: number }) 
         exercise={sheetExercise}
         week={program != null && sheet != null ? weekByNumber(program, sheet.week) : null}
         weekNumber={sheet?.week ?? 1}
+        lock={sheetLock}
         logging={logging}
         timed={sheetTimed}
         elapsedMs={sheet != null ? elapsedMs(session, sheet.exerciseId, sheet.week, now) : 0}
         running={sheetTimed && running}
-        onStart={() => sheet != null && exerciseSession.start(sheet.exerciseId, sheet.week)}
+        onStart={() =>
+          sheet != null && sheetLock == null && exerciseSession.start(sheet.exerciseId, sheet.week)
+        }
         onHide={exerciseSession.hide}
-        onTogglePause={exerciseSession.togglePause}
+        onTogglePause={togglePause}
         onFinish={finish}
         onQuit={() => sheet != null && exerciseSession.quit(sheet.exerciseId, sheet.week)}
         onPlay={setVideoUri}
@@ -123,6 +134,8 @@ export function ExerciseSessionHost({ tabBarHeight }: { tabBarHeight: number }) 
           name={activeName}
           clock={formatClock(Math.floor(elapsedMs(session, active.exerciseId, active.week, now) / 1000))}
           running={running}
+          locked={activeLock != null}
+          onTogglePause={togglePause}
           bottom={tabBarHeight + (rest.running ? REST_BAR_H : 0)}
         />
       )}
@@ -135,17 +148,22 @@ export function ExerciseSessionHost({ tabBarHeight }: { tabBarHeight: number }) 
 /**
  * The exercise in progress, minimized: name, clock and pause. Tap it to
  * reopen the sheet. Floats above the tab bar, and above the rest bar when a
- * rest is running.
+ * rest is running. On a locked week a lock takes the pause button's place;
+ * the sheet can still quit it.
  */
 function ExerciseSessionBar({
   name,
   clock,
   running,
+  locked,
+  onTogglePause,
   bottom,
 }: {
   name: string;
   clock: string;
   running: boolean;
+  locked: boolean;
+  onTogglePause: () => void;
   bottom: number;
 }) {
   const { t } = useTranslation();
@@ -183,16 +201,22 @@ function ExerciseSessionBar({
             </Text>
           </View>
         </View>
-        <Pressable
-          onPress={exerciseSession.togglePause}
-          accessibilityRole="button"
-          accessibilityLabel={t(running ? "program.sessionPause" : "program.sessionResume")}
-          hitSlop={6}
-          className="h-9 w-9 items-center justify-center rounded-full border"
-          style={{ borderColor: colors.contentSecondary }}
-        >
-          <Ionicons name={running ? "pause" : "play"} size={16} color={colors.contentSecondary} />
-        </Pressable>
+        {locked ? (
+          <View pointerEvents="none" className="h-9 w-9 items-center justify-center">
+            <Ionicons name="lock-closed" size={15} color={colors.contentMuted} />
+          </View>
+        ) : (
+          <Pressable
+            onPress={onTogglePause}
+            accessibilityRole="button"
+            accessibilityLabel={t(running ? "program.sessionPause" : "program.sessionResume")}
+            hitSlop={6}
+            className="h-9 w-9 items-center justify-center rounded-full border"
+            style={{ borderColor: colors.contentSecondary }}
+          >
+            <Ionicons name={running ? "pause" : "play"} size={16} color={colors.contentSecondary} />
+          </Pressable>
+        )}
         <View pointerEvents="none">
           <Ionicons name="chevron-up" size={18} color={colors.contentMuted} />
         </View>

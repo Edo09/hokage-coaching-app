@@ -25,6 +25,9 @@ type Props = {
   onLogSet: (setIndex: number, input: SetInput) => void;
   /** An input got focus (the sheet scrolls it clear of the keyboard). */
   onInputFocus?: () => void;
+  /** "Solo semana actual": the week isn't open yet, so logged sets show but
+      can't be edited. Never set for free programs. */
+  readOnly?: boolean;
 };
 
 /** The prescribed RIR as a bare value for the column ("2", "1–2", or "—"). */
@@ -48,6 +51,7 @@ export function ProgramSetLogger({
   previous,
   onLogSet,
   onInputFocus,
+  readOnly = false,
 }: Props) {
   const { t } = useTranslation();
   const unit = useWeightUnit();
@@ -96,6 +100,7 @@ export function ProgramSetLogger({
           logged={logged.find((s) => s.set_index === i) ?? null}
           onSave={(input) => onLogSet(i, input)}
           onFocus={onInputFocus}
+          readOnly={readOnly}
         />
       ))}
     </View>
@@ -110,6 +115,7 @@ function SetRow({
   logged,
   onSave,
   onFocus,
+  readOnly,
 }: {
   index: number;
   unit: "kg" | "lb";
@@ -118,6 +124,7 @@ function SetRow({
   logged: WorkoutSetLog | null;
   onSave: (input: SetInput) => void;
   onFocus?: () => void;
+  readOnly: boolean;
 }) {
   const colors = useColors();
   // A set counts as logged once it holds a weight or reps. Turning logged is
@@ -153,8 +160,11 @@ function SetRow({
     });
   };
 
-  const inputCls =
-    "flex-1 rounded-md bg-surface px-2 py-1.5 text-[13px] text-content-primary border border-border";
+  // Read only, the fields sit flat on the card's fill and their values dim:
+  // shown, not waiting for input.
+  const inputCls = readOnly
+    ? "flex-1 rounded-md bg-surface-elevated px-2 py-1.5 text-[13px] text-content-tertiary border border-border"
+    : "flex-1 rounded-md bg-surface px-2 py-1.5 text-[13px] text-content-primary border border-border";
 
   return (
     <View className="flex-row items-center gap-2">
@@ -186,8 +196,9 @@ function SetRow({
         placeholderTextColor={colors.contentMuted}
         value={weight}
         onChangeText={setWeight}
-        onFocus={onFocus}
-        onBlur={save}
+        editable={!readOnly}
+        onFocus={readOnly ? undefined : onFocus}
+        onBlur={readOnly ? undefined : save}
         returnKeyType="done"
       />
       <TextInput
@@ -197,8 +208,9 @@ function SetRow({
         placeholderTextColor={colors.contentMuted}
         value={reps}
         onChangeText={setReps}
-        onFocus={onFocus}
-        onBlur={save}
+        editable={!readOnly}
+        onFocus={readOnly ? undefined : onFocus}
+        onBlur={readOnly ? undefined : save}
         returnKeyType="done"
       />
       {/* Coach's target — read-only. */}
