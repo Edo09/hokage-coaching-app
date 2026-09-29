@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { View } from "react-native";
 
 import { AppMenu } from "@/src/components/app-menu";
+import { ExerciseSessionHost } from "@/src/components/program/exercise-session-host";
 import { RestTimerBar } from "@/src/components/program/rest-timer-bar";
 import { TabHeader } from "@/src/components/ui";
 import { useAuth } from "@/src/hooks/use-auth";
@@ -137,6 +138,8 @@ export default function TabsLayout() {
     {/* Floats clear of the 74px tab bar. Rendered here, not per screen, so the
         countdown keeps running while the client moves around the app. */}
     <RestTimerBar bottom={74} />
+    {/* The exercise in progress: its sheet, or its bar above the rest bar. */}
+    <ExerciseSessionHost tabBarHeight={74} />
     </View>
   );
 }

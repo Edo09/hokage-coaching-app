@@ -1,8 +1,11 @@
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import { Image } from "expo-image";
+import { useVideoPlayer, VideoView } from "expo-video";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
+  Alert,
   Modal,
   Platform,
   type ScrollView as RNScrollView,
@@ -12,11 +15,14 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { RestButton } from "@/src/components/program/program-exercise-row";
 import { ProgramSetLogger } from "@/src/components/program/program-set-logger";
-import { Burst, Button } from "@/src/components/ui";
+import { RestTimerBar } from "@/src/components/program/rest-timer-bar";
+import { Burst, CapsLabel, PosterText } from "@/src/components/ui";
 import { useKeyboardHeight } from "@/src/hooks/use-keyboard-height";
 import type { useProgramLogging } from "@/src/hooks/use-program-logging";
 import { PressableScale, usePop } from "@/src/lib/motion";
+import { formatClock } from "@/src/providers/rest-timer-provider";
 import { useColors } from "@/src/theme/colors";
 import { Pressable, ScrollView, Text, View } from "@/src/tw";
 import { AnimatedView } from "@/src/tw/animated";
@@ -32,25 +38,60 @@ const TABULAR = { fontVariant: ["tabular-nums" as const] };
 
 /** How much of the sheet stays visible above a focused input (about a row). */
 const REVEAL_CONTEXT = 56;
+/** Below this much time on the clock, quitting doesn't ask first. */
+const QUIT_CONFIRM_MS = 10_000;
+/** Let the finish burst play before the sheet slides away. */
+const FINISH_SETTLE_MS = 320;
+
+/** GIF/WebP demos are animated images (expo-image); anything else is video. */
+const isImageDemo = (uri: string): boolean => /\.(gif|apng|webp|png|jpe?g)$/i.test(uri.split("?")[0]);
 
 type Props = {
   exercise: ProgramExercise | null;
   week: ProgramWeek | null;
   weekNumber: number;
   logging: ReturnType<typeof useProgramLogging>;
-  onClose: () => void;
+  /** In progress (timed). False: not started yet, or done (review). */
+  timed: boolean;
+  /** Time on its clock: running, or banked from an earlier stretch. */
+  elapsedMs: number;
+  running: boolean;
+  /** "Empezar" / "Continuar": start (or resume) this exercise's clock. */
+  onStart: () => void;
+  /** Close; an exercise in progress stays in progress, in the bar. */
+  onHide: () => void;
+  onTogglePause: () => void;
+  /** Mark done and keep the time. */
+  onFinish: () => void;
+  /** Leave without marking done; the time is dropped. */
+  onQuit: () => void;
+  /** Full-screen demo. */
   onPlay: (uri: string) => void;
 };
 
-// Tap an exercise → this bottom sheet opens with the full prescription, the
-// demo-video shortcut, a done toggle, and the per-set logger. Controlled by
-// `exercise` presence (null = hidden).
+/**
+ * An exercise's sheet: the demo playing, how to do it, the rest timer and the
+ * set logger. Three states:
+ *  - not started: "Empezar" (or "Continuar", with time already on it) starts
+ *    its clock; "Marcar hecho" checks it off without one;
+ *  - in progress: its clock, and the controls to pause, hide (to the bar),
+ *    finish or quit it;
+ *  - done: review, with the done toggle.
+ * State lives in `@/src/lib/exercise-session`; this only renders it.
+ */
 export function ProgramExerciseModal({
   exercise,
   week,
   weekNumber,
   logging,
-  onClose,
+  timed,
+  elapsedMs,
+  running,
+  onStart,
+  onHide,
+  onTogglePause,
+  onFinish,
+  onQuit,
   onPlay,
 }: Props) {
   const { t, i18n } = useTranslation();
@@ -96,8 +137,13 @@ export function ProgramExerciseModal({
     cat?.instructions_en ??
     cat?.instructions_es ??
     null;
-  // Collapsed by default — tap the header to reveal the steps.
-  const [showSteps, setShowSteps] = React.useState(false);
+  // Open by default for each exercise; tap the header to fold it. Kept as
+  // "folded for which exercise" so the next exercise opens unfolded again
+  // (the sheet stays mounted between exercises).
+  const [foldedFor, setFoldedFor] = useState<string | null>(null);
+  const showSteps = exercise != null && foldedFor !== exercise.id;
+  const setShowSteps = (toggle: (open: boolean) => boolean) =>
+    setFoldedFor(toggle(showSteps) ? null : (exercise?.id ?? null));
 
   const loadPct = p != null ? formatLoadPct(p) : null;
   const rir = p != null ? formatRir(p) : null;
@@ -105,6 +151,27 @@ export function ProgramExerciseModal({
     p != null && p.loadPct == null && p.loadQualitative != null
       ? t(`program.load_${p.loadQualitative}`)
       : null;
+
+  const clock = formatClock(Math.floor(elapsedMs / 1000));
+
+  const confirmQuit = () => {
+    if (p == null) return;
+    if (elapsedMs < QUIT_CONFIRM_MS) {
+      onQuit();
+      return;
+    }
+    const title = t("program.sessionQuitTitle", { name: p.name });
+    const body = t("program.sessionQuitBody", { time: clock });
+    // Alert.alert is a no-op on web.
+    if (Platform.OS === "web") {
+      if (typeof globalThis.confirm === "function" && globalThis.confirm(`${title}\n\n${body}`)) onQuit();
+      return;
+    }
+    Alert.alert(title, body, [
+      { text: t("common.cancel"), style: "cancel" },
+      { text: t("program.sessionQuit"), style: "destructive", onPress: onQuit },
+    ]);
+  };
 
   return (
     <Modal
@@ -115,32 +182,31 @@ export function ProgramExerciseModal({
       // bottom — what the keyboard height is measured from.
       statusBarTranslucent
       navigationBarTranslucent
-      onRequestClose={onClose}
+      // Back button / backdrop hide rather than quit: the clock keeps going.
+      onRequestClose={onHide}
     >
-      {/* Backdrop — tap to dismiss */}
       <Pressable
-        onPress={onClose}
-        accessibilityLabel={t("common.close")}
+        onPress={onHide}
+        accessibilityLabel={t(timed ? "program.sessionHide" : "common.close")}
         className="flex-1"
         style={{ backgroundColor: "rgba(0,0,0,0.5)" }}
       />
       {/* Sits on the keyboard while it's up, and shrinks to the space above
-          it (the set logger scrolls). KeyboardAvoidingView did this on iOS
-          only; on Android nothing moved and the keyboard covered the sets. */}
+          it (the set logger scrolls). */}
       <View className="absolute inset-x-0" style={{ bottom: keyboard }}>
         <View
           className="rounded-t-3xl bg-surface"
           style={{
             paddingBottom: keyboard > 0 ? 12 : insets.bottom + 12,
-            maxHeight: keyboard > 0 ? windowHeight - keyboard - insets.top - 12 : windowHeight * 0.88,
+            maxHeight: keyboard > 0 ? windowHeight - keyboard - insets.top - 12 : windowHeight * 0.9,
           }}
         >
-          {/* Grabber + header */}
           <View className="items-center pt-2.5">
             <View className="h-1 w-10 rounded-full bg-border-strong" />
           </View>
           {p != null && exercise != null && (
             <>
+              {/* Name + prescription; hide on the right. */}
               <View className="flex-row items-start gap-3 px-5 pt-3 pb-2">
                 <View className="flex-1">
                   <Text className="text-lg font-bold text-content-primary">{p.name}</Text>
@@ -156,24 +222,51 @@ export function ProgramExerciseModal({
                   </View>
                 </View>
                 <Pressable
-                  onPress={onClose}
+                  onPress={onHide}
                   accessibilityRole="button"
-                  accessibilityLabel={t("common.close")}
+                  accessibilityLabel={t(timed ? "program.sessionHide" : "common.close")}
                   hitSlop={8}
-                  className="h-8 w-8 items-center justify-center rounded-full bg-brand-dark"
+                  className="h-9 w-9 items-center justify-center rounded-full bg-brand-dark"
                 >
-                  <Ionicons name="close" size={18} color={colors.contentSecondary} />
+                  <Ionicons name={timed ? "chevron-down" : "close"} size={20} color={colors.contentSecondary} />
                 </Pressable>
               </View>
 
+              {/* The clock: time on this exercise, and pause/resume. */}
+              {timed && (
+                <View className="flex-row items-center gap-3 px-5 pb-2">
+                  <View className="flex-1">
+                    <PosterText size={34} tabular>
+                      {clock}
+                    </PosterText>
+                    <View className="flex-row items-center gap-1.5">
+                      <View
+                        className="h-2 w-2 rounded-full"
+                        style={{ backgroundColor: running ? colors.brandPrimary : colors.warning }}
+                      />
+                      <CapsLabel size={9.5} em={0.14} className="text-content-tertiary">
+                        {t(running ? "program.sessionRunning" : "program.sessionPaused")}
+                      </CapsLabel>
+                    </View>
+                  </View>
+                  <Pressable
+                    onPress={onTogglePause}
+                    accessibilityRole="button"
+                    accessibilityLabel={t(running ? "program.sessionPause" : "program.sessionResume")}
+                    hitSlop={6}
+                    className="h-12 w-12 items-center justify-center rounded-full border-2 border-border-strong"
+                  >
+                    <Ionicons name={running ? "pause" : "play"} size={20} color={colors.contentPrimary} />
+                  </Pressable>
+                </View>
+              )}
+
               {(p.tempo != null || p.restSeconds != null || p.notes != null) && (
-                <View className="flex-row flex-wrap items-center gap-x-4 gap-y-1 px-5 pb-1">
+                <View className="flex-row flex-wrap items-center gap-x-4 gap-y-1.5 px-5 pb-1">
                   {p.tempo != null && (
                     <Meta icon="time-outline">{t("program.tempoLabel", { tempo: p.tempo })}</Meta>
                   )}
-                  {p.restSeconds != null && (
-                    <Meta icon="pause-outline">{t("program.restLabel", { seconds: p.restSeconds })}</Meta>
-                  )}
+                  {p.restSeconds != null && <RestButton seconds={p.restSeconds} name={p.name} />}
                   {p.notes != null && p.notes !== "" && (
                     <Text className="text-xs text-content-tertiary">{p.notes}</Text>
                   )}
@@ -188,11 +281,7 @@ export function ProgramExerciseModal({
                 contentContainerClassName="gap-3 pt-2 pb-3"
                 keyboardShouldPersistTaps="handled"
               >
-                {hasVideo && (
-                  <Button variant="secondary" icon="play" onPress={() => onPlay(videoUrl)}>
-                    {t("program.watchDemoShort")}
-                  </Button>
-                )}
+                {hasVideo && <DemoMedia key={videoUrl} uri={videoUrl} onExpand={onPlay} />}
 
                 {steps != null && steps.length > 0 && (
                   <View className="rounded-2xl border border-border bg-brand-dark p-3.5">
@@ -252,18 +341,67 @@ export function ProgramExerciseModal({
                   }
                   onInputFocus={revealFocused}
                 />
-
-                <DoneButton
-                  done={done}
-                  onPress={() => {
-                    // The last exercise of the day: get out of the way of the
-                    // day-complete celebration rather than stack under it.
-                    const finishesDay = !done && logging.completesDay(exercise.id, weekNumber);
-                    void logging.setCompletion(exercise.id, weekNumber, !done);
-                    if (finishesDay) onClose();
-                  }}
-                />
               </ScrollView>
+
+              {/* The floating rest bar is under this modal; show it here. */}
+              <RestTimerBar inline />
+
+              <View className="flex-row gap-3 px-5 pt-2">
+                {timed ? (
+                  <>
+                    <PressableScale
+                      scaleTo={0.98}
+                      onPress={confirmQuit}
+                      accessibilityRole="button"
+                      accessibilityLabel={t("program.sessionQuit")}
+                      className="flex-1 flex-row items-center justify-center gap-2 rounded-2xl border border-border bg-surface px-4 py-3.5"
+                    >
+                      <Ionicons name="exit-outline" size={19} color={colors.contentSecondary} />
+                      <Text className="text-base font-semibold text-content-primary">
+                        {t("program.sessionQuit")}
+                      </Text>
+                    </PressableScale>
+                    <DoneButton
+                      done={false}
+                      label={t("program.sessionFinish")}
+                      settleMs={FINISH_SETTLE_MS}
+                      onPress={onFinish}
+                      className="flex-[2]"
+                    />
+                  </>
+                ) : done ? (
+                  <DoneButton
+                    done
+                    onPress={() => void logging.setCompletion(exercise.id, weekNumber, false)}
+                    className="flex-1"
+                  />
+                ) : (
+                  <>
+                    {/* Done without the clock (e.g. trained earlier, logging now). */}
+                    <DoneButton
+                      done={false}
+                      tone="secondary"
+                      label={t("program.markDoneShort")}
+                      onPress={() => void logging.setCompletion(exercise.id, weekNumber, true)}
+                      className="flex-1"
+                    />
+                    <PressableScale
+                      scaleTo={0.98}
+                      haptic
+                      onPress={onStart}
+                      accessibilityRole="button"
+                      className="flex-[2] flex-row items-center justify-center gap-2 rounded-2xl bg-brand-primary px-4 py-3.5"
+                    >
+                      <Ionicons name="play" size={18} color={colors.white} />
+                      <Text className="text-base font-bold text-white" style={TABULAR}>
+                        {elapsedMs >= 1000
+                          ? t("program.sessionContinue", { time: clock })
+                          : t("program.sessionStart")}
+                      </Text>
+                    </PressableScale>
+                  </>
+                )}
+              </View>
             </>
           )}
         </View>
@@ -272,20 +410,92 @@ export function ProgramExerciseModal({
   );
 }
 
+/** The demo, playing in the sheet; the corner button opens it full screen. */
+function DemoMedia({ uri, onExpand }: { uri: string; onExpand: (uri: string) => void }) {
+  const { t } = useTranslation();
+  const image = isImageDemo(uri);
+  return (
+    <View
+      className="overflow-hidden rounded-2xl"
+      // The catalog's GIFs are drawn on white; videos letterbox on black.
+      style={{ height: 200, backgroundColor: image ? "#ffffff" : "#000000" }}
+    >
+      {image ? (
+        <Image
+          source={{ uri }}
+          style={{ width: "100%", height: "100%" }}
+          contentFit="contain"
+          cachePolicy="memory-disk"
+          transition={150}
+        />
+      ) : (
+        <InlineVideo uri={uri} />
+      )}
+      <Pressable
+        onPress={() => onExpand(uri)}
+        accessibilityRole="button"
+        accessibilityLabel={t("program.demoFullScreen")}
+        hitSlop={6}
+        className="absolute right-2 top-2 h-9 w-9 items-center justify-center rounded-full"
+        style={{ backgroundColor: "rgba(0,0,0,0.55)" }}
+      >
+        <Ionicons name="expand" size={17} color="#ffffff" />
+      </Pressable>
+    </View>
+  );
+}
+
+/** Muted and looping, like the GIF demos; controls live in full screen. */
+function InlineVideo({ uri }: { uri: string }) {
+  const player = useVideoPlayer(uri, (p) => {
+    p.loop = true;
+    p.muted = true;
+    p.play();
+  });
+  return (
+    <VideoView
+      style={{ width: "100%", height: "100%" }}
+      player={player}
+      contentFit="contain"
+      nativeControls={false}
+    />
+  );
+}
+
 /**
- * "Mark as done", and the moment of doing it: the check pops with impact
- * lines around it and a haptic. Same look as the primary/secondary Button.
+ * Done/finish, and the moment of doing it: the check pops with impact lines
+ * and a haptic. `settleMs` holds the action back so the burst is seen before
+ * the sheet closes on it.
  */
-function DoneButton({ done, onPress }: { done: boolean; onPress: () => void }) {
+function DoneButton({
+  done,
+  onPress,
+  label,
+  settleMs = 0,
+  tone = "primary",
+  className,
+}: {
+  done: boolean;
+  onPress: () => void;
+  label?: string;
+  settleMs?: number;
+  /** Not-done look: red (primary) or outlined (secondary, next to "Empezar"). */
+  tone?: "primary" | "secondary";
+  className?: string;
+}) {
+  const outlined = done || tone === "secondary";
   const { t } = useTranslation();
   const colors = useColors();
   const check = usePop();
   const [burst, setBurst] = useState(0);
+  // One press per settle: a second tap mid-burst mustn't finish twice.
+  const pending = useRef(false);
 
   return (
     <PressableScale
       scaleTo={0.98}
       onPress={() => {
+        if (pending.current) return;
         if (!done) {
           check.pop();
           setBurst((n) => n + 1);
@@ -293,14 +503,23 @@ function DoneButton({ done, onPress }: { done: boolean; onPress: () => void }) {
         } else {
           Haptics.selectionAsync().catch(() => {});
         }
-        onPress();
+        if (settleMs > 0) {
+          pending.current = true;
+          setTimeout(() => {
+            pending.current = false;
+            onPress();
+          }, settleMs);
+        } else {
+          onPress();
+        }
       }}
       accessibilityRole="button"
-      className={
-        done
-          ? "flex-row items-center justify-center gap-2 rounded-2xl border border-border bg-surface px-5 py-3.5"
-          : "flex-row items-center justify-center gap-2 rounded-2xl bg-brand-primary px-5 py-3.5"
-      }
+      className={[
+        outlined
+          ? "flex-row items-center justify-center gap-2 rounded-2xl border border-border bg-surface px-4 py-3.5"
+          : "flex-row items-center justify-center gap-2 rounded-2xl bg-brand-primary px-5 py-3.5",
+        className ?? "",
+      ].join(" ")}
     >
       <View className="h-5 w-5 items-center justify-center">
         <Burst play={burst} from={13} to={22} colors={[colors.success, colors.contentPrimary]} />
@@ -308,12 +527,12 @@ function DoneButton({ done, onPress }: { done: boolean; onPress: () => void }) {
           <Ionicons
             name={done ? "checkmark-circle" : "ellipse-outline"}
             size={20}
-            color={done ? colors.success : colors.white}
+            color={done ? colors.success : outlined ? colors.contentSecondary : colors.white}
           />
         </AnimatedView>
       </View>
-      <Text className={done ? "text-base font-semibold text-content-primary" : "text-base font-semibold text-white"}>
-        {t(done ? "program.markedDone" : "program.markDoneCta")}
+      <Text className={outlined ? "text-base font-semibold text-content-primary" : "text-base font-semibold text-white"}>
+        {label ?? t(done ? "program.markedDone" : "program.markDoneCta")}
       </Text>
     </PressableScale>
   );

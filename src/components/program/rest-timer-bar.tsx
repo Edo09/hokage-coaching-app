@@ -31,8 +31,10 @@ const COOLDOWN_MS = 600;
  * scrolling the day, opening an exercise sheet, or switching tabs mid-rest.
  *
  * Renders nothing when idle — it must never occupy space it isn't using.
+ * `inline` drops the floating position, for places that cover the floating
+ * bar (the exercise sheet is a full-screen modal).
  */
-export function RestTimerBar({ bottom = 0 }: { bottom?: number }) {
+export function RestTimerBar({ bottom = 0, inline = false }: { bottom?: number; inline?: boolean }) {
   const { t } = useTranslation();
   const colors = useColors();
   const { remaining, total, label, running, paused, stop, togglePause, addTime } =
@@ -91,7 +93,7 @@ export function RestTimerBar({ bottom = 0 }: { bottom?: number }) {
   return (
     <View
       pointerEvents="box-none"
-      style={{ position: "absolute", left: 0, right: 0, bottom, zIndex: 50 }}
+      style={inline ? undefined : { position: "absolute", left: 0, right: 0, bottom, zIndex: 50 }}
     >
       {/* Floats above the clock it just changed, so the eye connects "+30s"
           with the number that jumped. Outside the bar's overflow-hidden, or it

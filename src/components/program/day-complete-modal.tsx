@@ -18,6 +18,7 @@ import { Burst, CapsLabel, Card, PosterText, SkewButton } from "@/src/components
 import { useAuth } from "@/src/hooks/use-auth";
 import { useProfile } from "@/src/hooks/use-profile";
 import { useProgramLogging } from "@/src/hooks/use-program-logging";
+import { exerciseSession } from "@/src/lib/exercise-session";
 import { DUR, EASE_IN, EASE_OUT } from "@/src/lib/motion";
 import { kgToUnit, kgToUnit1, useWeightUnit } from "@/src/lib/weight-unit";
 import type { DayCelebration } from "@/src/providers/celebration-context";
@@ -116,6 +117,12 @@ export function DayCompleteModal({ day: celebration, openId, visible, onClose }:
   const locale = i18n.language === "es" ? "es-ES" : "en-US";
   const title = dayTitle(day, t);
   const summary = daySummary(program, day, weekByNumber(program, week), week, logging.setLogs);
+  // Time on the day's exercises that were done with the clock running
+  // (opened, then finished). Shown only when any were.
+  const trainedSeconds = day.program_exercises.reduce(
+    (sum, e) => sum + (exerciseSession.finishedSeconds(e.id, week) ?? 0),
+    0,
+  );
 
   // The week at a glance: one marker per training day, in program order.
   const days = program.program_days
@@ -184,6 +191,15 @@ export function DayCompleteModal({ day: celebration, openId, visible, onClose }:
                 <Stat value={String(summary.exercises)} label={t("program.statExercises", { count: summary.exercises })} />
                 <Rule />
                 <Stat value={String(summary.sets)} label={t("program.statSets", { count: summary.sets })} />
+                {trainedSeconds > 0 && (
+                  <>
+                    <Rule />
+                    <Stat
+                      value={String(Math.max(1, Math.round(trainedSeconds / 60)))}
+                      label={t("program.statMinutes")}
+                    />
+                  </>
+                )}
                 {summary.volumeKg > 0 && (
                   <>
                     <Rule />

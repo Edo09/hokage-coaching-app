@@ -1,13 +1,12 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
-import React, { useState } from "react";
+import React from "react";
 import { useTranslation } from "react-i18next";
 
-import { ExerciseVideoModal } from "@/src/components/exercise-video-modal";
-import { ProgramExerciseModal } from "@/src/components/program/program-exercise-modal";
 import { DoneCheckbox } from "@/src/components/program/program-exercise-row";
 import { Card, CapsLabel, PosterText, Skewed } from "@/src/components/ui";
 import { useProgramLogging } from "@/src/hooks/use-program-logging";
+import { exerciseSession } from "@/src/lib/exercise-session";
 import { usePressScale } from "@/src/lib/motion";
 import { useCelebration } from "@/src/providers/celebration-context";
 import { useColors } from "@/src/theme/colors";
@@ -39,10 +38,6 @@ export function ProgramHomeCard({ program, notStarted, onPress }: Props) {
   const { t, i18n } = useTranslation();
   const colors = useColors();
   const press = usePressScale();
-  // The sheet keeps the week it was opened for: checking off the day's last
-  // exercise can move the card on to the next day/week underneath it.
-  const [openExercise, setOpenExercise] = useState<{ exercise: ProgramExercise; week: number } | null>(null);
-  const [videoUri, setVideoUri] = useState<string | null>(null);
 
   const autoWeek = currentWeekOf(program.start_date, program.duration_weeks);
   const logging = useProgramLogging(program);
@@ -203,7 +198,9 @@ export function ProgramHomeCard({ program, notStarted, onPress }: Props) {
                     week={week}
                     weekNumber={displayWeek}
                     done={logging.isDone(ex.id, displayWeek)}
-                    onPress={() => setOpenExercise({ exercise: ex, week: displayWeek })}
+                    // The sheet keeps the week it was opened for, even if
+                    // finishing moves this card on to the next day or week.
+                    onPress={() => exerciseSession.open(ex.id, displayWeek)}
                     onToggleDone={() =>
                       logging.setCompletion(ex.id, displayWeek, !logging.isDone(ex.id, displayWeek))
                     }
@@ -239,16 +236,6 @@ export function ProgramHomeCard({ program, notStarted, onPress }: Props) {
           </View>
         </Card>
       </AnimatedView>
-
-      <ProgramExerciseModal
-        exercise={openExercise?.exercise ?? null}
-        week={openExercise != null ? weekByNumber(program, openExercise.week) : null}
-        weekNumber={openExercise?.week ?? displayWeek}
-        logging={logging}
-        onClose={() => setOpenExercise(null)}
-        onPlay={setVideoUri}
-      />
-      <ExerciseVideoModal uri={videoUri} onClose={() => setVideoUri(null)} />
     </>
   );
 }

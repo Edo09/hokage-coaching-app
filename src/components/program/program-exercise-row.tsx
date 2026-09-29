@@ -339,7 +339,7 @@ function Chip({
  * a button inside a button is invalid HTML that breaks hydration — so the
  * tappable row body ends above this line rather than wrapping it.
  */
-function RestButton({ seconds, name }: { seconds: number; name: string }) {
+export function RestButton({ seconds, name }: { seconds: number; name: string }) {
   const { t } = useTranslation();
   const colors = useColors();
   const { start, running, label } = useRestTimer();

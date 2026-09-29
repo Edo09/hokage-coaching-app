@@ -332,6 +332,23 @@ export default {
     dayDoneNextWeek: "Siguiente: semana {{n}}",
     dayDoneBlock: "Terminaste el bloque.",
     dayDoneCta: "Listo",
+    statMinutes: "min",
+    // Ejercicio en curso
+    sessionRunning: "En curso",
+    sessionStart: "Empezar",
+    sessionContinue: "Continuar ({{time}})",
+    markDoneShort: "Marcar hecho",
+    sessionPaused: "En pausa",
+    sessionPause: "Pausar",
+    sessionResume: "Reanudar",
+    sessionHide: "Ocultar",
+    sessionFinish: "Terminar",
+    sessionQuit: "Salir",
+    sessionQuitTitle: "¿Salir de {{name}}?",
+    sessionQuitBody: "Se descarta el tiempo ({{time}}) y no se marca como hecho.",
+    sessionOpen: "Volver a {{name}}",
+    sessionFinished: "{{name}} terminado en {{time}}",
+    demoFullScreen: "Ver en pantalla completa",
   },
 
   // Meals

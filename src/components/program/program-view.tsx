@@ -3,10 +3,10 @@ import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { ExerciseVideoModal } from "@/src/components/exercise-video-modal";
-import { ProgramExerciseModal } from "@/src/components/program/program-exercise-modal";
 import { ProgramExerciseRow } from "@/src/components/program/program-exercise-row";
 import { CapsLabel, Card } from "@/src/components/ui";
 import { useProgramLogging } from "@/src/hooks/use-program-logging";
+import { exerciseSession } from "@/src/lib/exercise-session";
 import { isHeld, useCelebration } from "@/src/providers/celebration-context";
 import { useColors } from "@/src/theme/colors";
 import { Pressable, ScrollView, Text, View } from "@/src/tw";
@@ -44,9 +44,10 @@ export function ProgramView({
   const colors = useColors();
   // One shared player for every row's demo video.
   const [videoUri, setVideoUri] = useState<string | null>(null);
-  // The exercise whose detail + set-logging sheet is open (null = closed).
-  const [openExercise, setOpenExercise] = useState<ProgramExercise | null>(null);
   const logging = useProgramLogging(program);
+  // The exercise sheet lives in the tabs layout (ExerciseSessionHost) so an
+  // exercise in progress can be hidden to a bar.
+  const openExercise = (ex: ProgramExercise) => exerciseSession.open(ex.id, selectedWeek);
 
   const startDate = new Date(`${program.start_date}T00:00:00`).toLocaleDateString(
     i18n.language === "es" ? "es-ES" : "en-US",
@@ -155,7 +156,7 @@ export function ProgramView({
           day={day}
           week={week}
           selectedWeek={selectedWeek}
-          onOpenExercise={setOpenExercise}
+          onOpenExercise={openExercise}
           onPlayVideo={setVideoUri}
           logging={logging}
         />
@@ -179,14 +180,6 @@ export function ProgramView({
         </Card>
       )}
 
-      <ProgramExerciseModal
-        exercise={openExercise}
-        week={week}
-        weekNumber={selectedWeek}
-        logging={logging}
-        onClose={() => setOpenExercise(null)}
-        onPlay={setVideoUri}
-      />
       <ExerciseVideoModal uri={videoUri} onClose={() => setVideoUri(null)} />
     </View>
   );

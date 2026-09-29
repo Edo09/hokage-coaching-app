@@ -332,6 +332,23 @@ export default {
     dayDoneNextWeek: "Next: week {{n}}",
     dayDoneBlock: "You finished the block.",
     dayDoneCta: "Done",
+    statMinutes: "min",
+    // Exercise in progress
+    sessionRunning: "In progress",
+    sessionStart: "Start",
+    sessionContinue: "Continue ({{time}})",
+    markDoneShort: "Mark done",
+    sessionPaused: "Paused",
+    sessionPause: "Pause",
+    sessionResume: "Resume",
+    sessionHide: "Hide",
+    sessionFinish: "Finish",
+    sessionQuit: "Quit",
+    sessionQuitTitle: "Quit {{name}}?",
+    sessionQuitBody: "The time ({{time}}) is discarded and it won't be marked as done.",
+    sessionOpen: "Back to {{name}}",
+    sessionFinished: "{{name}} done in {{time}}",
+    demoFullScreen: "View full screen",
   },
 
   // Meals
