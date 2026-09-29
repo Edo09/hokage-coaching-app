@@ -13,7 +13,7 @@ import { PeriodToggle } from "@/src/components/progress/period-toggle";
 import { SkeletonDashboard } from "@/src/components/progress/skeleton-dashboard";
 import { StrengthCard } from "@/src/components/progress/strength-card";
 import { WeightCard } from "@/src/components/progress/weight-card";
-import { ErrorState } from "@/src/components/ui";
+import { ErrorState, ScreentoneBackdrop } from "@/src/components/ui";
 import { useProgressDashboard } from "@/src/hooks/use-progress-dashboard";
 import { useRefreshOnFocus } from "@/src/hooks/use-refresh-on-focus";
 import { staggered } from "@/src/lib/motion";
@@ -52,6 +52,7 @@ export default function ProgressScreen() {
 
   return (
     <View className="flex-1 bg-brand-dark">
+      <ScreentoneBackdrop />
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior="padding"

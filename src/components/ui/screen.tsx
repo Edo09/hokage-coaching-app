@@ -11,6 +11,8 @@ import { useColors } from "@/src/theme/colors";
 import { ScrollView, View } from "@/src/tw";
 import { cn } from "@/src/utils/cn";
 
+import { ScreentoneBackdrop } from "./screentone";
+
 type ScreenProps = {
   children: React.ReactNode;
   /** Wrap content in a ScrollView (default true). */
@@ -67,6 +69,8 @@ export function Screen({
 
   return (
     <View className={cn("flex-1 bg-brand-dark", className)}>
+      {/* Fixed behind the (transparent) scroll view. */}
+      <ScreentoneBackdrop />
       {keyboard ? (
         <KeyboardAvoidingView
           style={{ flex: 1 }}

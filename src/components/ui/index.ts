@@ -12,6 +12,7 @@ export { ErrorState } from "./error-state";
 export { FAB } from "./fab";
 export { Input } from "./input";
 export { Screen } from "./screen";
+export { ScreentoneBackdrop } from "./screentone";
 export { SectionHeader } from "./section-header";
 export { SegmentedControl, type Segment } from "./segmented-control";
 export { SearchableSelectField, type SearchableSelectOption } from "./searchable-select";

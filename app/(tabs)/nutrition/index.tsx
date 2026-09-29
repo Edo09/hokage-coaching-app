@@ -16,6 +16,7 @@ import {
   FAB,
   LoadingBlock,
   Screen,
+  ScreentoneBackdrop,
   SegmentedControl,
   useToast,
 } from "@/src/components/ui";
@@ -354,6 +355,7 @@ function DiaryPane({
 
   return (
     <View className="flex-1 bg-brand-dark">
+      <ScreentoneBackdrop />
       {/* Date navigation */}
       <View className="flex-row items-center justify-between px-4 pt-3 pb-1">
         <PressableScale
