@@ -40,6 +40,8 @@ app-example
 # generated native folders
 /ios
 /android
+# Gradle output of local Expo modules (modules/*/android)
+/modules/*/android/build/
 
 # local editor and agent metadata
 .vscode/mcp.json
