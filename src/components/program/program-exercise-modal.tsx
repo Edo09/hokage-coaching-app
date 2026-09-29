@@ -18,10 +18,10 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { RestButton } from "@/src/components/program/program-exercise-row";
 import { ProgramSetLogger } from "@/src/components/program/program-set-logger";
 import { RestTimerBar } from "@/src/components/program/rest-timer-bar";
-import { Burst, CapsLabel, PosterText } from "@/src/components/ui";
+import { Burst, CapsLabel, ExpandChevron, PosterText } from "@/src/components/ui";
 import { useKeyboardHeight } from "@/src/hooks/use-keyboard-height";
 import type { useProgramLogging } from "@/src/hooks/use-program-logging";
-import { PressableScale, usePop } from "@/src/lib/motion";
+import { PressableScale, Reveal, usePop } from "@/src/lib/motion";
 import { formatClock } from "@/src/providers/rest-timer-provider";
 import { useColors } from "@/src/theme/colors";
 import { Pressable, ScrollView, Text, View } from "@/src/tw";
@@ -302,29 +302,23 @@ export function ProgramExerciseModal({
                         <Text className="text-[11px] font-semibold text-content-muted" style={TABULAR}>
                           {steps.length}
                         </Text>
-                        <Ionicons
-                          name={showSteps ? "chevron-up" : "chevron-down"}
-                          size={16}
-                          color={colors.contentMuted}
-                        />
+                        <ExpandChevron open={showSteps} size={16} color={colors.contentMuted} />
                       </View>
                     </Pressable>
-                    {showSteps && (
-                      <View className="gap-2 pt-3">
-                        {steps.map((step, i) => (
-                          <View key={i} className="flex-row gap-2.5">
-                            <View className="mt-0.5 h-5 w-5 items-center justify-center rounded-full bg-brand-primary-soft">
-                              <Text className="text-[11px] font-bold text-brand-primary" style={TABULAR}>
-                                {i + 1}
-                              </Text>
-                            </View>
-                            <Text className="flex-1 text-[13px] leading-[19px] text-content-secondary">
-                              {step}
+                    <Reveal open={showSteps} className="gap-2 pt-3">
+                      {steps.map((step, i) => (
+                        <View key={i} className="flex-row gap-2.5">
+                          <View className="mt-0.5 h-5 w-5 items-center justify-center rounded-full bg-brand-primary-soft">
+                            <Text className="text-[11px] font-bold text-brand-primary" style={TABULAR}>
+                              {i + 1}
                             </Text>
                           </View>
-                        ))}
-                      </View>
-                    )}
+                          <Text className="flex-1 text-[13px] leading-[19px] text-content-secondary">
+                            {step}
+                          </Text>
+                        </View>
+                      ))}
+                    </Reveal>
                   </View>
                 )}
 

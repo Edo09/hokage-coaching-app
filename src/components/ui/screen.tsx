@@ -9,6 +9,7 @@ import {
 
 import { useColors } from "@/src/theme/colors";
 import { ScrollView, View } from "@/src/tw";
+import { AnimatedView } from "@/src/tw/animated";
 import { cn } from "@/src/utils/cn";
 
 import { ScreentoneBackdrop } from "./screentone";
@@ -27,6 +28,9 @@ type ScreenProps = {
   scrollRef?: React.Ref<RNScrollView>;
   /** Pinned below the scroll content, above the tab bar (e.g. a sticky save bar). */
   footer?: React.ReactNode;
+  /** Entrance for the whole screen, e.g. `useArrival` so content that
+   *  replaces a loader fades in instead of popping. */
+  entering?: React.ComponentProps<typeof AnimatedView>["entering"];
 };
 
 export function Screen({
@@ -39,6 +43,7 @@ export function Screen({
   contentContainerClassName,
   scrollRef,
   footer,
+  entering,
 }: ScreenProps) {
   const colors = useColors();
   const headerHeight = useHeaderHeight();
@@ -68,7 +73,7 @@ export function Screen({
   );
 
   return (
-    <View className={cn("flex-1 bg-brand-dark", className)}>
+    <AnimatedView entering={entering} className={cn("flex-1 bg-brand-dark", className)}>
       {/* Fixed behind the (transparent) scroll view. */}
       <ScreentoneBackdrop />
       {keyboard ? (
@@ -88,6 +93,6 @@ export function Screen({
         content
       )}
       {footer}
-    </View>
+    </AnimatedView>
   );
 }

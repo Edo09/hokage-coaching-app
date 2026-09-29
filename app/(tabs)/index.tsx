@@ -26,7 +26,7 @@ import { useProgram } from "@/src/hooks/use-program";
 import { useProgramLogging } from "@/src/hooks/use-program-logging";
 import { useProgress } from "@/src/hooks/use-progress";
 import { useRefreshOnFocus } from "@/src/hooks/use-refresh-on-focus";
-import { enterFade, exit, staggered } from "@/src/lib/motion";
+import { exit, staggered, useArrival } from "@/src/lib/motion";
 import { useColors } from "@/src/theme/colors";
 import { Pressable, Text, View } from "@/src/tw";
 import { AnimatedView } from "@/src/tw/animated";
@@ -99,6 +99,8 @@ export default function HomeScreen() {
   const error = meals.error || progress.error;
   const refreshing = meals.refreshing || progress.refreshing;
   const hasData = program != null || meals.meals.length > 0 || progress.logs.length > 0;
+  // Fades in only when it replaces the loader; cached data arrives with the screen.
+  const arrive = useArrival(loading && !hasData);
 
   const mealsRefresh = meals.refresh;
   const progressRefresh = progress.refresh;
@@ -216,7 +218,7 @@ export default function HomeScreen() {
       ) : error && !hasData ? (
         <ErrorState onRetry={refreshAll} />
       ) : (
-        <AnimatedView entering={enterFade()}>
+        <AnimatedView entering={arrive}>
           {/* Fuel summary: ring + goal/burned/left breakdown. Tapping opens
               the profile's calorie-goal section (unchanged behavior). */}
           <View className="px-5 pt-2">

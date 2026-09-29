@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 
 import { TabHeader } from "@/src/components/ui";
 import { useProgram } from "@/src/hooks/use-program";
+import { nestedStackScreenLayout } from "@/src/lib/motion";
 import { useColors } from "@/src/theme/colors";
 
 // Context line: the block's current week, or its start date before it begins.
@@ -28,6 +29,8 @@ export default function RoutinesLayout() {
   const colors = useColors();
   return (
     <Stack
+      // Web has no native stack transition: scenes fade in (see motion.tsx)
+      screenLayout={nestedStackScreenLayout}
       screenOptions={{
         headerStyle: { backgroundColor: colors.brandDark },
         headerTintColor: colors.contentPrimary,

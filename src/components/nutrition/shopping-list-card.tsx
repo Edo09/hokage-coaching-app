@@ -3,9 +3,10 @@ import { Ionicons } from "@expo/vector-icons";
 import React, { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { Card } from "@/src/components/ui";
+import { Card, ExpandChevron } from "@/src/components/ui";
+import { Reveal } from "@/src/lib/motion";
 import { useColors } from "@/src/theme/colors";
-import { Pressable, Text, View } from "@/src/tw";
+import { Pressable, Text } from "@/src/tw";
 import type { NutritionPlanWithDetails } from "@/src/types/database";
 import { shoppingList } from "@/src/utils/nutrition-plan";
 
@@ -58,47 +59,45 @@ export function ShoppingListCard({ plan }: { plan: NutritionPlanWithDetails }) {
         <Text className="text-xs text-content-tertiary" style={{ fontVariant: ["tabular-nums"] }}>
           {done}/{items.length}
         </Text>
-        <Ionicons name={open ? "chevron-up" : "chevron-down"} size={16} color={colors.contentTertiary} />
+        <ExpandChevron open={open} size={16} color={colors.contentTertiary} />
       </Pressable>
 
-      {open && (
-        <View className="gap-1">
-          {items.map((name) => {
-            const isChecked = checked.includes(name);
-            return (
-              <Pressable
-                key={name}
-                onPress={() => toggle(name)}
-                accessibilityRole="checkbox"
-                accessibilityState={{ checked: isChecked }}
-                className="flex-row items-center gap-2.5 py-1.5"
+      <Reveal open={open} className="gap-1">
+        {items.map((name) => {
+          const isChecked = checked.includes(name);
+          return (
+            <Pressable
+              key={name}
+              onPress={() => toggle(name)}
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: isChecked }}
+              className="flex-row items-center gap-2.5 py-1.5"
+            >
+              <Ionicons
+                name={isChecked ? "checkbox" : "square-outline"}
+                size={20}
+                color={isChecked ? colors.success : colors.contentTertiary}
+              />
+              <Text
+                className={
+                  isChecked
+                    ? "flex-1 text-sm text-content-tertiary line-through"
+                    : "flex-1 text-sm text-content-primary"
+                }
               >
-                <Ionicons
-                  name={isChecked ? "checkbox" : "square-outline"}
-                  size={20}
-                  color={isChecked ? colors.success : colors.contentTertiary}
-                />
-                <Text
-                  className={
-                    isChecked
-                      ? "flex-1 text-sm text-content-tertiary line-through"
-                      : "flex-1 text-sm text-content-primary"
-                  }
-                >
-                  {name}
-                </Text>
-              </Pressable>
-            );
-          })}
-          {done > 0 && (
-            <Pressable onPress={clear} accessibilityRole="button" className="self-start py-1">
-              <Text className="text-sm font-semibold text-brand-primary">
-                {t("nutritionPlan.shoppingListClear")}
+                {name}
               </Text>
             </Pressable>
-          )}
-        </View>
-      )}
+          );
+        })}
+        {done > 0 && (
+          <Pressable onPress={clear} accessibilityRole="button" className="self-start py-1">
+            <Text className="text-sm font-semibold text-brand-primary">
+              {t("nutritionPlan.shoppingListClear")}
+            </Text>
+          </Pressable>
+        )}
+      </Reveal>
     </Card>
   );
 }

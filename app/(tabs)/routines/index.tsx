@@ -6,6 +6,7 @@ import { ProgramView } from "@/src/components/program/program-view";
 import { ErrorState, LoadingBlock, Screen } from "@/src/components/ui";
 import { useProgram } from "@/src/hooks/use-program";
 import { useRefreshOnFocus } from "@/src/hooks/use-refresh-on-focus";
+import { useArrival } from "@/src/lib/motion";
 import { View } from "@/src/tw";
 
 // Coach app = programs only. The client follows the single active coach program
@@ -27,6 +28,7 @@ export default function RoutinesScreen() {
     refreshing,
   } = useProgram();
   useRefreshOnFocus(refresh);
+  const arrive = useArrival(loading && program == null);
 
   if (loading && program == null) {
     return (
@@ -48,6 +50,7 @@ export default function RoutinesScreen() {
     <View className="flex-1 bg-brand-dark">
       {program != null ? (
         <Screen
+          entering={arrive}
           refreshing={refreshing}
           onRefresh={refresh}
           contentContainerClassName="p-4 gap-3 pb-24"

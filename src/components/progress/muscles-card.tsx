@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 
 import { MuscleHeatMap } from "@/src/components/progress/muscle-heat-map";
 import { Card, SegmentedControl } from "@/src/components/ui";
+import { Swap } from "@/src/lib/motion";
 import { setMuscleMapView, useMuscleMapView, type MuscleMapView } from "@/src/lib/muscle-map-view";
 import { useColors } from "@/src/theme/colors";
 import { Pressable, Text, View } from "@/src/tw";
@@ -86,11 +87,13 @@ export function MusclesCard({ periodo, rows, alert, week, sex }: MusclesCardProp
         onSelect={setSelected}
       />
 
-      {mode === "week" && week != null ? (
-        <WeekList week={week} selected={selected} onToggle={toggle} groupName={groupName} />
-      ) : (
-        <VolumeList rows={rows} selected={selected} onToggle={toggle} groupName={groupName} />
-      )}
+      <Swap id={mode} order={mode === "week" ? 0 : 1}>
+        {mode === "week" && week != null ? (
+          <WeekList week={week} selected={selected} onToggle={toggle} groupName={groupName} />
+        ) : (
+          <VolumeList rows={rows} selected={selected} onToggle={toggle} groupName={groupName} />
+        )}
+      </Swap>
 
       {alert != null && (
         <View className="flex-row items-start gap-2 rounded-xl bg-warning-soft px-3 py-2.5">

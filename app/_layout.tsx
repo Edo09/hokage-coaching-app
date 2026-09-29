@@ -4,6 +4,10 @@ import { OfflineBanner } from "@/src/components/offline-banner";
 import { ToastProvider } from "@/src/components/ui";
 import { useAuth } from "@/src/hooks/use-auth";
 import i18n from "@/src/i18n";
+import { stackScreenLayout } from "@/src/lib/motion";
+// Side effect: restores the muscles card's saved view at launch, so the
+// card can't switch views (and animate) on its own when Progreso opens.
+import "@/src/lib/muscle-map-view";
 import { setupOnlineManager } from "@/src/lib/online";
 import { flushOutbox } from "@/src/lib/outbox";
 import { persister, PERSIST_MAX_AGE, queryClient } from "@/src/lib/query-client";
@@ -187,6 +191,8 @@ export default function RootLayout() {
               <OfflineBanner />
               {/* Group switches are router.replace calls — fade reads right */}
               <Stack
+                // Web has no native stack transition: scenes fade in (see motion.tsx)
+                screenLayout={stackScreenLayout}
                 screenOptions={{
                   headerShown: false,
                   animation: "fade",

@@ -7,6 +7,7 @@ import { CoachSection } from "@/src/components/coach-section";
 import { Button, Card, Input, Screen, useToast } from "@/src/components/ui";
 import { setLanguage } from "@/src/i18n";
 import { ALERT_MODES, setAlertMode, useAlertMode } from "@/src/lib/alert-mode";
+import { Reveal } from "@/src/lib/motion";
 import { useIsOnline } from "@/src/lib/online";
 import { playRestDoneAlert } from "@/src/lib/rest-alert";
 import { setWeightUnit, useWeightUnit } from "@/src/lib/weight-unit";
@@ -95,39 +96,37 @@ function ChangePasswordCard() {
         onPress={() => setOpen((v) => !v)}
         last={!open}
       />
-      {open && (
-        <View className="gap-3 py-4">
-          <Input
-            label={t("settings.newPassword")}
-            placeholder={t("auth.passwordPlaceholder")}
-            helper={error == null ? t("auth.passwordMin") : undefined}
-            error={error}
-            secureTextEntry
-            autoCapitalize="none"
-            value={password}
-            onChangeText={(text) => {
-              setPassword(text);
-              if (error != null) setError(undefined);
-            }}
-            className="bg-brand-dark"
-          />
-          <Input
-            label={t("settings.confirmPassword")}
-            placeholder={t("auth.passwordPlaceholder")}
-            secureTextEntry
-            autoCapitalize="none"
-            value={confirm}
-            onChangeText={(text) => {
-              setConfirm(text);
-              if (error != null) setError(undefined);
-            }}
-            className="bg-brand-dark"
-          />
-          <Button onPress={submit} loading={saving} className="w-full">
-            {t("settings.changePassword")}
-          </Button>
-        </View>
-      )}
+      <Reveal open={open} className="gap-3 py-4">
+        <Input
+          label={t("settings.newPassword")}
+          placeholder={t("auth.passwordPlaceholder")}
+          helper={error == null ? t("auth.passwordMin") : undefined}
+          error={error}
+          secureTextEntry
+          autoCapitalize="none"
+          value={password}
+          onChangeText={(text) => {
+            setPassword(text);
+            if (error != null) setError(undefined);
+          }}
+          className="bg-brand-dark"
+        />
+        <Input
+          label={t("settings.confirmPassword")}
+          placeholder={t("auth.passwordPlaceholder")}
+          secureTextEntry
+          autoCapitalize="none"
+          value={confirm}
+          onChangeText={(text) => {
+            setConfirm(text);
+            if (error != null) setError(undefined);
+          }}
+          className="bg-brand-dark"
+        />
+        <Button onPress={submit} loading={saving} className="w-full">
+          {t("settings.changePassword")}
+        </Button>
+      </Reveal>
     </Card>
   );
 }
@@ -150,7 +149,7 @@ function RestAlertCard() {
         onPress={() => setOpen((v) => !v)}
         last={!open}
       />
-      {open && (
+      <Reveal open={open}>
         <View accessibilityRole="radiogroup" className="gap-0.5 pb-3.5 pt-1.5">
           {ALERT_MODES.map((m) => {
             const selected = m === mode;
@@ -179,7 +178,7 @@ function RestAlertCard() {
             {t("settings.restAlertHint")}
           </Text>
         </View>
-      )}
+      </Reveal>
     </Card>
   );
 }

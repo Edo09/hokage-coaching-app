@@ -1,32 +1,45 @@
 import { Ionicons } from "@expo/vector-icons";
-import { router, Tabs } from "expo-router";
-import React from "react";
+import { router, Tabs, useIsFocused } from "expo-router";
+import React, { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { View } from "react-native";
+import Animated, { useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
 
 import { AppMenu } from "@/src/components/app-menu";
 import { ExerciseSessionHost } from "@/src/components/program/exercise-session-host";
 import { RestTimerBar } from "@/src/components/program/rest-timer-bar";
 import { TabHeader } from "@/src/components/ui";
 import { useAuth } from "@/src/hooks/use-auth";
+import { DUR, EASE_OUT } from "@/src/lib/motion";
 import { useColors } from "@/src/theme/colors";
 import { Pressable } from "@/src/tw";
 
 type IoniconName = React.ComponentProps<typeof Ionicons>["name"];
 
 // Dojo Poster tab item: 3×20px red tick above the active icon (the tick,
-// not color alone, signals the active tab), icon 23px.
+// not color alone, signals the active tab), icon 23px. The tick draws out
+// from its centre as the tab gains focus, in step with the scene's shift.
+// The bar renders each icon twice (a focused and an unfocused copy, swapped
+// by opacity), so `focused` never changes for a copy: the tick follows the
+// tab's real focus instead, and `focused` only picks the copy's colour.
 function TabIcon({ name, focused }: { name: IoniconName; focused: boolean }) {
   const colors = useColors();
+  const tabFocused = useIsFocused();
+  const tick = useSharedValue(tabFocused ? 1 : 0);
+  useEffect(() => {
+    tick.set(withTiming(tabFocused ? 1 : 0, { duration: DUR.fast, easing: EASE_OUT }));
+  }, [tabFocused, tick]);
+  const tickStyle = useAnimatedStyle(() => ({
+    opacity: tick.get(),
+    transform: [{ scaleX: tick.get() }],
+  }));
   return (
     <View style={{ alignItems: "center", gap: 3 }}>
-      <View
-        style={{
-          width: 20,
-          height: 3,
-          borderRadius: 2,
-          backgroundColor: focused ? colors.brandPrimary : "transparent",
-        }}
+      <Animated.View
+        style={[
+          { width: 20, height: 3, borderRadius: 2, backgroundColor: colors.brandPrimary },
+          tickStyle,
+        ]}
       />
       <Ionicons name={name} size={23} color={focused ? colors.brandPrimary : colors.contentMuted} />
     </View>

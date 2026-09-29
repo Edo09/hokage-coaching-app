@@ -16,11 +16,13 @@ import { WeightCard } from "@/src/components/progress/weight-card";
 import { ErrorState, ScreentoneBackdrop } from "@/src/components/ui";
 import { useProgressDashboard } from "@/src/hooks/use-progress-dashboard";
 import { useRefreshOnFocus } from "@/src/hooks/use-refresh-on-focus";
-import { staggered } from "@/src/lib/motion";
+import { staggered, Swap } from "@/src/lib/motion";
 import { useColors } from "@/src/theme/colors";
 import { View } from "@/src/tw";
 import { AnimatedView } from "@/src/tw/animated";
 import type { Periodo } from "@/src/utils/progress";
+
+const PERIOD_ORDER: Record<Periodo, number> = { week: 0, month: 1 };
 
 // Coach app: analytics only. No manual "log a workout" flow or workout-log
 // history — clients track through the coach PROGRAM (per-set logging +
@@ -94,12 +96,15 @@ export default function ProgressScreen() {
           )}
 
           <AnimatedView entering={staggered(2)}>
-            <HeroCard
-              periodo={periodo}
-              hero={dashboard.hero}
-              firstRun={isEmpty}
-              onLogFirst={() => router.push("/(tabs)/routines")}
-            />
+            {/* Period-driven cards swap with the Semana | Mes toggle */}
+            <Swap id={periodo} order={PERIOD_ORDER[periodo]}>
+              <HeroCard
+                periodo={periodo}
+                hero={dashboard.hero}
+                firstRun={isEmpty}
+                onLogFirst={() => router.push("/(tabs)/routines")}
+              />
+            </Swap>
           </AnimatedView>
 
           <AnimatedView entering={staggered(3)}>
@@ -123,7 +128,9 @@ export default function ProgressScreen() {
               </AnimatedView>
 
               <AnimatedView entering={staggered(5)}>
-                <NutritionCard periodo={periodo} nutrition={dashboard.nutrition} />
+                <Swap id={periodo} order={PERIOD_ORDER[periodo]}>
+                  <NutritionCard periodo={periodo} nutrition={dashboard.nutrition} />
+                </Swap>
               </AnimatedView>
 
               {(dashboard.insight != null || dashboard.aiInsight != null) && (

@@ -3,6 +3,7 @@ import { Platform } from "react-native";
 import { useTranslation } from "react-i18next";
 
 import { TabHeader } from "@/src/components/ui";
+import { nestedStackScreenLayout } from "@/src/lib/motion";
 import { useColors } from "@/src/theme/colors";
 
 // Context line: today, the day the diary below is about (same format as home).
@@ -28,6 +29,8 @@ export default function NutritionLayout() {
   const { t } = useTranslation();
   return (
     <Stack
+      // Web has no native stack transition: scenes fade in (see motion.tsx)
+      screenLayout={nestedStackScreenLayout}
       screenOptions={{
         headerStyle: { backgroundColor: colors.brandDark },
         headerTintColor: colors.contentPrimary,

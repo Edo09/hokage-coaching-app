@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 
 import { ShoppingListCard } from "@/src/components/nutrition/shopping-list-card";
 import { Card, SegmentedControl } from "@/src/components/ui";
-import { PressableScale } from "@/src/lib/motion";
+import { PressableScale, Swap } from "@/src/lib/motion";
 import { useColors } from "@/src/theme/colors";
 import { Text, View } from "@/src/tw";
 import type {
@@ -102,49 +102,58 @@ export function NutritionPlanView({
         </View>
       )}
 
-      {/* Today's macro target — the only numbers the coach wrote. */}
-      {hasTarget && (
-        <Card className="gap-1.5">
-          <Text className="text-[10px] font-bold tracking-widest text-content-tertiary">
-            {t("nutritionPlan.targetTitle").toUpperCase()}
-          </Text>
-          <Text className="text-xs text-content-tertiary">
-            {t("nutritionPlan.loggedVsTarget")}
-          </Text>
-          {kcal != null && (
-            <Text
-              className="text-2xl font-bold text-content-primary"
-              style={{ fontVariant: ["tabular-nums"] }}
-            >
-              {Math.round(consumed.kcal)}
-              <Text className="text-sm font-normal text-content-tertiary">
-                {" / "}{kcal} {t("nutritionPlan.kcal")}
-              </Text>
+      {/* Target and meals follow the day type: the swap shows the change. A
+          plan that doesn't cycle shows the same content every day, so a day
+          flip (program loading, midnight) must not replay it. */}
+      <Swap
+        id={plan.day_cycling ? day : "all"}
+        order={plan.day_cycling ? (day === "training" ? 0 : 1) : undefined}
+        className="gap-3"
+      >
+        {/* Today's macro target — the only numbers the coach wrote. */}
+        {hasTarget && (
+          <Card className="gap-1.5">
+            <Text className="text-[10px] font-bold tracking-widest text-content-tertiary">
+              {t("nutritionPlan.targetTitle").toUpperCase()}
             </Text>
-          )}
-          <View className="flex-row flex-wrap gap-x-4 gap-y-1">
-            {protein != null && (
-              <MacroBit label={t("nutritionPlan.protein")} logged={consumed.protein_g} value={protein} color={colors.macroProtein} />
+            <Text className="text-xs text-content-tertiary">
+              {t("nutritionPlan.loggedVsTarget")}
+            </Text>
+            {kcal != null && (
+              <Text
+                className="text-2xl font-bold text-content-primary"
+                style={{ fontVariant: ["tabular-nums"] }}
+              >
+                {Math.round(consumed.kcal)}
+                <Text className="text-sm font-normal text-content-tertiary">
+                  {" / "}{kcal} {t("nutritionPlan.kcal")}
+                </Text>
+              </Text>
             )}
-            {carbs != null && (
-              <MacroBit label={t("nutritionPlan.carbs")} logged={consumed.carbs_g} value={carbs} color={colors.macroCarbs} />
-            )}
-            {fat != null && (
-              <MacroBit label={t("nutritionPlan.fat")} logged={consumed.fat_g} value={fat} color={colors.macroFat} />
-            )}
-          </View>
-        </Card>
-      )}
+            <View className="flex-row flex-wrap gap-x-4 gap-y-1">
+              {protein != null && (
+                <MacroBit label={t("nutritionPlan.protein")} logged={consumed.protein_g} value={protein} color={colors.macroProtein} />
+              )}
+              {carbs != null && (
+                <MacroBit label={t("nutritionPlan.carbs")} logged={consumed.carbs_g} value={carbs} color={colors.macroCarbs} />
+              )}
+              {fat != null && (
+                <MacroBit label={t("nutritionPlan.fat")} logged={consumed.fat_g} value={fat} color={colors.macroFat} />
+              )}
+            </View>
+          </Card>
+        )}
 
-      {meals.map((meal) => (
-        <MealCard
-          key={meal.id}
-          meal={meal}
-          day={day}
-          cycling={plan.day_cycling}
-          onRegister={(option) => onRegister(meal, option)}
-        />
-      ))}
+        {meals.map((meal) => (
+          <MealCard
+            key={meal.id}
+            meal={meal}
+            day={day}
+            cycling={plan.day_cycling}
+            onRegister={(option) => onRegister(meal, option)}
+          />
+        ))}
+      </Swap>
 
       <ShoppingListCard plan={plan} />
 

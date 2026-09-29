@@ -10,6 +10,7 @@ import { kgToUnit1, unitToKg, useWeightUnit } from "@/src/lib/weight-unit";
 import { Button, Card, LoadingBlock, Screen, useToast } from "@/src/components/ui";
 import { useAuth } from "@/src/hooks/use-auth";
 import { useProfile } from "@/src/hooks/use-profile";
+import { useArrival } from "@/src/lib/motion";
 import { useColors } from "@/src/theme/colors";
 import { useThemeScheme } from "@/src/theme/theme-store";
 import { Pressable, Text, TextInput, View } from "@/src/tw";
@@ -265,6 +266,8 @@ export default function ProfileScreen() {
     return null;
   };
 
+  const arrive = useArrival(loading);
+
   const handleSave = async () => {
     const error = validate();
     if (error != null) {
@@ -303,6 +306,7 @@ export default function ProfileScreen() {
 
   return (
     <Screen
+      entering={arrive}
       keyboard
       scrollRef={scrollRef}
       contentContainerClassName="px-4 pt-5 pb-4 gap-4"

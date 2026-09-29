@@ -25,3 +25,16 @@ export function AnimatedPressable(
   return useCssElement(RAnimatedPressable, props, { className: "style" });
 }
 AnimatedPressable.displayName = "CSS(Animated.Pressable)";
+
+// Same default face as the tw Text: RN doesn't inherit font-family, so
+// `font-app` is set per element and any explicit font-* class overrides it.
+export function AnimatedText(
+  props: WithClassName<React.ComponentProps<typeof RNAnimated.Text>>,
+) {
+  return useCssElement(
+    RNAnimated.Text,
+    { ...props, className: props.className ? `font-app ${props.className}` : "font-app" },
+    { className: "style" },
+  );
+}
+AnimatedText.displayName = "CSS(Animated.Text)";

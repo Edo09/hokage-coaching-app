@@ -34,7 +34,7 @@ import {
   resolveDayType,
   visibleItems,
 } from "@/src/utils/nutrition-plan";
-import { PressableScale, slideEnter, staggered } from "@/src/lib/motion";
+import { PressableScale, staggered, Swap, useArrival } from "@/src/lib/motion";
 import { useColors } from "@/src/theme/colors";
 import { Pressable, ScrollView, Text, View } from "@/src/tw";
 import { AnimatedView } from "@/src/tw/animated";
@@ -53,6 +53,8 @@ import { addDays, formatDayLabel, toDateKey } from "@/src/utils/dates";
 import { MEAL_SLOTS, suggestedSlot } from "@/src/utils/meal-slots";
 
 type Pane = "plan" | "supplements" | "diary";
+// Segment order: a pane further right drifts in from the right.
+const PANES: Pane[] = ["plan", "supplements", "diary"];
 
 /**
  * The Nutrición tab, which replaced the old Comidas tab. Three panes:
@@ -114,13 +116,15 @@ export default function NutritionScreen() {
         />
       </View>
 
-      {resolvedPane === "diary" ? (
-        <DiaryPane nutritionPlan={plan.plan} />
-      ) : resolvedPane === "plan" ? (
-        <PlanPane plan={plan} onRegister={registerOption} />
-      ) : (
-        <SupplementsPane supplements={supplements} day={plan.day} cycling={plan.plan?.day_cycling ?? false} />
-      )}
+      <Swap id={resolvedPane} order={PANES.indexOf(resolvedPane)} className="flex-1">
+        {resolvedPane === "diary" ? (
+          <DiaryPane nutritionPlan={plan.plan} />
+        ) : resolvedPane === "plan" ? (
+          <PlanPane plan={plan} onRegister={registerOption} />
+        ) : (
+          <SupplementsPane supplements={supplements} day={plan.day} cycling={plan.plan?.day_cycling ?? false} />
+        )}
+      </Swap>
     </View>
   );
 }
@@ -139,6 +143,7 @@ function PlanPane({
     () => macrosConsumed(meals.filter((m) => m.date === todayKey)),
     [meals, todayKey],
   );
+  const arrive = useArrival(plan.loading && plan.plan == null);
 
   if (plan.loading && plan.plan == null) return <LoadingBlock />;
   if (plan.error && plan.plan == null) return <ErrorState onRetry={plan.refresh} />;
@@ -156,6 +161,7 @@ function PlanPane({
 
   return (
     <Screen
+      entering={arrive}
       refreshing={plan.refreshing}
       onRefresh={plan.refresh}
       contentContainerClassName="p-4 gap-3 pb-24"
@@ -184,6 +190,7 @@ function SupplementsPane({
 }) {
   const { t } = useTranslation();
   const intake = useSupplementLog();
+  const arrive = useArrival(supplements.loading && supplements.plan == null);
 
   if (supplements.loading && supplements.plan == null) return <LoadingBlock />;
   if (supplements.error && supplements.plan == null) {
@@ -203,6 +210,7 @@ function SupplementsPane({
 
   return (
     <Screen
+      entering={arrive}
       refreshing={supplements.refreshing}
       onRefresh={supplements.refresh}
       contentContainerClassName="p-4 gap-3 pb-24"
@@ -241,7 +249,6 @@ function DiaryPane({
   // Date navigation. todayKey is recomputed per render so the diary heals
   // itself across midnight (label flips to a date, "›" re-enables).
   const [dateKey, setDateKey] = useState(() => toDateKey());
-  const [direction, setDirection] = useState<1 | -1>(1);
   const todayKey = toDateKey();
   const onToday = dateKey === todayKey;
 
@@ -249,17 +256,13 @@ function DiaryPane({
 
   const goToDay = (delta: 1 | -1) => {
     Haptics.selectionAsync().catch(() => {});
-    setDirection(delta);
     setDateKey((k) => {
       const next = addDays(k, delta);
       return next > todayKey ? k : next; // forward capped at today
     });
   };
 
-  const jumpToToday = () => {
-    setDirection(1);
-    setDateKey(todayKey);
-  };
+  const jumpToToday = () => setDateKey(todayKey);
 
   const dayMeals = useMemo(
     () => meals.filter((m) => m.date === dateKey),
@@ -405,8 +408,8 @@ function DiaryPane({
           />
         }
       >
-        {/* Keyed by date: day changes slide in from the travel direction */}
-        <AnimatedView key={dateKey} entering={slideEnter(direction)} className="gap-4">
+        {/* Day changes drift in from the travel direction (earlier = left) */}
+        <Swap id={dateKey} order={Date.parse(dateKey)} className="gap-4">
           {/* Day summary */}
           <Card className="gap-3">
             <View className="flex-row items-end justify-between">
@@ -466,7 +469,7 @@ function DiaryPane({
               />
             </AnimatedView>
           ))}
-        </AnimatedView>
+        </Swap>
       </ScrollView>
 
       <FAB

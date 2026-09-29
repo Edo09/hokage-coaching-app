@@ -4,9 +4,10 @@ import { useTranslation } from "react-i18next";
 
 import { ExerciseVideoModal } from "@/src/components/exercise-video-modal";
 import { ProgramExerciseRow } from "@/src/components/program/program-exercise-row";
-import { CapsLabel, Card } from "@/src/components/ui";
+import { CapsLabel, Card, ExpandChevron } from "@/src/components/ui";
 import { useProgramLogging } from "@/src/hooks/use-program-logging";
 import { exerciseSession } from "@/src/lib/exercise-session";
+import { PressableScale, Reveal, Swap } from "@/src/lib/motion";
 import { isHeld, useCelebration } from "@/src/providers/celebration-context";
 import { useColors } from "@/src/theme/colors";
 import { Pressable, ScrollView, Text, View } from "@/src/tw";
@@ -48,6 +49,10 @@ export function ProgramView({
   // The exercise sheet lives in the tabs layout (ExerciseSessionHost) so an
   // exercise in progress can be hidden to a bar.
   const openExercise = (ex: ProgramExercise) => exerciseSession.open(ex.id, selectedWeek);
+  // Manual expand/collapse per day and week. Held here, outside the week
+  // Swap (which re-mounts the day cards), so a pin survives a look at
+  // another week; per week, because each week has its own completion.
+  const [pins, setPins] = useState<Record<string, boolean>>({});
 
   const startDate = new Date(`${program.start_date}T00:00:00`).toLocaleDateString(
     i18n.language === "es" ? "es-ES" : "en-US",
@@ -105,62 +110,69 @@ export function ProgramView({
         onSelectWeek={onSelectWeek}
       />
 
-      {/* Selected week's periodization, as a divider over its days (caps
-          label + hairline) rather than a card that reads like one more day.
-          Not the red-dash label: the tab header above already uses it for
-          the block's current week. */}
-      {week != null && (
-        <View className="gap-1.5 px-1 pt-2">
-          <View className="flex-row items-center gap-2.5">
-            <CapsLabel size={11} em={0.18} className="text-content-tertiary">
-              {week.label ?? t("program.weekN", { n: week.week_number })}
-            </CapsLabel>
-            {week.is_deload && (
-              <View className="rounded-full bg-warning-soft px-2 py-0.5">
-                <Text className="text-[11px] font-semibold text-warning">
-                  {t("program.deload")}
-                </Text>
+      {/* The selected week's header and days swap in from the side of travel */}
+      <Swap id={selectedWeek} order={selectedWeek} className="gap-3">
+        {/* Selected week's periodization, as a divider over its days (caps
+            label + hairline) rather than a card that reads like one more day.
+            Not the red-dash label: the tab header above already uses it for
+            the block's current week. */}
+        {week != null && (
+          <View className="gap-1.5 px-1 pt-2">
+            <View className="flex-row items-center gap-2.5">
+              <CapsLabel size={11} em={0.18} className="text-content-tertiary">
+                {week.label ?? t("program.weekN", { n: week.week_number })}
+              </CapsLabel>
+              {week.is_deload && (
+                <View className="rounded-full bg-warning-soft px-2 py-0.5">
+                  <Text className="text-[11px] font-semibold text-warning">
+                    {t("program.deload")}
+                  </Text>
+                </View>
+              )}
+              <View className="h-px flex-1 bg-border" />
+            </View>
+            {(weekRir(week) != null || weekLoad(week) != null || week.sets_override != null) && (
+              <View className="flex-row flex-wrap gap-x-4 gap-y-1">
+                {weekRir(week) != null && (
+                  <Text className="text-[12px] text-content-secondary" style={TABULAR}>
+                    {weekRir(week)}
+                  </Text>
+                )}
+                {weekLoad(week) != null && (
+                  <Text className="text-[12px] text-content-secondary" style={TABULAR}>
+                    {t("program.loadLabel", { load: weekLoad(week) })}
+                  </Text>
+                )}
+                {week.sets_override != null && (
+                  <Text className="text-[12px] text-content-secondary" style={TABULAR}>
+                    {t("program.setsOverride", { sets: week.sets_override })}
+                  </Text>
+                )}
               </View>
             )}
-            <View className="h-px flex-1 bg-border" />
+            {week.notes != null && week.notes !== "" && (
+              <Text className="text-[12px] text-content-tertiary">{week.notes}</Text>
+            )}
           </View>
-          {(weekRir(week) != null || weekLoad(week) != null || week.sets_override != null) && (
-            <View className="flex-row flex-wrap gap-x-4 gap-y-1">
-              {weekRir(week) != null && (
-                <Text className="text-[12px] text-content-secondary" style={TABULAR}>
-                  {weekRir(week)}
-                </Text>
-              )}
-              {weekLoad(week) != null && (
-                <Text className="text-[12px] text-content-secondary" style={TABULAR}>
-                  {t("program.loadLabel", { load: weekLoad(week) })}
-                </Text>
-              )}
-              {week.sets_override != null && (
-                <Text className="text-[12px] text-content-secondary" style={TABULAR}>
-                  {t("program.setsOverride", { sets: week.sets_override })}
-                </Text>
-              )}
-            </View>
-          )}
-          {week.notes != null && week.notes !== "" && (
-            <Text className="text-[12px] text-content-tertiary">{week.notes}</Text>
-          )}
-        </View>
-      )}
+        )}
 
-      {/* Days */}
-      {program.program_days.map((day) => (
-        <DayCard
-          key={day.id}
-          day={day}
-          week={week}
-          selectedWeek={selectedWeek}
-          onOpenExercise={openExercise}
-          onPlayVideo={setVideoUri}
-          logging={logging}
-        />
-      ))}
+        {/* Days */}
+        {program.program_days.map((day) => (
+          <DayCard
+            key={day.id}
+            day={day}
+            week={week}
+            selectedWeek={selectedWeek}
+            onOpenExercise={openExercise}
+            onPlayVideo={setVideoUri}
+            logging={logging}
+            manualCollapsed={pins[`${day.id}:${selectedWeek}`] ?? null}
+            onPin={(collapsed) =>
+              setPins((p) => ({ ...p, [`${day.id}:${selectedWeek}`]: collapsed }))
+            }
+          />
+        ))}
+      </Swap>
 
       {/* Program-level notes / rules */}
       {(program.tempo_default != null || program.progression_rule != null || program.notes != null) && (
@@ -192,6 +204,8 @@ function DayCard({
   onOpenExercise,
   onPlayVideo,
   logging,
+  manualCollapsed,
+  onPin,
 }: {
   day: ProgramDayWithExercises;
   week: ProgramWeek | null;
@@ -199,6 +213,9 @@ function DayCard({
   onOpenExercise: (exercise: ProgramExercise) => void;
   onPlayVideo: (uri: string) => void;
   logging: ReturnType<typeof useProgramLogging>;
+  /** The client's own expand/collapse for this day and week; null = automatic. */
+  manualCollapsed: boolean | null;
+  onPin: (collapsed: boolean) => void;
 }) {
   const { t } = useTranslation();
   const colors = useColors();
@@ -210,9 +227,8 @@ function DayCard({
   // the header (or the chevron) reopens it. A manual toggle pins the choice.
   // Not while its celebration is on: the last check's burst plays in place.
   const celebration = useCelebration();
-  const [manualCollapsed, setManualCollapsed] = useState<boolean | null>(null);
   const collapsed = manualCollapsed ?? (allDone && !isHeld(celebration, day.id, selectedWeek));
-  const toggleCollapsed = () => setManualCollapsed(!collapsed);
+  const toggleCollapsed = () => onPin(!collapsed);
 
   return (
     <Card className="gap-0 py-3">
@@ -269,50 +285,48 @@ function DayCard({
           accessibilityLabel={t(collapsed ? "program.expandDay" : "program.collapseDay")}
           className="pt-0.5"
         >
-          <Ionicons name={collapsed ? "chevron-down" : "chevron-up"} size={18} color={colors.contentMuted} />
+          <ExpandChevron open={!collapsed} size={18} color={colors.contentMuted} />
         </Pressable>
       </View>
 
-      {collapsed ? null : (
-        <View>
-          {day.program_exercises.map((ex, i) => {
-            // Consecutive rows sharing a letter are one superset: a red bar
-            // runs down the group and its first row carries the label.
-            const group = ex.superset_group ?? null;
-            const prevGroup = i > 0 ? (day.program_exercises[i - 1].superset_group ?? null) : null;
-            const nextGroup = day.program_exercises[i + 1]?.superset_group ?? null;
-            const inGroup = group != null && (group === prevGroup || group === nextGroup);
-            const startsGroup = inGroup && group !== prevGroup;
-            return (
-            <View
-              key={ex.id}
-              className={[
-                i === 0 || (inGroup && !startsGroup) ? "" : "border-t border-border",
-                inGroup ? "border-l-[3px] border-l-brand-primary pl-2.5" : "",
-              ].join(" ")}
-            >
-              {startsGroup && (
-                <Text className="pt-2 text-[10px] font-bold uppercase text-brand-primary" style={{ letterSpacing: 1.2 }}>
-                  {t("program.superset", { letter: group })}
-                </Text>
-              )}
-              <ProgramExerciseRow
-                exercise={ex}
-                week={week}
-                weekNumber={selectedWeek}
-                done={logging.isDone(ex.id, selectedWeek)}
-                onToggleDone={() =>
-                  logging.setCompletion(ex.id, selectedWeek, !logging.isDone(ex.id, selectedWeek))
-                }
-                onOpen={() => onOpenExercise(ex)}
-                onPlay={onPlayVideo}
-                loggedCount={logging.setsFor(ex.id, selectedWeek).length}
-              />
-            </View>
-            );
-          })}
-        </View>
-      )}
+      <Reveal open={!collapsed}>
+        {day.program_exercises.map((ex, i) => {
+          // Consecutive rows sharing a letter are one superset: a red bar
+          // runs down the group and its first row carries the label.
+          const group = ex.superset_group ?? null;
+          const prevGroup = i > 0 ? (day.program_exercises[i - 1].superset_group ?? null) : null;
+          const nextGroup = day.program_exercises[i + 1]?.superset_group ?? null;
+          const inGroup = group != null && (group === prevGroup || group === nextGroup);
+          const startsGroup = inGroup && group !== prevGroup;
+          return (
+          <View
+            key={ex.id}
+            className={[
+              i === 0 || (inGroup && !startsGroup) ? "" : "border-t border-border",
+              inGroup ? "border-l-[3px] border-l-brand-primary pl-2.5" : "",
+            ].join(" ")}
+          >
+            {startsGroup && (
+              <Text className="pt-2 text-[10px] font-bold uppercase text-brand-primary" style={{ letterSpacing: 1.2 }}>
+                {t("program.superset", { letter: group })}
+              </Text>
+            )}
+            <ProgramExerciseRow
+              exercise={ex}
+              week={week}
+              weekNumber={selectedWeek}
+              done={logging.isDone(ex.id, selectedWeek)}
+              onToggleDone={() =>
+                logging.setCompletion(ex.id, selectedWeek, !logging.isDone(ex.id, selectedWeek))
+              }
+              onOpen={() => onOpenExercise(ex)}
+              onPlay={onPlayVideo}
+              loggedCount={logging.setsFor(ex.id, selectedWeek).length}
+            />
+          </View>
+          );
+        })}
+      </Reveal>
     </Card>
   );
 }
@@ -345,8 +359,9 @@ function WeekNavigator({
         const active = n === selectedWeek;
         const isAuto = n === autoWeek;
         return (
-          <Pressable
+          <PressableScale
             key={n}
+            haptic={!active}
             onPress={() => onSelectWeek(n === autoWeek ? null : n)}
             accessibilityRole="button"
             accessibilityState={{ selected: active }}
@@ -383,7 +398,7 @@ function WeekNavigator({
                 </Text>
               )
             )}
-          </Pressable>
+          </PressableScale>
         );
       })}
     </ScrollView>
