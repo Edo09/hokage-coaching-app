@@ -1,5 +1,5 @@
 import { enqueue } from "@/src/lib/outbox";
-import { overlayProfile } from "@/src/lib/outbox-overlay";
+import { emptyProfile, overlayProfile } from "@/src/lib/outbox-overlay";
 import { qk } from "@/src/lib/query-keys";
 import { Profile } from "@/src/types/database";
 import { supabase } from "@/src/utils/supabase";
@@ -33,26 +33,7 @@ export function useProfile(userId: string | undefined) {
     mutationFn: async (updates: Partial<Profile>) => {
       const now = new Date().toISOString();
       queryClient.setQueryData<Profile | null>(profileKey, (old) => ({
-        ...(old ?? {
-          id: userId!,
-          display_name: null,
-          avatar_url: null,
-          age: null,
-          sex: null,
-          height_cm: null,
-          weight_kg: null,
-          activity_level: null,
-          profession_type: null,
-          days_per_week: null,
-          session_duration: null,
-          available_days: null,
-          calorie_goal: null,
-          goal: null,
-          role: "user",
-          whatsapp: null,
-          onboarding_completed: false,
-          created_at: now,
-        }),
+        ...(old ?? emptyProfile(userId!)),
         ...updates,
         updated_at: now,
       }));

@@ -136,10 +136,12 @@ export async function overlayProfile(
 }
 
 // Base for a profile that only exists as a pending upsert (offline onboarding)
-function emptyProfile(userId: string): Profile {
+export function emptyProfile(userId: string): Profile {
   const now = new Date().toISOString();
   return {
     id: userId,
+    // Synced from auth.users server-side; never written by the client.
+    email: null,
     display_name: null,
     avatar_url: null,
     age: null,
