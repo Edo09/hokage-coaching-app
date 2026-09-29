@@ -6,6 +6,7 @@ export { Chip } from "./chip";
 export { HeaderPanel } from "./header-panel";
 export { CapsLabel, DashLabel, PosterText, Skewed } from "./poster";
 export { SkewButton } from "./skew-button";
+export { TabHeader } from "./tab-header";
 export { ConfirmDialog } from "./dialog";
 export { ErrorState } from "./error-state";
 export { FAB } from "./fab";

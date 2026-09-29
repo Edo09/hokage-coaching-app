@@ -3,12 +3,13 @@ import { router, Tabs } from "expo-router";
 import React from "react";
 import { useTranslation } from "react-i18next";
 import { View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { AppMenu } from "@/src/components/app-menu";
 import { RestTimerBar } from "@/src/components/program/rest-timer-bar";
+import { TabHeader } from "@/src/components/ui";
+import { useAuth } from "@/src/hooks/use-auth";
 import { useColors } from "@/src/theme/colors";
-import { Pressable, Text, View as TwView } from "@/src/tw";
+import { Pressable } from "@/src/tw";
 
 type IoniconName = React.ComponentProps<typeof Ionicons>["name"];
 
@@ -31,24 +32,14 @@ function TabIcon({ name, focused }: { name: IoniconName; focused: boolean }) {
   );
 }
 
-/**
- * Header with the "⋮" menu, spaced like the home header's brand row: 20px
- * sides, 16px padding around a 56px row with the button centred in it. The
- * stock header (64px on web, 44px of content on iOS) squeezed the 44px button
- * into its corner.
- */
-function MenuHeader({ title }: { title: string }) {
-  const insets = useSafeAreaInsets();
-  return (
-    <TwView className="bg-brand-dark px-5" style={{ paddingTop: insets.top + 16, paddingBottom: 16 }}>
-      <TwView className="min-h-14 flex-row items-center justify-between gap-3">
-        <Text className="flex-1 text-[18px] font-semibold text-content-primary" numberOfLines={1}>
-          {title}
-        </Text>
-        <AppMenu />
-      </TwView>
-    </TwView>
-  );
+// Perfil's tab header: the account's name as context (same name as home's
+// greeting), and the "⋮" menu (settings, sign out) on the right.
+function ProfileHeader() {
+  const { t } = useTranslation();
+  const { user } = useAuth();
+  const name =
+    (user?.user_metadata?.display_name as string | undefined) ?? user?.email?.split("@")[0] ?? null;
+  return <TabHeader title={t("tabs.profile")} context={name} right={<AppMenu />} />;
 }
 
 export default function TabsLayout() {
@@ -119,8 +110,7 @@ export default function TabsLayout() {
         options={{
           title: t("tabs.profile"),
           tabBarIcon: ({ focused }) => <TabIcon name="person" focused={focused} />,
-          // Same menu as the home header (settings, sign out), placed the same way.
-          header: () => <MenuHeader title={t("tabs.profile")} />,
+          header: () => <ProfileHeader />,
         }}
       />
       {/* Reached from the home menu, not the tab bar (href: null hides it).

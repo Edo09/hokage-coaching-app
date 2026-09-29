@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next";
 import { ExerciseVideoModal } from "@/src/components/exercise-video-modal";
 import { ProgramExerciseModal } from "@/src/components/program/program-exercise-modal";
 import { ProgramExerciseRow } from "@/src/components/program/program-exercise-row";
-import { Card, DashLabel } from "@/src/components/ui";
+import { CapsLabel, Card } from "@/src/components/ui";
 import { useProgramLogging } from "@/src/hooks/use-program-logging";
 import { isHeld, useCelebration } from "@/src/providers/celebration-context";
 import { useColors } from "@/src/theme/colors";
@@ -104,13 +104,16 @@ export function ProgramView({
         onSelectWeek={onSelectWeek}
       />
 
-      {/* Selected week's periodization, as a section heading over its days
-          (red dash + caps label, the poster header device) rather than a
-          card that reads like one more day. Details indent under the label. */}
+      {/* Selected week's periodization, as a divider over its days (caps
+          label + hairline) rather than a card that reads like one more day.
+          Not the red-dash label: the tab header above already uses it for
+          the block's current week. */}
       {week != null && (
         <View className="gap-1.5 px-1 pt-2">
           <View className="flex-row items-center gap-2.5">
-            <DashLabel>{week.label ?? t("program.weekN", { n: week.week_number })}</DashLabel>
+            <CapsLabel size={11} em={0.18} className="text-content-tertiary">
+              {week.label ?? t("program.weekN", { n: week.week_number })}
+            </CapsLabel>
             {week.is_deload && (
               <View className="rounded-full bg-warning-soft px-2 py-0.5">
                 <Text className="text-[11px] font-semibold text-warning">
@@ -118,9 +121,10 @@ export function ProgramView({
                 </Text>
               </View>
             )}
+            <View className="h-px flex-1 bg-border" />
           </View>
           {(weekRir(week) != null || weekLoad(week) != null || week.sets_override != null) && (
-            <View className="flex-row flex-wrap gap-x-4 gap-y-1 pl-[30px]">
+            <View className="flex-row flex-wrap gap-x-4 gap-y-1">
               {weekRir(week) != null && (
                 <Text className="text-[12px] text-content-secondary" style={TABULAR}>
                   {weekRir(week)}
@@ -139,7 +143,7 @@ export function ProgramView({
             </View>
           )}
           {week.notes != null && week.notes !== "" && (
-            <Text className="pl-[30px] text-[12px] text-content-tertiary">{week.notes}</Text>
+            <Text className="text-[12px] text-content-tertiary">{week.notes}</Text>
           )}
         </View>
       )}
