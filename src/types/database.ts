@@ -196,6 +196,9 @@ export type Program = {
   duration_weeks: number;
   start_date: string;
   status: ProgramStatus;
+  /** "Solo semana actual" (20260929120000): the client can only complete the
+   *  current week and past weeks. Enforced by the app, not the database. */
+  lock_future_weeks: boolean;
   progression_rule: string | null;
   tempo_default: string | null;
   notes: string | null;
