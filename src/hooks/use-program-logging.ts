@@ -6,6 +6,7 @@ import { newId } from "@/src/lib/ids";
 import { enqueue } from "@/src/lib/outbox";
 import { overlayProgramLog } from "@/src/lib/outbox-overlay";
 import { qk } from "@/src/lib/query-keys";
+import { useToday } from "@/src/lib/today";
 import { useCelebration } from "@/src/providers/celebration-context";
 import type {
   ProgramDayWithExercises,
@@ -14,6 +15,7 @@ import type {
   WorkoutSetLog,
 } from "@/src/types/database";
 import { toDateKey } from "@/src/utils/dates";
+import { weekLock } from "@/src/utils/program";
 import { supabase } from "@/src/utils/supabase";
 
 // Phase 3: the client's completion checks + logged sets against a program.
@@ -79,6 +81,13 @@ export type SetInput = {
   rir?: number | null;
 };
 
+// The backstop behind every screen for "Solo semana actual": a write to a
+// locked week is dropped here, however the call got in. Reads the clock at
+// call time, not the day the screen last rendered.
+function lockedNow(program: ProgramWithDetails | null, week: number): boolean {
+  return program != null && weekLock(program, week, new Date()) != null;
+}
+
 export function useProgramLogging(program: ProgramWithDetails | null) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -98,6 +107,17 @@ export function useProgramLogging(program: ProgramWithDetails | null) {
     [queryClient, key],
   );
 
+  // ---- week lock ("Solo semana actual") -------------------------------------
+  // For rendering. Keyed on the fresh day (src/lib/today), so a week that
+  // opens at midnight, or while the app sat in the background, unlocks on
+  // every screen that asks.
+  const today = useToday();
+  /** Why the week is view only, or null when the client may log it. */
+  const lockOf = useCallback(
+    (week: number) => (program != null ? weekLock(program, week, today) : null),
+    [program, today],
+  );
+
   // ---- completion checkbox --------------------------------------------------
   const completionOf = useCallback(
     (exerciseId: string, week: number) =>
@@ -108,9 +128,11 @@ export function useProgramLogging(program: ProgramWithDetails | null) {
   );
 
   /** Check or uncheck one exercise. A check-off that finishes its whole day
-      for the week sets off the day-complete celebration. */
+      for the week sets off the day-complete celebration. A locked week
+      changes nothing, either way. */
   const setCompletion = useCallback(
     async (exerciseId: string, week: number, done: boolean) => {
+      if (lockedNow(program, week)) return;
       const existing = completionOf(exerciseId, week);
       if (done && existing == null) {
         const row: ProgramExerciseCompletion = {
@@ -191,11 +213,13 @@ export function useProgramLogging(program: ProgramWithDetails | null) {
   /** Check or uncheck every exercise in a day for the week. */
   const setDayCompletion = useCallback(
     async (day: ProgramDayWithExercises, week: number, done: boolean) => {
+      // Up front as well as in each setCompletion: a locked day returns at once.
+      if (lockedNow(program, week)) return;
       for (const ex of day.program_exercises) {
         await setCompletion(ex.id, week, done);
       }
     },
-    [setCompletion],
+    [setCompletion, program],
   );
 
   // ---- per-set logging ------------------------------------------------------
@@ -231,7 +255,7 @@ export function useProgramLogging(program: ProgramWithDetails | null) {
 
   /** Upsert one set's actuals. Logging any set does not auto-complete the
       exercise — the checkbox stays the explicit "done" signal (the decided
-      "checkbox + optional sets" model). */
+      "checkbox + optional sets" model). A locked week logs nothing. */
   const logSet = useCallback(
     async (
       exerciseId: string,
@@ -239,6 +263,7 @@ export function useProgramLogging(program: ProgramWithDetails | null) {
       setIndex: number,
       input: SetInput,
     ) => {
+      if (lockedNow(program, week)) return;
       const existing = setsFor(exerciseId, week).find(
         (s) => s.set_index === setIndex,
       );
@@ -268,7 +293,7 @@ export function useProgramLogging(program: ProgramWithDetails | null) {
         payload: row,
       });
     },
-    [setsFor, setCache, user],
+    [setsFor, setCache, user, program],
   );
 
   const deleteSet = useCallback(
@@ -290,6 +315,7 @@ export function useProgramLogging(program: ProgramWithDetails | null) {
   return {
     completions: data.completions,
     setLogs: data.setLogs,
+    lockOf,
     isDone,
     completesDay,
     setCompletion,
