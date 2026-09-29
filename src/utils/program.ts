@@ -4,7 +4,7 @@ import type {
   ProgramWeek,
   ProgramWithDetails,
 } from "@/src/types/database";
-import { addDays, toDateKey } from "@/src/utils/dates";
+import { addDays, dateKeyToDate, toDateKey } from "@/src/utils/dates";
 
 // Pure helpers for rendering a coach program (docs/COACH-PROGRAMS-SPEC.md,
 // Phase 2). No data fetching, no React — kept testable and reused by the hook.
@@ -19,9 +19,12 @@ export function currentWeekOf(
   durationWeeks: number,
   now: Date = new Date(),
 ): number {
-  const start = new Date(`${startDate}T00:00:00`);
-  const today = new Date(`${toDateKey(now)}T00:00:00`);
-  const elapsedDays = Math.floor((today.getTime() - start.getTime()) / DAY_MS);
+  // Noon to noon, rounded: a DST change in between makes the gap a whole
+  // number of days ± 1h, and flooring midnight gaps came out a day short
+  // after a 23-hour day, opening the week a day late.
+  const start = dateKeyToDate(startDate);
+  const today = dateKeyToDate(toDateKey(now));
+  const elapsedDays = Math.round((today.getTime() - start.getTime()) / DAY_MS);
   const week = Math.floor(elapsedDays / 7) + 1;
   return Math.min(Math.max(week, 1), Math.max(1, durationWeeks));
 }
@@ -39,6 +42,36 @@ export function isAfterEnd(
 ): boolean {
   const lastDay = addDays(startDate, durationWeeks * 7 - 1);
   return toDateKey(now) > lastDay;
+}
+
+/** Why a week is view only under "Solo semana actual": the program hasn't
+    started, or the week hasn't opened yet. `opensOn` is "YYYY-MM-DD". */
+export type WeekLock = { kind: "start" | "week"; opensOn: string };
+
+/** The day a week begins: the start date plus 7·(week − 1) days. */
+export function weekOpensOn(startDate: string, week: number): string {
+  return addDays(startDate, (week - 1) * 7);
+}
+
+/** Null when the client may log the week, else why not. Only programs with
+    lock_future_weeks lock anything: before the start date the whole program
+    is view only, then each week opens on its date (weekOpensOn) and stays
+    open, so missed trainings can be caught up. After the block every week is
+    open, since currentWeekOf stays on the last one. */
+export function weekLock(
+  program: Pick<ProgramWithDetails, "lock_future_weeks" | "start_date" | "duration_weeks">,
+  week: number,
+  now: Date = new Date(),
+): WeekLock | null {
+  // `!== true`: a program cached before the column existed has no flag.
+  if (program.lock_future_weeks !== true) return null;
+  if (isBeforeStart(program.start_date, now)) {
+    return { kind: "start", opensOn: program.start_date };
+  }
+  if (week > currentWeekOf(program.start_date, program.duration_weeks, now)) {
+    return { kind: "week", opensOn: weekOpensOn(program.start_date, week) };
+  }
+  return null;
 }
 
 export function weekByNumber(
