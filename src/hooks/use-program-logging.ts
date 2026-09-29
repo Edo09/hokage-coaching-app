@@ -47,10 +47,22 @@ async function fetchLog(userId: string, exIds: string[]): Promise<LogData> {
       .eq("user_id", userId)
       .in("program_exercise_id", exIds),
   ]);
-  // Missing tables (migration not applied) degrade to empty, never throw.
-  const c = completions.error ? [] : (completions.data as ProgramExerciseCompletion[]);
-  const s = setLogs.error ? [] : (setLogs.data as WorkoutSetLog[]);
-  return { completions: c, setLogs: s };
+  return {
+    completions: rowsOrEmpty(completions) as ProgramExerciseCompletion[],
+    setLogs: rowsOrEmpty(setLogs) as WorkoutSetLog[],
+  };
+}
+
+// A missing table (migration not applied) degrades to empty. Anything else —
+// a flaky request resolves as an error with an empty code — throws, so React
+// Query keeps the last good log instead of caching an empty one.
+function rowsOrEmpty(res: {
+  data: unknown[] | null;
+  error: { code: string } | null;
+}): unknown[] {
+  if (res.error == null) return res.data ?? [];
+  if (res.error.code === "42P01" || res.error.code === "PGRST205") return [];
+  throw res.error;
 }
 
 export type SetInput = {
