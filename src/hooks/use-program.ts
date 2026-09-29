@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { useAuth } from "@/src/hooks/use-auth";
 import { useRealtimeInvalidate } from "@/src/hooks/use-realtime-invalidate";
 import { qk } from "@/src/lib/query-keys";
+import { useToday } from "@/src/lib/today";
 import type { ProgramWithDetails } from "@/src/types/database";
 import { supabase } from "@/src/utils/supabase";
 import {
@@ -74,12 +75,16 @@ export function useProgram() {
     qk.program(user?.id),
   );
 
+  // Keyed on today as well as the program: the week turns over at local
+  // midnight (or while the app sat in the background), not only when the
+  // program happens to refetch.
+  const today = useToday();
   const autoWeek = useMemo(
     () =>
       program != null
-        ? currentWeekOf(program.start_date, program.duration_weeks)
+        ? currentWeekOf(program.start_date, program.duration_weeks, today)
         : 1,
-    [program],
+    [program, today],
   );
 
   // Manual override for previewing other weeks; null = follow the auto week.
@@ -91,12 +96,12 @@ export function useProgram() {
     [program, selectedWeek],
   );
 
-  const notStarted = program != null && isBeforeStart(program.start_date);
+  const notStarted = program != null && isBeforeStart(program.start_date, today);
   // Done when the coach marked it, or the calendar has run past the final week.
   const completed =
     program != null &&
     (program.status === "completed" ||
-      isAfterEnd(program.start_date, program.duration_weeks));
+      isAfterEnd(program.start_date, program.duration_weeks, today));
 
   return {
     program,

@@ -8,6 +8,7 @@ import { Card, CapsLabel, PosterText, Skewed } from "@/src/components/ui";
 import { useProgramLogging } from "@/src/hooks/use-program-logging";
 import { exerciseSession } from "@/src/lib/exercise-session";
 import { usePressScale } from "@/src/lib/motion";
+import { useToday } from "@/src/lib/today";
 import { useCelebration } from "@/src/providers/celebration-context";
 import { useColors } from "@/src/theme/colors";
 import { Pressable, Text, View } from "@/src/tw";
@@ -39,7 +40,10 @@ export function ProgramHomeCard({ program, notStarted, onPress }: Props) {
   const colors = useColors();
   const press = usePressScale();
 
-  const autoWeek = currentWeekOf(program.start_date, program.duration_weeks);
+  // The fresh day (src/lib/today): the week and today's weekday move over at
+  // midnight even when nothing else re-renders the card.
+  const today = useToday();
+  const autoWeek = currentWeekOf(program.start_date, program.duration_weeks, today);
   const logging = useProgramLogging(program);
 
   // Real progress: the fraction of all prescribed exercise-weeks the client has
@@ -63,7 +67,7 @@ export function ProgramHomeCard({ program, notStarted, onPress }: Props) {
   const days = [...program.program_days].sort((a, b) => a.day_index - b.day_index);
   const pending = (d: ProgramDayWithExercises, w: number) =>
     d.program_exercises.length > 0 && logging.dayProgress(d, w).done < d.program_exercises.length;
-  const dow = new Date().getDay();
+  const dow = today.getDay();
   const todayDay = days.find((d) => d.weekday?.toLowerCase() === DOW[dow]) ?? null;
   // A day just finished stays on the card until its celebration closes, so
   // the last check's burst plays here instead of the card jumping ahead.
