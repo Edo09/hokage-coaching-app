@@ -352,6 +352,11 @@ export default {
     sessionOpen: "Volver a {{name}}",
     sessionFinished: "{{name}} terminado en {{time}}",
     demoFullScreen: "Ver en pantalla completa",
+    // Solo semana actual (semanas que aún no abren)
+    lockedStart: "Tu programa empieza el {{date}}",
+    lockedWeek: "Disponible desde el {{date}}",
+    nextWeekOpens: "La semana {{n}} se abre el {{date}}",
+    lockedA11y: "{{name}}: bloqueado",
   },
 
   // Meals

@@ -40,3 +40,11 @@ export function formatDayLabel(
     { weekday: "short", month: "short", day: "numeric" },
   );
 }
+
+/** "6 oct" / "Oct 6": day and short month, no weekday or year. */
+export function formatShortDate(key: string, lang: string): string {
+  return dateKeyToDate(key).toLocaleDateString(
+    lang === "es" ? "es-ES" : "en-US",
+    { day: "numeric", month: "short" },
+  );
+}

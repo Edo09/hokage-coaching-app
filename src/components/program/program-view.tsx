@@ -3,6 +3,7 @@ import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { ExerciseVideoModal } from "@/src/components/exercise-video-modal";
+import { LockNote } from "@/src/components/program/lock-note";
 import { ProgramExerciseRow } from "@/src/components/program/program-exercise-row";
 import { CapsLabel, Card, ExpandChevron } from "@/src/components/ui";
 import { useProgramLogging } from "@/src/hooks/use-program-logging";
@@ -46,6 +47,9 @@ export function ProgramView({
   // One shared player for every row's demo video.
   const [videoUri, setVideoUri] = useState<string | null>(null);
   const logging = useProgramLogging(program);
+  // "Solo semana actual": the selected week is view only until it opens (or
+  // until the program starts). Always null for free programs.
+  const lock = logging.lockOf(selectedWeek);
   // The exercise sheet lives in the tabs layout (ExerciseSessionHost) so an
   // exercise in progress can be hidden to a bar.
   const openExercise = (ex: ProgramExercise) => exerciseSession.open(ex.id, selectedWeek);
@@ -92,7 +96,8 @@ export function ProgramView({
           <Meta icon="flag-outline">{t("program.startsOn", { date: startDate })}</Meta>
         </View>
 
-        {notStarted && (
+        {/* With the week locked, its lock note below says when it starts. */}
+        {notStarted && lock == null && (
           <View className="rounded-lg bg-info-soft px-3 py-2">
             <Text className="text-[12px] text-brand-secondary">
               {t("program.notStartedHint", { date: startDate })}
@@ -156,6 +161,10 @@ export function ProgramView({
           </View>
         )}
 
+        {/* A week that isn't open yet (every week, before the start) is view
+            only: say when it opens. */}
+        {lock != null && <LockNote lock={lock} />}
+
         {/* Days */}
         {program.program_days.map((day) => (
           <DayCard
@@ -166,6 +175,7 @@ export function ProgramView({
             onOpenExercise={openExercise}
             onPlayVideo={setVideoUri}
             logging={logging}
+            locked={lock != null}
             manualCollapsed={pins[`${day.id}:${selectedWeek}`] ?? null}
             onPin={(collapsed) =>
               setPins((p) => ({ ...p, [`${day.id}:${selectedWeek}`]: collapsed }))
@@ -204,6 +214,7 @@ function DayCard({
   onOpenExercise,
   onPlayVideo,
   logging,
+  locked,
   manualCollapsed,
   onPin,
 }: {
@@ -213,6 +224,8 @@ function DayCard({
   onOpenExercise: (exercise: ProgramExercise) => void;
   onPlayVideo: (uri: string) => void;
   logging: ReturnType<typeof useProgramLogging>;
+  /** "Solo semana actual": this week isn't open yet, so nothing can be checked. */
+  locked: boolean;
   /** The client's own expand/collapse for this day and week; null = automatic. */
   manualCollapsed: boolean | null;
   onPin: (collapsed: boolean) => void;
@@ -254,10 +267,13 @@ function DayCard({
           )}
         </Pressable>
 
-        {/* Day completion: progress + one-tap mark-all toggle. */}
+        {/* Day completion: progress + one-tap mark-all toggle. Locked, it
+            still shows the count but can't be pressed. */}
         <Pressable
           onPress={() => logging.setDayCompletion(day, selectedWeek, !allDone)}
+          disabled={locked}
           accessibilityRole="button"
+          accessibilityState={{ disabled: locked }}
           accessibilityLabel={t(allDone ? "program.markDayUndone" : "program.markDayDone")}
           className={
             allDone
@@ -266,7 +282,7 @@ function DayCard({
           }
         >
           <Ionicons
-            name={allDone ? "checkmark-done" : "ellipse-outline"}
+            name={allDone ? "checkmark-done" : locked ? "lock-closed" : "ellipse-outline"}
             size={13}
             color={allDone ? colors.success : colors.contentTertiary}
           />
@@ -319,6 +335,7 @@ function DayCard({
               onToggleDone={() =>
                 logging.setCompletion(ex.id, selectedWeek, !logging.isDone(ex.id, selectedWeek))
               }
+              locked={locked}
               onOpen={() => onOpenExercise(ex)}
               onPlay={onPlayVideo}
               loggedCount={logging.setsFor(ex.id, selectedWeek).length}

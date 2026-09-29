@@ -29,6 +29,9 @@ type Props = {
   /** Phase 3 completion checkbox. */
   done?: boolean;
   onToggleDone?: () => void;
+  /** "Solo semana actual": the viewed week isn't open yet, so the checkbox
+      shows a lock and can't be pressed. Never set for free programs. */
+  locked?: boolean;
   /** Tap the row body to open the detail + set-logging sheet. */
   onOpen?: () => void;
   /** Count of logged sets for the viewed week (shown as a subtle hint). */
@@ -46,6 +49,7 @@ export function ProgramExerciseRow({
   onPlay,
   done = false,
   onToggleDone,
+  locked = false,
   onOpen,
   loggedCount = 0,
 }: Props) {
@@ -238,7 +242,7 @@ export function ProgramExerciseRow({
       </View>
 
       {onToggleDone != null && (
-        <DoneCheckbox done={done} name={p.name} onToggle={onToggleDone} />
+        <DoneCheckbox done={done} name={p.name} onToggle={onToggleDone} locked={locked} />
       )}
     </View>
   );
@@ -247,17 +251,22 @@ export function ProgramExerciseRow({
 /**
  * The completion check. Checking it off is the moment the client finished an
  * exercise, so it answers with a pop, impact lines and a haptic; unchecking
- * stays quiet. Shared with the home card's rows.
+ * stays quiet. Shared with the home card's rows. Locked (a week that isn't
+ * open yet, "Solo semana actual"), it can't be pressed: an empty check shows
+ * a lock, and one made before the lock came on stays, faded.
  */
 export function DoneCheckbox({
   done,
   name,
   onToggle,
+  locked = false,
   className = "mt-0.5",
 }: {
   done: boolean;
   name: string;
   onToggle: () => void;
+  /** The week isn't open yet: shown, not pressable. */
+  locked?: boolean;
   /** Placement of the 24px check (margins). */
   className?: string;
 }) {
@@ -281,17 +290,26 @@ export function DoneCheckbox({
       <AnimatedView style={check.style}>
         <Pressable
           onPress={onPress}
+          disabled={locked}
           accessibilityRole="checkbox"
-          accessibilityState={{ checked: done }}
-          accessibilityLabel={t(done ? "program.markUndone" : "program.markDone", { name })}
+          accessibilityState={{ checked: done, disabled: locked }}
+          accessibilityLabel={
+            locked
+              ? t("program.lockedA11y", { name })
+              : t(done ? "program.markUndone" : "program.markDone", { name })
+          }
           hitSlop={8}
           className={
             done
               ? "h-6 w-6 items-center justify-center rounded-full bg-success"
-              : "h-6 w-6 items-center justify-center rounded-full border-2 border-border-strong"
+              : locked
+                ? "h-6 w-6 items-center justify-center rounded-full bg-surface-elevated"
+                : "h-6 w-6 items-center justify-center rounded-full border-2 border-border-strong"
           }
+          style={locked && done ? { opacity: 0.5 } : undefined}
         >
           {done && <Ionicons name="checkmark" size={15} color={colors.white} />}
+          {!done && locked && <Ionicons name="lock-closed" size={12} color={colors.contentMuted} />}
         </Pressable>
       </AnimatedView>
     </View>
