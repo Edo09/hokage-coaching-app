@@ -3,6 +3,7 @@ import { Image } from "expo-image";
 import React from "react";
 import { useTranslation } from "react-i18next";
 
+import { LockLine } from "@/src/components/program/lock-note";
 import { DoneCheckbox } from "@/src/components/program/program-exercise-row";
 import { Card, CapsLabel, PosterText, Skewed } from "@/src/components/ui";
 import { useProgramLogging } from "@/src/hooks/use-program-logging";
@@ -14,8 +15,15 @@ import { useColors } from "@/src/theme/colors";
 import { Pressable, Text, View } from "@/src/tw";
 import { AnimatedView } from "@/src/tw/animated";
 import type { ProgramDayWithExercises, ProgramExercise, ProgramWeek, ProgramWithDetails } from "@/src/types/database";
+import { formatShortDate } from "@/src/utils/dates";
 import { dayLabel } from "@/src/utils/day-label";
-import { currentWeekOf, effectivePrescription, formatReps, weekByNumber } from "@/src/utils/program";
+import {
+  currentWeekOf,
+  effectivePrescription,
+  formatReps,
+  weekByNumber,
+  weekOpensOn,
+} from "@/src/utils/program";
 
 // getDay() (0=Sun) → the stored lowercase English weekday.
 const DOW = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"] as const;
@@ -45,6 +53,9 @@ export function ProgramHomeCard({ program, notStarted, onPress }: Props) {
   const today = useToday();
   const autoWeek = currentWeekOf(program.start_date, program.duration_weeks, today);
   const logging = useProgramLogging(program);
+  // "Solo semana actual": next week still closed. Always false for free
+  // programs (lockOf is null for them) and in the block's last week.
+  const nextLocked = autoWeek < program.duration_weeks && logging.lockOf(autoWeek + 1) != null;
 
   // Real progress: the fraction of all prescribed exercise-weeks the client has
   // actually checked off — 0 until they train, not calendar time elapsed.
@@ -63,7 +74,9 @@ export function ProgramHomeCard({ program, notStarted, onPress }: Props) {
   // The session to surface: the next unfinished day. A day scheduled for today
   // (when days carry a weekday) wins if still pending; otherwise the first
   // not-fully-done day of the current week, advancing to next week once the
-  // whole week is cleared. Falls back to the last day when the block is done.
+  // whole week is cleared, unless next week is still locked: then the card
+  // stays on this week and says when the next one opens. Falls back to the
+  // last day when the block is done.
   const days = [...program.program_days].sort((a, b) => a.day_index - b.day_index);
   const pending = (d: ProgramDayWithExercises, w: number) =>
     d.program_exercises.length > 0 && logging.dayProgress(d, w).done < d.program_exercises.length;
@@ -83,7 +96,7 @@ export function ProgramHomeCard({ program, notStarted, onPress }: Props) {
     day = todayDay;
   } else {
     day = days.find((d) => pending(d, autoWeek)) ?? null;
-    if (day == null && autoWeek < program.duration_weeks) {
+    if (day == null && autoWeek < program.duration_weeks && !nextLocked) {
       displayWeek = autoWeek + 1;
       day = days.find((d) => pending(d, displayWeek)) ?? null;
     }
@@ -93,6 +106,11 @@ export function ProgramHomeCard({ program, notStarted, onPress }: Props) {
     }
   }
   const week = weekByNumber(program, displayWeek);
+  // The shown week isn't open (only before the start, since the card never
+  // moves into a locked week): its checkboxes show a lock.
+  const locked = logging.lockOf(displayWeek) != null;
+  // This week is all done and next week is still closed.
+  const waitingNextWeek = nextLocked && days.every((d) => !pending(d, autoWeek));
 
   // Show the WHOLE day in prescription order — capping the list hid either the
   // done or the pending rows depending on where the cut fell. The full day (with
@@ -208,10 +226,21 @@ export function ProgramHomeCard({ program, notStarted, onPress }: Props) {
                     onToggleDone={() =>
                       logging.setCompletion(ex.id, displayWeek, !logging.isDone(ex.id, displayWeek))
                     }
+                    locked={locked}
                   />
                 ))}
               </View>
             </>
+          )}
+
+          {/* In place of jumping ahead: when next week opens. */}
+          {waitingNextWeek && (
+            <LockLine
+              text={t("program.nextWeekOpens", {
+                n: autoWeek + 1,
+                date: formatShortDate(weekOpensOn(program.start_date, autoWeek + 1), i18n.language),
+              })}
+            />
           )}
 
           {/* Block progress */}
@@ -251,6 +280,7 @@ function ExerciseMiniRow({
   done,
   onPress,
   onToggleDone,
+  locked,
 }: {
   exercise: ProgramExercise;
   week: ProgramWeek | null;
@@ -258,6 +288,8 @@ function ExerciseMiniRow({
   done: boolean;
   onPress: () => void;
   onToggleDone: () => void;
+  /** The week isn't open yet: the checkbox shows a lock. */
+  locked: boolean;
 }) {
   const { t } = useTranslation();
   const colors = useColors();
@@ -316,7 +348,7 @@ function ExerciseMiniRow({
           </Text>
         </View>
       </View>
-      <DoneCheckbox done={done} name={p.name} onToggle={onToggleDone} className="" />
+      <DoneCheckbox done={done} name={p.name} onToggle={onToggleDone} locked={locked} className="" />
     </AnimatedView>
   );
 }

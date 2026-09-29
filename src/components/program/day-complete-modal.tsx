@@ -31,8 +31,9 @@ import type {
   ProgramWithDetails,
   WorkoutSetLog,
 } from "@/src/types/database";
+import { formatShortDate } from "@/src/utils/dates";
 import { dayLabel } from "@/src/utils/day-label";
-import { effectivePrescription, weekByNumber } from "@/src/utils/program";
+import { effectivePrescription, weekByNumber, weekOpensOn } from "@/src/utils/program";
 import { e1rm, muscleGroupForBodyPart } from "@/src/utils/progress";
 
 /** When the seal hits the card: the card's entrance, then the stamp's fall. */
@@ -135,13 +136,23 @@ export function DayCompleteModal({ day: celebration, openId, visible, onClose }:
   const doneCount = doneFlags.filter(Boolean).length;
   const next = days.find((_, i) => !doneFlags[i]) ?? null;
   const nextTitle = next != null ? dayTitle(next, t) : null;
+  // "Solo semana actual": with the week done and the next one still closed,
+  // say when it opens instead of pointing at it. Its own opening date, not
+  // the lock's (before the start, the lock only knows the start date).
+  // Always false for free programs.
+  const nextWeekLocked = week < program.duration_weeks && logging.lockOf(week + 1) != null;
   const nextLine =
     next != null
       ? nextTitle != null
         ? t("program.dayDoneNext", { n: next.day_index, label: nextTitle })
         : t("program.dayDoneNextBare", { n: next.day_index })
       : week < program.duration_weeks
-        ? t("program.dayDoneNextWeek", { n: week + 1 })
+        ? nextWeekLocked
+          ? t("program.nextWeekOpens", {
+              n: week + 1,
+              date: formatShortDate(weekOpensOn(program.start_date, week + 1), i18n.language),
+            })
+          : t("program.dayDoneNextWeek", { n: week + 1 })
         : t("program.dayDoneBlock");
 
   const record = summary.records[0] ?? null;
