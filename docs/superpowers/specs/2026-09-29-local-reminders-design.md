@@ -38,8 +38,9 @@ its `weekLock` / `weekOpensOn` helpers and its `node:test` harness
    - **Week opened**: «Tu semana 3 ya está disponible», only for "Solo
      semana actual" programs. **Off** by default.
 2. **Training days** are the client's profile days (`profiles.available_days`,
-   values `Mon`…`Sun`). The client picks them in onboarding and the coach can
-   edit them in the panel. Program-day weekdays are not used.
+   values `Mon`…`Sun`). The client picks them in onboarding and can change
+   them in Ajustes → Notificaciones; the coach can edit them in the panel.
+   Program-day weekdays are not used.
 3. **Permission** is asked at the **end of onboarding**, with a short
    explanation first. If the client declines, **Ajustes → Notificaciones**
    offers a button to turn notifications on.
@@ -66,17 +67,18 @@ membership row is covered.
 **Training day** (for each date D from today to today + 13):
 
 - D's weekday is in `available_days`. If `available_days` is empty or null,
-  there are no training reminders, and Ajustes shows a hint to pick training
-  days in Perfil.
+  there are no training reminders, and the Ajustes card shows a hint above
+  its training-days picker.
 - w is the program week of D (`currentWeekOf(start_date, duration_weeks, D)`).
 - The training named is the first day of week w, in the same order the home
   card uses (`day_index`), that still has unchecked exercises in the current
   log. If week w has no pending training, D gets no reminder.
 - For today: skip if the reminder time has already passed or the client has
   already logged training today.
-- Title «Hoy toca {{label}}», body «{{n}} ejercicios · Semana {{w}}».
-  `label` is the day's label, else its weekday name, else «Día {{n}}», the
-  same fallback the home card uses.
+- Title «Hoy toca {{label}}», body «{{count}} ejercicios · Semana {{w}}»
+  (singular «1 ejercicio», via i18next plural keys). `label` is the day's
+  label, else its weekday name (the home card's fallback), else «Día {{n}}»
+  from the new `reminders.dayN` key, not the home card's all-caps «DÍA n».
 
 **Inactivity** (off by default):
 
@@ -96,13 +98,17 @@ membership row is covered.
 
 - For each week w ≥ 2 whose `weekOpensOn(start_date, w)` falls between now
   and today + 13, at the reminder hour.
-- Title «Tu semana {{w}} ya está disponible», body «{{label}} · {{n}}
-  ejercicios» (the first training of week w).
-- If a training reminder falls on the same date, they merge into **one**
+- Title «Tu semana {{w}} ya está disponible», body «{{label}} · {{count}}
+  ejercicios» (the first training of week w; plural like the training body).
+
+**At most one reminder per date.** When several fall on the same date:
+
+- an **inactivity** reminder wins, and the others that date are dropped;
+- otherwise a **week-opened** and a **training** reminder merge into one
   notification: the week-opened title with the training body.
 
 Together these stay well under iOS's 64 pending local notifications: at most
-14 training, 2 inactivity and 2 week-opened, plus the rest alert.
+one per date over 14 days, plus the rest alert.
 
 ## Design
 
@@ -157,9 +163,16 @@ can't come after saving.
 - Title «¿Te avisamos los días de entreno?», text about reminders on their
   training days.
 - «Activar» shows the phone's prompt, then finishes onboarding.
-- «Ahora no» finishes onboarding without asking.
-- "Skip onboarding" (`handleSkip`) doesn't show this step; the client can
-  turn notifications on later in Ajustes.
+- «Ahora no» finishes onboarding without asking, and also switches the
+  training reminder off (`setReminderPrefs({ training: false })`). On
+  Android 12 and older, notifications are allowed without a prompt, so
+  without this «Ahora no» would still leave reminders on. The client can
+  turn it back on in Ajustes.
+- «Omitir» (skip onboarding) is hidden on this step: skipping doesn't save
+  the profile, so on the last step it would throw away everything the
+  client just filled in. On earlier steps «Omitir» works as today, and a
+  client who skips never sees this step; they can turn notifications on
+  later in Ajustes.
 - On web the step is hidden.
 
 **Ajustes → Notificaciones card** (`app/(tabs)/settings.tsx`, next to
@@ -175,7 +188,14 @@ can't come after saving.
   «Cuando se abre una semana». The last one is shown only when the active
   program has "Solo semana actual" on.
 - The reminder hour, as a picker of whole hours from 5:00 to 22:00.
-- The hint about training days when `available_days` is empty.
+- **A training-days picker**: seven day chips (L M X J V S D, in the
+  onboarding's `Mon`…`Sun` order), showing the client's current
+  `available_days`. A tap toggles the day and saves it to the client's own
+  profile through `useProfile`'s update, the same path onboarding uses. It's
+  the same field the coach edits in the panel and the Progress tab uses for
+  planned days, so all three stay in agreement. Only `available_days`
+  changes; `days_per_week` is left alone. When no day is selected, the
+  `noDaysHint` shows above the chips.
 
 **Foreground and channels (`src/lib/rest-alert.ts`).**
 
@@ -201,11 +221,14 @@ reminders meant for someone else.
 | Key | es | en |
 |---|---|---|
 | `trainingTitle` | Hoy toca {{label}} | Today: {{label}} |
-| `trainingBody` | {{n}} ejercicios · Semana {{w}} | {{n}} exercises · Week {{w}} |
+| `trainingBody_one` | {{count}} ejercicio · Semana {{w}} | {{count}} exercise · Week {{w}} |
+| `trainingBody_other` | {{count}} ejercicios · Semana {{w}} | {{count}} exercises · Week {{w}} |
 | `inactivityTitle` | Han pasado {{days}} días sin entrenar | It's been {{days}} days since you trained |
 | `inactivityBody` | {{label}} te espera | {{label}} is waiting for you |
 | `weekTitle` | Tu semana {{w}} ya está disponible | Week {{w}} is now open |
-| `weekBody` | {{label}} · {{n}} ejercicios | {{label}} · {{n}} exercises |
+| `weekBody_one` | {{label}} · {{count}} ejercicio | {{label}} · {{count}} exercise |
+| `weekBody_other` | {{label}} · {{count}} ejercicios | {{label}} · {{count}} exercises |
+| `dayN` | Día {{n}} | Day {{n}} |
 | `onboardingTitle` | ¿Te avisamos los días de entreno? | Want reminders on your training days? |
 | `onboardingText` | Te recordamos qué te toca entrenar en tus días de entreno. Puedes cambiarlo cuando quieras en Ajustes. | We'll remind you what to train on your training days. You can change this anytime in Settings. |
 | `enable` | Activar | Turn on |
@@ -219,7 +242,8 @@ reminders meant for someone else.
 | `prefInactivity` | Si llevo días sin entrenar | When I haven't trained in a while |
 | `prefWeek` | Cuando se abre una semana | When a new week opens |
 | `hour` | Hora del recordatorio | Reminder time |
-| `noDaysHint` | Elige tus días de entreno en Perfil para recibir recordatorios. | Pick your training days in Profile to get reminders. |
+| `noDaysHint` | Elige tus días de entreno para recibir recordatorios. | Pick your training days to get reminders. |
+| `daysLabel` | Tus días de entreno | Your training days |
 | `channelName` | Recordatorios | Reminders |
 
 ## Edge cases
@@ -251,12 +275,19 @@ reminders meant for someone else.
   - inactivity at +4 and +7 from the right base, and a new log restarting it;
   - week opened only with the lock on, and merged with a training reminder
     on the same date;
+  - an inactivity reminder replacing the training (and week-opened)
+    reminder on the same date, so there's never more than one per date;
   - stable ids;
-  - at most 18 reminders.
+  - singular and plural bodies (1 vs 2+ exercises).
 - `npx tsc --noEmit` and `npm run lint`.
 - On a development build on a real phone (local notifications don't run on
   web):
   - the onboarding step with both choices;
+  - the training-days chips: toggling a day saves it to the profile (the
+    panel's Resumen and the Progress planned days show the change) and
+    rebuilds the reminders;
+  - «Ahora no» leaves the training reminder switched off in Ajustes, and
+    «Omitir» is not shown on the notifications step;
   - the Ajustes card in each permission state, including coming back from
     the phone's settings;
   - a reminder set for a few minutes ahead, delivered in the foreground and
