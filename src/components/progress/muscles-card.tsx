@@ -98,12 +98,16 @@ export function MusclesCard({ periodo, rows, alert, week, sex }: MusclesCardProp
       {alert != null && (
         <View className="flex-row items-start gap-2 rounded-xl bg-warning-soft px-3 py-2.5">
           <Ionicons name="pulse-outline" size={15} color={colors.warning} />
-          {/* shrink, not flex-1: Android measured this (nested) Text from a
-              zero basis and left the box several lines too tall. */}
-          <Text className="shrink text-xs leading-4 text-warning">
+          {/* No leading-* here, and no text-* size on the nested spans. On
+              native, react-native-css hands leading-*'s --tw-leading down to
+              every descendant, and a descendant's text-* reads it as a multiple
+              of its font size: the bold span got a 147dp line, and Android drew
+              the whole alert as one huge line. text-xs alone gives the same
+              line height as leading-4 did on web; the spans inherit it. */}
+          <Text className="shrink text-xs text-warning">
             {alert.kind === "recency" ? (
               <>
-                <Text className="text-xs font-bold text-warning">{groupName(alert.group)}</Text>
+                <Text className="font-bold text-warning">{groupName(alert.group)}</Text>
                 {alert.routineDayKey != null
                   ? t("progress.sinEstimuloSugerencia", {
                       count: alert.days,
@@ -113,7 +117,7 @@ export function MusclesCard({ periodo, rows, alert, week, sex }: MusclesCardProp
               </>
             ) : (
               <>
-                <Text className="text-xs font-bold text-warning">{groupName(alert.group)}</Text>
+                <Text className="font-bold text-warning">{groupName(alert.group)}</Text>
                 {t("progress.desbalance")}
               </>
             )}
@@ -205,7 +209,7 @@ function VolumeList({ rows, selected, onToggle, groupName }: ListProps & { rows:
   const selectedRow = selected != null ? rows.find((r) => r.group === selected) : undefined;
 
   if (rows.length === 0) {
-    return <Text className="text-center text-xs leading-4 text-content-tertiary">{t("progress.mapaVacio")}</Text>;
+    return <Text className="text-center text-xs text-content-tertiary">{t("progress.mapaVacio")}</Text>;
   }
 
   return (
@@ -278,7 +282,7 @@ function Caption({
         t("progress.mapaToca")
       ) : (
         <>
-          <Text className="text-xs font-bold text-content-primary">{groupName(selected)}</Text>
+          <Text className="font-bold text-content-primary">{groupName(selected)}</Text>
           {text}
         </>
       )}
