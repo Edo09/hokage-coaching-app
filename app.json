@@ -22,7 +22,9 @@
       "predictiveBackGestureEnabled": false,
       "package": "com.edo09.hokagecoaching",
       "permissions": [
-        "android.permission.SCHEDULE_EXACT_ALARM",
+        "android.permission.SCHEDULE_EXACT_ALARM"
+      ],
+      "blockedPermissions": [
         "android.permission.USE_EXACT_ALARM"
       ]
     },

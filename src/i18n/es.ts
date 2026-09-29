@@ -244,6 +244,9 @@ export default {
     restAlert_vibrate: "Solo vibración",
     restAlert_sound: "Solo sonido",
     restAlertHint: "Se usa al empezar y al terminar cada descanso. Con la app en segundo plano, el final llega como notificación.",
+    // Android: sin «Alarmas y recordatorios» la notificación puede llegar tarde
+    exactAlarmsHint: "Con la pantalla apagada, el aviso de fin del descanso puede llegar tarde. Permite «Alarmas y recordatorios» para que llegue a tiempo.",
+    exactAlarmsAction: "Permitir",
     // Nombre del canal de notificaciones en los ajustes de Android
     restAlertChannel_both: "Descanso (sonido y vibración)",
     restAlertChannel_vibrate: "Descanso (solo vibración)",

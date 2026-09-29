@@ -244,6 +244,9 @@ export default {
     restAlert_vibrate: "Vibration only",
     restAlert_sound: "Sound only",
     restAlertHint: "Used when each rest starts and ends. With the app in the background, the end arrives as a notification.",
+    // Android: without "Alarms & reminders" the notification can arrive late
+    exactAlarmsHint: "With the screen off, the end-of-rest alert can arrive late. Allow \"Alarms & reminders\" so it arrives on time.",
+    exactAlarmsAction: "Allow",
     // Notification channel name in Android settings
     restAlertChannel_both: "Rest (sound and vibration)",
     restAlertChannel_vibrate: "Rest (vibration only)",

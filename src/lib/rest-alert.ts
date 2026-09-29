@@ -242,6 +242,12 @@ async function ensurePermission(): Promise<boolean> {
 /**
  * Schedule the "rest is over" notification `seconds` out, replacing any
  * pending one. Call on every change to the end time — start, resume, +30s.
+ *
+ * On Android it only fires on time with exact-alarm access ("Alarms &
+ * reminders", denied by default on Android 14+); without it the OS may deliver
+ * it late. Ajustes asks for it — see `@/modules/exact-alarms`. The app declares
+ * SCHEDULE_EXACT_ALARM only: Play reserves USE_EXACT_ALARM for apps whose core
+ * function is an alarm, timer or calendar.
  */
 export function scheduleRestDoneNotification(seconds: number, label?: string | null) {
   // expo-notifications has no local scheduling on web, and the PWA is a

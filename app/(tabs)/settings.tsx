@@ -3,6 +3,7 @@ import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Linking } from "react-native";
 
+import { openExactAlarmSettings, useCanScheduleExactAlarms } from "@/modules/exact-alarms";
 import { CoachSection } from "@/src/components/coach-section";
 import { Button, Card, Input, Screen, useToast } from "@/src/components/ui";
 import { setLanguage } from "@/src/i18n";
@@ -138,6 +139,7 @@ function RestAlertCard() {
   const { t } = useTranslation();
   const colors = useColors();
   const mode = useAlertMode();
+  const exactAlarms = useCanScheduleExactAlarms();
   const [open, setOpen] = useState(false);
 
   return (
@@ -179,6 +181,25 @@ function RestAlertCard() {
           </Text>
         </View>
       </Reveal>
+      {exactAlarms ? null : (
+        // Android without exact-alarm access: the rest-done notification falls
+        // back to an inexact alarm that can land late. Outside the Reveal so it
+        // is seen without opening the card; gone once granted.
+        <Pressable
+          onPress={() => {
+            if (!openExactAlarmSettings()) void Linking.openSettings().catch(() => {});
+          }}
+          accessibilityRole="button"
+          accessibilityLabel={`${t("settings.exactAlarmsHint")} ${t("settings.exactAlarmsAction")}`}
+          className="flex-row items-center gap-3 border-t border-border py-3.5"
+        >
+          <View className="h-8 w-8 items-center justify-center rounded-lg bg-brand-dark">
+            <Ionicons name="alarm-outline" size={16} color={colors.warning} />
+          </View>
+          <Text className="flex-1 text-[13px] text-content-secondary">{t("settings.exactAlarmsHint")}</Text>
+          <Text className="text-sm font-semibold text-brand-primary">{t("settings.exactAlarmsAction")}</Text>
+        </Pressable>
+      )}
     </Card>
   );
 }
