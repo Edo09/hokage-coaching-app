@@ -6,6 +6,7 @@ import { View } from "react-native";
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
 
 import { AppMenu } from "@/src/components/app-menu";
+import { CheckCardHost } from "@/src/components/program/check-card";
 import { ExerciseSessionHost } from "@/src/components/program/exercise-session-host";
 import { RestTimerBar } from "@/src/components/program/rest-timer-bar";
 import { TabHeader } from "@/src/components/ui";
@@ -151,6 +152,8 @@ export default function TabsLayout() {
     {/* Floats clear of the 74px tab bar. Rendered here, not per screen, so the
         countdown keeps running while the client moves around the app. */}
     <RestTimerBar bottom={74} />
+    {/* The card that answers a check-off, above both bars when they show. */}
+    <CheckCardHost bottom={74} />
     {/* The exercise in progress: its sheet, or its bar above the rest bar. */}
     <ExerciseSessionHost tabBarHeight={74} />
     </View>

@@ -359,6 +359,23 @@ export default {
     lockedA11y: "{{name}}: bloqueado",
   },
 
+  // Check-off card
+  checkCard: {
+    progress: "{{done}}/{{total}}",
+    time: "en {{time}}",
+    record: "Récord: {{weight}} × {{reps}}",
+    moreKg: "+{{kg}} vs semana {{w}}",
+    moreReps: "+{{reps}} reps vs semana {{w}}",
+    allSets: "{{done}} de {{total}} series",
+    next: "Siguiente: {{name}}",
+    nextSuperset: "Ahora {{slot}}: {{name}}",
+    rest: "Descanso {{time}}",
+    undo: "Deshacer",
+    batch: "{{count}} hechos",
+    dayAgain: "Día {{n}} completo",
+    sheetNext: "Siguiente →",
+  },
+
   // Meals
   meals: {
     breakfast: "desayuno",
