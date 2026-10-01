@@ -1,8 +1,9 @@
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import { router } from "expo-router";
 import React, { useEffect } from "react";
 import { useTranslation } from "react-i18next";
-import { Modal } from "react-native";
+import { Linking, Modal } from "react-native";
 import Body, { type ExtendedBodyPart } from "react-native-body-highlighter";
 import {
   useAnimatedStyle,
@@ -14,12 +15,15 @@ import {
 } from "react-native-reanimated";
 
 import { type DrawnGroup, GROUP_SLUGS, NON_MUSCLE } from "@/src/components/progress/muscle-heat-map";
-import { Burst, CapsLabel, Card, PosterText, SkewButton } from "@/src/components/ui";
+import { Burst, Button, CapsLabel, Card, PosterText, SkewButton } from "@/src/components/ui";
 import { useAuth } from "@/src/hooks/use-auth";
+import { useCoach } from "@/src/hooks/use-coach";
 import { useProfile } from "@/src/hooks/use-profile";
 import { useProgramLogging } from "@/src/hooks/use-program-logging";
 import { exerciseSession } from "@/src/lib/exercise-session";
 import { DUR, EASE_IN, EASE_OUT } from "@/src/lib/motion";
+import { programFocus } from "@/src/lib/program-focus";
+import { useToday } from "@/src/lib/today";
 import { kgToUnit, kgToUnit1, useWeightUnit } from "@/src/lib/weight-unit";
 import type { DayCelebration } from "@/src/providers/celebration-context";
 import { useColors } from "@/src/theme/colors";
@@ -31,9 +35,11 @@ import type {
   ProgramWithDetails,
   WorkoutSetLog,
 } from "@/src/types/database";
+import { nextDay } from "@/src/utils/check-card";
 import { formatShortDate } from "@/src/utils/dates";
 import { dayLabel } from "@/src/utils/day-label";
-import { effectivePrescription, weekByNumber, weekOpensOn } from "@/src/utils/program";
+import { dayShareText, whatsappLink } from "@/src/utils/day-share";
+import { effectivePrescription, weekByNumber } from "@/src/utils/program";
 import { muscleGroupForBodyPart } from "@/src/utils/progress";
 import { dayRecords } from "@/src/utils/records";
 
@@ -65,6 +71,8 @@ export function DayCompleteModal({ day: celebration, openId, visible, onClose }:
   const { program, dayId, week } = celebration;
   const logging = useProgramLogging(program);
   const reduced = useReducedMotion();
+  const today = useToday();
+  const { coach } = useCoach();
 
   const enter = useSharedValue(0);
   const stamp = useSharedValue(0);
@@ -135,28 +143,55 @@ export function DayCompleteModal({ day: celebration, openId, visible, onClose }:
     return p.done === p.total;
   });
   const doneCount = doneFlags.filter(Boolean).length;
-  const next = days.find((_, i) => !doneFlags[i]) ?? null;
-  const nextTitle = next != null ? dayTitle(next, t) : null;
-  // "Solo semana actual": with the week done and the next one still closed,
-  // say when it opens instead of pointing at it. Its own opening date, not
-  // the lock's (before the start, the lock only knows the start date).
-  // Always false for free programs.
-  const nextWeekLocked = week < program.duration_weeks && logging.lockOf(week + 1) != null;
+
+  // Where to go next, in the Programa tab's order: the next unfinished day
+  // of this week (or one skipped earlier), else the next week's first day.
+  // A next week still closed ("Solo semana actual") gets the day it opens
+  // instead of a button; after the last week, the end of the block.
+  const next = nextDay(program, dayId, week, logging.isDone, today);
+  const nextTitle = next.kind === "day" ? dayTitle(next.day, t) : null;
   const nextLine =
-    next != null
-      ? nextTitle != null
-        ? t("program.dayDoneNext", { n: next.day_index, label: nextTitle })
-        : t("program.dayDoneNextBare", { n: next.day_index })
-      : week < program.duration_weeks
-        ? nextWeekLocked
-          ? t("program.nextWeekOpens", {
-              n: week + 1,
-              date: formatShortDate(weekOpensOn(program.start_date, week + 1), i18n.language),
-            })
-          : t("program.dayDoneNextWeek", { n: week + 1 })
+    next.kind === "day"
+      ? t(nextTitle != null ? "dayDone.preview" : "dayDone.previewBare", {
+          n: next.day.day_index,
+          label: nextTitle,
+          count: next.day.program_exercises.length,
+        })
+      : next.kind === "locked"
+        ? t("program.nextWeekOpens", { n: next.week, date: formatShortDate(next.opensOn, i18n.language) })
         : t("program.dayDoneBlock");
 
   const record = summary.records[0] ?? null;
+
+  // «Contarle a {coach}»: the day's summary typed into a WhatsApp chat with
+  // the coach, like the coach section's link. Only when the coach has a number.
+  const shareUrl = whatsappLink(
+    coach?.whatsapp,
+    dayShareText(t, {
+      n: day.day_index,
+      label: title,
+      exercises: summary.exercises,
+      sets: summary.sets,
+      minutes: trainedSeconds > 0 ? Math.max(1, Math.round(trainedSeconds / 60)) : null,
+      record:
+        record != null
+          ? { name: record.name, weight: kgToUnit1(record.weightKg, unit), unit, reps: record.reps }
+          : null,
+    }),
+  );
+  const coachName = coach?.display_name?.trim() || null;
+
+  // «Ir al Día n» / «Ir a la semana w»: the Programa tab shows that week with
+  // the day open (src/lib/program-focus). It opens no exercise.
+  const goNext = () => {
+    if (next.kind !== "day") return;
+    onClose();
+    programFocus.request({ week: next.week, dayId: next.day.id });
+    router.navigate("/(tabs)/routines");
+  };
+  const tellCoach = () => {
+    if (shareUrl != null) Linking.openURL(shareUrl).catch(() => {});
+  };
 
   return (
     <Modal visible={visible} transparent animationType="fade" statusBarTranslucent onRequestClose={onClose}>
@@ -276,9 +311,31 @@ export function DayCompleteModal({ day: celebration, openId, visible, onClose }:
                 <Text className="text-[13px] text-content-tertiary">{nextLine}</Text>
               </View>
 
-              <SkewButton onPress={onClose} className="mt-1">
-                {t("program.dayDoneCta")}
-              </SkewButton>
+              {/* Where to go from here. With nowhere to go (the next week
+                  still closed, the block over), «Listo» is the main button. */}
+              <View className="mt-1 gap-2">
+                {next.kind === "day" ? (
+                  <SkewButton onPress={goNext}>
+                    {next.sameWeek
+                      ? t("dayDone.goDay", { n: next.day.day_index })
+                      : t("dayDone.goWeek", { w: next.week })}
+                  </SkewButton>
+                ) : (
+                  <SkewButton onPress={onClose}>{t("program.dayDoneCta")}</SkewButton>
+                )}
+                {shareUrl != null && (
+                  <Button variant="secondary" icon="logo-whatsapp" onPress={tellCoach}>
+                    {coachName != null
+                      ? t("dayDone.tellCoach", { coach: coachName })
+                      : t("dayDone.tellCoachBare")}
+                  </Button>
+                )}
+                {next.kind === "day" && (
+                  <Button variant="ghost" size="sm" onPress={onClose}>
+                    {t("program.dayDoneCta")}
+                  </Button>
+                )}
+              </View>
             </ScrollView>
           </Card>
         </AnimatedView>

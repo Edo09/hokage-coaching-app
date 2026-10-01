@@ -330,9 +330,6 @@ export default {
     dayDoneMuscles: "You trained: {{list}}",
     dayDoneWeek: "Week {{n}}: {{done}} of {{total}} days",
     dayDoneWeekComplete: "Week {{n}} complete",
-    dayDoneNext: "Next: day {{n}}, {{label}}",
-    dayDoneNextBare: "Next: day {{n}}",
-    dayDoneNextWeek: "Next: week {{n}}",
     dayDoneBlock: "You finished the block.",
     dayDoneCta: "Done",
     statMinutes: "min",
@@ -373,6 +370,28 @@ export default {
     batch: "{{count}} done",
     dayAgain: "Day {{n}} complete",
     sheetNext: "Next →",
+  },
+
+  // Day complete (the seal): where to go next, and telling the coach
+  dayDone: {
+    goDay: "Go to Day {{n}}",
+    goWeek: "Go to week {{w}}",
+    // i18next plurals: t("dayDone.preview", { n, label, count }) picks _one
+    // or _other by count.
+    preview_one: "Day {{n}} · {{label}} · {{count}} exercise",
+    preview_other: "Day {{n}} · {{label}} · {{count}} exercises",
+    previewBare_one: "Day {{n}} · {{count}} exercise",
+    previewBare_other: "Day {{n}} · {{count}} exercises",
+    tellCoach: "Tell {{coach}}",
+    tellCoachBare: "Tell your coach",
+    whatsappSummary: "I finished Day {{n}} ({{label}})! {{stats}}",
+    whatsappSummaryBare: "I finished Day {{n}}! {{stats}}",
+    summaryExercises_one: "{{count}} exercise",
+    summaryExercises_other: "{{count}} exercises",
+    summarySets_one: "{{count}} set",
+    summarySets_other: "{{count}} sets",
+    summaryMinutes: "{{minutes}} min",
+    summaryRecord: "Record on {{name}}: {{weight}} {{unit}} × {{reps}}",
   },
 
   // Meals

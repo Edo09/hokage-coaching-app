@@ -330,9 +330,6 @@ export default {
     dayDoneMuscles: "Trabajaste: {{list}}",
     dayDoneWeek: "Semana {{n}}: {{done}} de {{total}} días",
     dayDoneWeekComplete: "Semana {{n}} completa",
-    dayDoneNext: "Siguiente: día {{n}}, {{label}}",
-    dayDoneNextBare: "Siguiente: día {{n}}",
-    dayDoneNextWeek: "Siguiente: semana {{n}}",
     dayDoneBlock: "Terminaste el bloque.",
     dayDoneCta: "Listo",
     statMinutes: "min",
@@ -373,6 +370,28 @@ export default {
     batch: "{{count}} hechos",
     dayAgain: "Día {{n}} completo",
     sheetNext: "Siguiente →",
+  },
+
+  // Día completado (el sello): a dónde seguir y contarle al coach
+  dayDone: {
+    goDay: "Ir al Día {{n}}",
+    goWeek: "Ir a la semana {{w}}",
+    // Plurales de i18next: t("dayDone.preview", { n, label, count }) elige
+    // _one o _other según count.
+    preview_one: "Día {{n}} · {{label}} · {{count}} ejercicio",
+    preview_other: "Día {{n}} · {{label}} · {{count}} ejercicios",
+    previewBare_one: "Día {{n}} · {{count}} ejercicio",
+    previewBare_other: "Día {{n}} · {{count}} ejercicios",
+    tellCoach: "Contarle a {{coach}}",
+    tellCoachBare: "Contarle a tu coach",
+    whatsappSummary: "¡Terminé el Día {{n}} ({{label}})! {{stats}}",
+    whatsappSummaryBare: "¡Terminé el Día {{n}}! {{stats}}",
+    summaryExercises_one: "{{count}} ejercicio",
+    summaryExercises_other: "{{count}} ejercicios",
+    summarySets_one: "{{count}} serie",
+    summarySets_other: "{{count}} series",
+    summaryMinutes: "{{minutes}} min",
+    summaryRecord: "Récord en {{name}}: {{weight}} {{unit}} × {{reps}}",
   },
 
   // Meals
