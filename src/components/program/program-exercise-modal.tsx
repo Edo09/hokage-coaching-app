@@ -354,7 +354,11 @@ export function ProgramExerciseModal({
                   </View>
                 )}
 
+                {/* Keyed so each exercise-week gets fresh rows: they seed
+                    their inputs from `logged` once, and would otherwise show
+                    (and save on blur) the last exercise's numbers. */}
                 <ProgramSetLogger
+                  key={`${exercise.id}|${weekNumber}`}
                   prescribedSets={p.sets}
                   repMin={p.repMin}
                   repMax={p.repMax}
