@@ -34,7 +34,8 @@ import type {
 import { formatShortDate } from "@/src/utils/dates";
 import { dayLabel } from "@/src/utils/day-label";
 import { effectivePrescription, weekByNumber, weekOpensOn } from "@/src/utils/program";
-import { e1rm, muscleGroupForBodyPart } from "@/src/utils/progress";
+import { muscleGroupForBodyPart } from "@/src/utils/progress";
+import { dayRecords } from "@/src/utils/records";
 
 /** When the seal hits the card: the card's entrance, then the stamp's fall. */
 const STAMP_DELAY = 160;
@@ -378,36 +379,12 @@ function dayTitle(
   return weekday != null && weekday !== "" ? weekday : null;
 }
 
-type DayRecord = { name: string; weightKg: number; reps: number };
-
-type WeightedSet = WorkoutSetLog & { weight_kg: number; reps: number };
-
-const isWeighted = (s: WorkoutSetLog): s is WeightedSet =>
-  s.weight_kg != null && s.reps != null && s.weight_kg > 0 && s.reps > 0;
-
-/** Strongest set by estimated 1RM, heavier weight breaking ties. */
-function bestSet(sets: WeightedSet[]): WeightedSet | null {
-  let best: WeightedSet | null = null;
-  for (const s of sets) {
-    if (
-      best == null ||
-      e1rm(s.weight_kg, s.reps) > e1rm(best.weight_kg, best.reps) ||
-      (e1rm(s.weight_kg, s.reps) === e1rm(best.weight_kg, best.reps) && s.weight_kg > best.weight_kg)
-    ) {
-      best = s;
-    }
-  }
-  return best;
-}
-
 /**
  * What the client did on this day this week. Sets: the logged ones, or the
  * prescribed count for an exercise checked off with nothing logged (the same
  * rule as the muscle map). Volume: logged weight × reps, unilateral work
- * counted per side. A record needs something to beat: the day's best set of
- * an exercise against every other logged set of that exercise (by name,
- * other days and earlier weeks), so a first-ever log sets a baseline, not a
- * record.
+ * counted per side. Records: dayRecords (src/utils/records.ts, the rule the
+ * check card shares), so a first-ever log sets a baseline, not a record.
  */
 function daySummary(
   program: ProgramWithDetails,
@@ -416,16 +393,8 @@ function daySummary(
   week: number,
   setLogs: WorkoutSetLog[],
 ) {
-  const norm = (s: string) => s.trim().toLowerCase();
-  const nameById = new Map<string, string>();
-  for (const d of program.program_days) {
-    for (const e of d.program_exercises) nameById.set(e.id, norm(e.exercise?.name ?? e.custom_name ?? ""));
-  }
-  const dayIds = new Set(day.program_exercises.map((e) => e.id));
-
   let sets = 0;
   let volumeKg = 0;
-  const records: DayRecord[] = [];
   const trained = new Set<DrawnGroup>();
 
   for (const ex of day.program_exercises) {
@@ -437,30 +406,13 @@ function daySummary(
     }
     const group = muscleGroupForBodyPart(ex.exercise?.body_part?.name);
     if (group !== "other") trained.add(group);
-
-    const name = nameById.get(ex.id);
-    const best = bestSet(mine.filter(isWeighted));
-    if (best == null || name == null || name === "") continue;
-    const before = bestSet(
-      setLogs.filter(
-        (s): s is WeightedSet =>
-          isWeighted(s) &&
-          s.program_exercise_id != null &&
-          nameById.get(s.program_exercise_id) === name &&
-          s.week_number <= week &&
-          !(dayIds.has(s.program_exercise_id) && s.week_number === week),
-      ),
-    );
-    if (before != null && e1rm(best.weight_kg, best.reps) > e1rm(before.weight_kg, before.reps)) {
-      records.push({ name: p.name, weightKg: best.weight_kg, reps: best.reps });
-    }
   }
 
   return {
     exercises: day.program_exercises.length,
     sets,
     volumeKg: Math.round(volumeKg),
-    records,
+    records: dayRecords(program, day, week, setLogs),
     // In the drawing's order, so the caption reads top to bottom.
     groups: (Object.keys(GROUP_SLUGS) as DrawnGroup[]).filter((g) => trained.has(g)),
   };
