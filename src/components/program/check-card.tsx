@@ -11,6 +11,7 @@ import {
 
 import { useProgram } from "@/src/hooks/use-program";
 import { useProgramLogging } from "@/src/hooks/use-program-logging";
+import { barStackOffset, useBottomBarHeights } from "@/src/lib/bottom-bars";
 import { checkCard, type CheckCardState, useCheckCard } from "@/src/lib/check-card";
 import { exerciseSession, useExerciseSession } from "@/src/lib/exercise-session";
 import { DUR, EASE_OUT, enter, exit, PressableScale, Swap } from "@/src/lib/motion";
@@ -28,11 +29,6 @@ import { checkHighlight, type CheckHighlight, nextExercise } from "@/src/utils/c
 import { effectivePrescription, weekByNumber } from "@/src/utils/program";
 import { dayRecordLogs, exerciseNames, exerciseRecord } from "@/src/utils/records";
 
-/** The floating rest bar's footprint (REST_BAR_H in exercise-session-host.tsx). */
-const REST_BAR_H = 81;
-/** The exercise-in-progress bar's footprint: its card (a 36px button, py-2.5
-    and a 1px border: 58) + its 8px bottom margin. */
-const SESSION_BAR_H = 66;
 /** How long a card stays up with no finger on it. */
 const AUTO_CLOSE_MS = 5000;
 /** A drag down this far (px), or a flick this fast (px/ms), swipes it away. */
@@ -100,7 +96,10 @@ export function CheckCardHost({ bottom }: { bottom: number }) {
     session.active != null &&
     program != null &&
     locate(program, session.active.exerciseId) != null;
-  const offset = bottom + (rest.running ? REST_BAR_H : 0) + (sessionBar ? SESSION_BAR_H : 0);
+  // Stacked on the bars' measured heights: their text follows the system
+  // font size, so a fixed footprint would overlap them at large sizes.
+  const bars = useBottomBarHeights();
+  const offset = barStackOffset(bottom, { restShown: rest.running, sessionShown: sessionBar }, bars);
 
   return (
     <View

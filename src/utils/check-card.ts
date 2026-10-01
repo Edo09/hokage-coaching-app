@@ -122,8 +122,11 @@ export function checkHighlight(input: {
       }
     }
   }
-  if (input.prescribedSets > 0 && logged.length >= input.prescribedSets) {
-    return { kind: "allSets", done: logged.length, total: input.prescribedSets };
+  // Sets, not rows: weight and reps saved in quick succession can leave two
+  // rows for one set.
+  const done = new Set(logged.map((s) => s.set_index)).size;
+  if (input.prescribedSets > 0 && done >= input.prescribedSets) {
+    return { kind: "allSets", done, total: input.prescribedSets };
   }
   return null;
 }

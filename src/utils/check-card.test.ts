@@ -455,3 +455,33 @@ describe("nextDay", () => {
     });
   });
 });
+
+// Two rows for one set happen when weight and reps are saved in quick
+// succession (the set logger saves each field); the card counts sets, not rows.
+describe("checkHighlight counts distinct sets", () => {
+  it("counts a set saved twice once", () => {
+    assert.deepEqual(
+      checkHighlight({
+        sets: [set(40, null, 1), set(40, 15, 1), set(40, null, 2), set(40, 15, 2), set(40, null, 3), set(40, 15, 3)],
+        previous: null,
+        prescribedSets: 3,
+        isDeload: false,
+        record: null,
+      }),
+      { kind: "allSets", done: 3, total: 3 },
+    );
+  });
+
+  it("doesn't reach all sets with one set saved twice", () => {
+    assert.equal(
+      checkHighlight({
+        sets: [set(40, null, 1), set(40, 15, 1)],
+        previous: null,
+        prescribedSets: 2,
+        isDeload: false,
+        record: null,
+      }),
+      null,
+    );
+  });
+});

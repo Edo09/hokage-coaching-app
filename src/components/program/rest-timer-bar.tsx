@@ -3,6 +3,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FadeInDown, FadeOutUp } from "react-native-reanimated";
 
+import { bottomBars } from "@/src/lib/bottom-bars";
 import { formatClock, useRestTimer } from "@/src/providers/rest-timer-provider";
 import { useColors } from "@/src/theme/colors";
 import { Pressable, Text, View } from "@/src/tw";
@@ -63,6 +64,13 @@ export function RestTimerBar({ bottom = 0, inline = false }: { bottom?: number; 
     };
   }, []);
 
+  // The floating bar reports its footprint (onLayout below) for the check
+  // card to stack on, and drops it when the rest ends.
+  useEffect(() => {
+    if (inline || !running) return;
+    return () => bottomBars.set("rest", null);
+  }, [inline, running]);
+
   const bumpTime = () => {
     if (coolingRef.current) return;
     coolingRef.current = true;
@@ -93,6 +101,7 @@ export function RestTimerBar({ bottom = 0, inline = false }: { bottom?: number; 
   return (
     <View
       pointerEvents="box-none"
+      onLayout={inline ? undefined : (e) => bottomBars.set("rest", e.nativeEvent.layout.height)}
       style={inline ? undefined : { position: "absolute", left: 0, right: 0, bottom, zIndex: 50 }}
     >
       {/* Floats above the clock it just changed, so the eye connects "+30s"
