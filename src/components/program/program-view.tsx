@@ -1,6 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import type { ScrollView as RNScrollView, View as RNView } from "react-native";
 
 import { ExerciseVideoModal } from "@/src/components/exercise-video-modal";
 import { LockNote } from "@/src/components/program/lock-note";
@@ -10,6 +11,7 @@ import { useCheckFeedback } from "@/src/hooks/use-check-feedback";
 import { useProgramLogging } from "@/src/hooks/use-program-logging";
 import { exerciseSession } from "@/src/lib/exercise-session";
 import { PressableScale, Reveal, Swap } from "@/src/lib/motion";
+import type { ProgramFocus } from "@/src/lib/program-focus";
 import { isHeld, useCelebration } from "@/src/providers/celebration-context";
 import { useColors } from "@/src/theme/colors";
 import { Pressable, ScrollView, Text, View } from "@/src/tw";
@@ -23,6 +25,12 @@ import { dayLabel } from "@/src/utils/day-label";
 
 const TABULAR = { fontVariant: ["tabular-nums" as const] };
 
+/** «Ir al Día n»: time for the asked-for week to swap in and lay out before
+    measuring where its day is. */
+const FOCUS_SCROLL_DELAY_MS = 300;
+/** Room left above a focused day's header row, so its card's top shows. */
+const FOCUS_CONTEXT = 24;
+
 type Props = {
   program: ProgramWithDetails;
   week: ProgramWeek | null;
@@ -30,6 +38,11 @@ type Props = {
   autoWeek: number;
   onSelectWeek: (week: number | null) => void;
   notStarted: boolean;
+  /** A day to show (src/lib/program-focus, taken by the routines screen): it
+      opens, and the screen scrolls to it. A new object for every request. */
+  focus?: ProgramFocus | null;
+  /** The screen's scroll view, to scroll to `focus`. */
+  scrollRef?: React.RefObject<RNScrollView | null>;
 };
 
 // Read-only render of an assigned coach program (Phase 2): header, week
@@ -42,6 +55,8 @@ export function ProgramView({
   autoWeek,
   onSelectWeek,
   notStarted,
+  focus = null,
+  scrollRef,
 }: Props) {
   const { t, i18n } = useTranslation();
   const colors = useColors();
@@ -63,13 +78,57 @@ export function ProgramView({
   // another week; per week, because each week has its own completion.
   const [pins, setPins] = useState<Record<string, boolean>>({});
 
+  // «Ir al Día n» (the day-complete modal): open the day asked for. An
+  // unfinished day opens on its own, so a manual collapse is dropped; a
+  // finished one is pinned open. Adjusted while rendering, like Swap, so the
+  // day is already open when its week swaps in.
+  const [focusSeen, setFocusSeen] = useState<ProgramFocus | null>(null);
+  if (focus != null && focus !== focusSeen) {
+    setFocusSeen(focus);
+    const key = `${focus.dayId}:${focus.week}`;
+    const day = program.program_days.find((d) => d.id === focus.dayId);
+    const progress = day != null ? logging.dayProgress(day, focus.week) : null;
+    const finished = progress != null && progress.total > 0 && progress.done === progress.total;
+    setPins(({ [key]: _pin, ...rest }) => (finished ? { ...rest, [key]: false } : rest));
+  }
+
+  // Then scroll it into view. Measured once the week has swapped in, not
+  // kept from onLayout: on web onLayout only reports size changes, so a day
+  // pushed down by another one opening above it would keep a stale y.
+  const rootRef = useRef<RNView>(null);
+  const rootY = useRef(0);
+  const focusedHeader = useRef<RNView>(null);
+  useEffect(() => {
+    if (focus == null || scrollRef == null) return;
+    const timer = setTimeout(() => {
+      const header = focusedHeader.current;
+      const root = rootRef.current;
+      const scroll = scrollRef.current;
+      if (header == null || root == null || scroll == null) return;
+      header.measureLayout(
+        root,
+        (_x, y) => scroll.scrollTo({ y: Math.max(0, rootY.current + y - FOCUS_CONTEXT), animated: true }),
+        () => {},
+      );
+    }, FOCUS_SCROLL_DELAY_MS);
+    return () => clearTimeout(timer);
+  }, [focus, scrollRef]);
+
   const startDate = new Date(`${program.start_date}T00:00:00`).toLocaleDateString(
     i18n.language === "es" ? "es-ES" : "en-US",
     { day: "numeric", month: "short", year: "numeric" },
   );
 
   return (
-    <View className="gap-3">
+    <View
+      ref={rootRef}
+      // Where the program starts in the scroll content: the screen's top
+      // padding, since nothing sits above it.
+      onLayout={(e) => {
+        rootY.current = e.nativeEvent.layout.y;
+      }}
+      className="gap-3"
+    >
       {/* Header */}
       <Card className="gap-2 border-brand-accent-soft">
         <View className="flex-row items-center gap-2">
@@ -175,6 +234,7 @@ export function ProgramView({
           <DayCard
             key={day.id}
             day={day}
+            headerRef={day.id === focus?.dayId ? focusedHeader : undefined}
             week={week}
             selectedWeek={selectedWeek}
             onOpenExercise={openExercise}
@@ -215,6 +275,7 @@ export function ProgramView({
 
 function DayCard({
   day,
+  headerRef,
   week,
   selectedWeek,
   onOpenExercise,
@@ -226,6 +287,8 @@ function DayCard({
   onPin,
 }: {
   day: ProgramDayWithExercises;
+  /** On the day the screen scrolls to («Ir al Día n»): its header row. */
+  headerRef?: React.Ref<RNView>;
   week: ProgramWeek | null;
   selectedWeek: number;
   onOpenExercise: (exercise: ProgramExercise) => void;
@@ -254,7 +317,7 @@ function DayCard({
 
   return (
     <Card className="gap-0 py-3">
-      <View className="flex-row items-start gap-2 pb-1">
+      <View ref={headerRef} className="flex-row items-start gap-2 pb-1">
         <Pressable
           className="flex-1"
           onPress={toggleCollapsed}

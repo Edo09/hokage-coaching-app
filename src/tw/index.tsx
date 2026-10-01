@@ -36,6 +36,8 @@ export const useCSSVariable =
 // View
 export type ViewProps = React.ComponentProps<typeof RNView> & {
   className?: string;
+  // React 19 ref-as-prop; forwarded through useCssElement to RNView
+  ref?: React.Ref<RNView>;
 };
 
 export const View = (props: ViewProps) => {
