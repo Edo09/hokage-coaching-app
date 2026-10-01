@@ -25,7 +25,6 @@ export default function RoutinesScreen() {
     loading,
     error,
     refresh,
-    refreshing,
   } = useProgram();
   useRefreshOnFocus(refresh);
   const arrive = useArrival(loading && program == null);
@@ -51,7 +50,6 @@ export default function RoutinesScreen() {
       {program != null ? (
         <Screen
           entering={arrive}
-          refreshing={refreshing}
           onRefresh={refresh}
           contentContainerClassName="p-4 gap-3 pb-24"
         >

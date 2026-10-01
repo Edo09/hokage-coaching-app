@@ -7,6 +7,7 @@ import {
   ScrollView as RNScrollView,
 } from "react-native";
 
+import { usePullRefresh } from "@/src/hooks/use-pull-refresh";
 import { useColors } from "@/src/theme/colors";
 import { ScrollView, View } from "@/src/tw";
 import { AnimatedView } from "@/src/tw/animated";
@@ -20,8 +21,9 @@ type ScreenProps = {
   scroll?: boolean;
   /** Wrap in KeyboardAvoidingView — use on screens with text inputs. */
   keyboard?: boolean;
-  refreshing?: boolean;
-  onRefresh?: () => void;
+  /** Pull to refresh. The indicator shows while this runs, so return the
+   *  fetch's promise; background refetches never show it (usePullRefresh). */
+  onRefresh?: () => unknown;
   className?: string;
   contentContainerClassName?: string;
   /** Access the underlying ScrollView (e.g. to scrollTo a section). */
@@ -37,7 +39,6 @@ export function Screen({
   children,
   scroll = true,
   keyboard = false,
-  refreshing = false,
   onRefresh,
   className,
   contentContainerClassName,
@@ -47,6 +48,7 @@ export function Screen({
 }: ScreenProps) {
   const colors = useColors();
   const headerHeight = useHeaderHeight();
+  const pull = usePullRefresh(onRefresh);
 
   const content = scroll ? (
     <ScrollView
@@ -57,8 +59,8 @@ export function Screen({
       refreshControl={
         onRefresh != null ? (
           <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
+            refreshing={pull.refreshing}
+            onRefresh={pull.onRefresh}
             tintColor={colors.brandPrimary}
             colors={[colors.brandPrimary]}
             progressBackgroundColor={colors.surface}

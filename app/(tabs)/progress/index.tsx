@@ -15,6 +15,7 @@ import { StrengthCard } from "@/src/components/progress/strength-card";
 import { WeightCard } from "@/src/components/progress/weight-card";
 import { ErrorState, ScreentoneBackdrop } from "@/src/components/ui";
 import { useProgressDashboard } from "@/src/hooks/use-progress-dashboard";
+import { usePullRefresh } from "@/src/hooks/use-pull-refresh";
 import { useRefreshOnFocus } from "@/src/hooks/use-refresh-on-focus";
 import { staggered, Swap } from "@/src/lib/motion";
 import { useColors } from "@/src/theme/colors";
@@ -33,6 +34,7 @@ export default function ProgressScreen() {
   const [periodo, setPeriodo] = useState<Periodo>("week");
   const dashboard = useProgressDashboard(periodo);
   useRefreshOnFocus(dashboard.refresh);
+  const pull = usePullRefresh(dashboard.refresh);
 
   if (dashboard.loading && dashboard.logs.length === 0) {
     return (
@@ -67,8 +69,8 @@ export default function ProgressScreen() {
           showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl
-              refreshing={dashboard.refreshing}
-              onRefresh={dashboard.refresh}
+              refreshing={pull.refreshing}
+              onRefresh={pull.onRefresh}
               tintColor={colors.brandPrimary}
               colors={[colors.brandPrimary]}
               progressBackgroundColor={colors.surface}

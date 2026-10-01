@@ -97,7 +97,6 @@ export default function HomeScreen() {
 
   const loading = meals.loading || progress.loading;
   const error = meals.error || progress.error;
-  const refreshing = meals.refreshing || progress.refreshing;
   const hasData = program != null || meals.meals.length > 0 || progress.logs.length > 0;
   // Fades in only when it replaces the loader; cached data arrives with the screen.
   const arrive = useArrival(loading && !hasData);
@@ -105,11 +104,11 @@ export default function HomeScreen() {
   const mealsRefresh = meals.refresh;
   const progressRefresh = progress.refresh;
 
-  const refreshAll = React.useCallback(() => {
-    mealsRefresh();
-    progressRefresh();
-    refreshProgram();
-  }, [mealsRefresh, progressRefresh, refreshProgram]);
+  // Resolves when all three land, so a pull's indicator lasts until then.
+  const refreshAll = React.useCallback(
+    () => Promise.all([mealsRefresh(), progressRefresh(), refreshProgram()]),
+    [mealsRefresh, progressRefresh, refreshProgram],
+  );
 
   // Tab switches don't trigger react-query refetches in RN — refetch
   // whenever the dashboard regains focus so it reflects changes made
@@ -171,7 +170,6 @@ export default function HomeScreen() {
 
   return (
     <Screen
-      refreshing={refreshing}
       onRefresh={refreshAll}
       contentContainerClassName="px-0 py-0 pb-12 gap-0"
     >

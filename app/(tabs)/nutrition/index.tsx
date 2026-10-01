@@ -24,6 +24,7 @@ import { useAuth } from "@/src/hooks/use-auth";
 import { useMeals } from "@/src/hooks/use-meals";
 import { useNutritionPlan } from "@/src/hooks/use-nutrition-plan";
 import { useProfile } from "@/src/hooks/use-profile";
+import { usePullRefresh } from "@/src/hooks/use-pull-refresh";
 import { useRefreshOnFocus } from "@/src/hooks/use-refresh-on-focus";
 import { useSupplementLog } from "@/src/hooks/use-supplement-log";
 import { useSupplementPlan } from "@/src/hooks/use-supplement-plan";
@@ -162,7 +163,6 @@ function PlanPane({
   return (
     <Screen
       entering={arrive}
-      refreshing={plan.refreshing}
       onRefresh={plan.refresh}
       contentContainerClassName="p-4 gap-3 pb-24"
     >
@@ -211,7 +211,6 @@ function SupplementsPane({
   return (
     <Screen
       entering={arrive}
-      refreshing={supplements.refreshing}
       onRefresh={supplements.refresh}
       contentContainerClassName="p-4 gap-3 pb-24"
     >
@@ -243,8 +242,9 @@ function DiaryPane({
   const { user } = useAuth();
   const { profile } = useProfile(user?.id);
   const { program } = useProgram();
-  const { meals, loading, error, refreshing, refresh, removeDiaryItem } = useMeals();
+  const { meals, loading, error, refresh, removeDiaryItem } = useMeals();
   useRefreshOnFocus(refresh);
+  const pull = usePullRefresh(refresh);
 
   // Date navigation. todayKey is recomputed per render so the diary heals
   // itself across midnight (label flips to a date, "›" re-enables).
@@ -400,8 +400,8 @@ function DiaryPane({
         contentContainerClassName="px-4 py-3 pb-28 gap-4"
         refreshControl={
           <RefreshControl
-            refreshing={refreshing}
-            onRefresh={refresh}
+            refreshing={pull.refreshing}
+            onRefresh={pull.onRefresh}
             tintColor={colors.brandPrimary}
             colors={[colors.brandPrimary]}
             progressBackgroundColor={colors.surface}

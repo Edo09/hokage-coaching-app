@@ -212,14 +212,19 @@ export function useProgressDashboard(periodo: Periodo) {
   const progressRefresh = progress.refresh;
   const mealsRefresh = mealsData.refresh;
   const routinesRefresh = routinesData.refresh;
-  const refresh = useCallback(() => {
-    progressRefresh();
-    mealsRefresh();
-    routinesRefresh();
-    queryClient.invalidateQueries({ queryKey: ["body-measurements"] });
-    queryClient.invalidateQueries({ queryKey: ["program-set-logs"] });
-    queryClient.invalidateQueries({ queryKey: ["program-completions"] });
-  }, [progressRefresh, mealsRefresh, routinesRefresh, queryClient]);
+  // Resolves when everything lands, so a pull's indicator lasts until then.
+  const refresh = useCallback(
+    () =>
+      Promise.all([
+        progressRefresh(),
+        mealsRefresh(),
+        routinesRefresh(),
+        queryClient.invalidateQueries({ queryKey: ["body-measurements"] }),
+        queryClient.invalidateQueries({ queryKey: ["program-set-logs"] }),
+        queryClient.invalidateQueries({ queryKey: ["program-completions"] }),
+      ]),
+    [progressRefresh, mealsRefresh, routinesRefresh, queryClient],
+  );
 
   /** Quick weight log. Writes profiles.weight_kg through the offline-first
    *  profile upsert; once migration A is applied, a DB trigger mirrors it
