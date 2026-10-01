@@ -16,6 +16,7 @@ import type {
 } from "@/src/types/database";
 import { toDateKey } from "@/src/utils/dates";
 import { weekLock } from "@/src/utils/program";
+import { saveSetLog, type SetInput } from "@/src/utils/set-log";
 import { supabase } from "@/src/utils/supabase";
 
 // Phase 3: the client's completion checks + logged sets against a program.
@@ -74,12 +75,6 @@ function rowsOrEmpty(res: {
   if (res.error.code === "42P01" || res.error.code === "PGRST205") return [];
   throw res.error;
 }
-
-export type SetInput = {
-  weight_kg?: number | null;
-  reps?: number | null;
-  rir?: number | null;
-};
 
 // The backstop behind every screen for "Solo semana actual": a write to a
 // locked week is dropped here, however the call got in. Reads the clock at
@@ -264,28 +259,23 @@ export function useProgramLogging(program: ProgramWithDetails | null) {
       input: SetInput,
     ) => {
       if (lockedNow(program, week)) return;
-      const existing = setsFor(exerciseId, week).find(
-        (s) => s.set_index === setIndex,
+      // Read the fresh cache, not `data` (as setCompletion does): the logger
+      // saves each field on blur, and a reps save that runs before this hook
+      // re-renders from the weight save would miss the row it just made and
+      // log the set a second time, under a new id.
+      const fresh = queryClient.getQueryData<LogData>(key) ?? EMPTY;
+      const { logs, row } = saveSetLog(
+        fresh.setLogs,
+        {
+          user_id: user!.id,
+          program_exercise_id: exerciseId,
+          week_number: week,
+          set_index: setIndex,
+        },
+        input,
+        { id: newId(), date: toDateKey(), now: new Date().toISOString() },
       );
-      const row: WorkoutSetLog = {
-        id: existing?.id ?? newId(),
-        user_id: user!.id,
-        program_exercise_id: exerciseId,
-        week_number: week,
-        date: toDateKey(),
-        set_index: setIndex,
-        weight_kg: input.weight_kg ?? null,
-        reps: input.reps ?? null,
-        rir: input.rir ?? null,
-        created_at: existing?.created_at ?? new Date().toISOString(),
-      };
-      setCache((prev) => ({
-        ...prev,
-        setLogs:
-          existing != null
-            ? prev.setLogs.map((s) => (s.id === row.id ? row : s))
-            : [...prev.setLogs, row],
-      }));
+      setCache((prev) => ({ ...prev, setLogs: logs }));
       await enqueue({
         userId: user!.id,
         table: "workout_set_logs",
@@ -293,7 +283,7 @@ export function useProgramLogging(program: ProgramWithDetails | null) {
         payload: row,
       });
     },
-    [setsFor, setCache, user, program],
+    [queryClient, key, setCache, user, program],
   );
 
   const deleteSet = useCallback(

@@ -8,7 +8,7 @@ import { useColors } from "@/src/theme/colors";
 import { Text, TextInput, View } from "@/src/tw";
 import { AnimatedView } from "@/src/tw/animated";
 import type { WorkoutSetLog } from "@/src/types/database";
-import type { SetInput } from "@/src/hooks/use-program-logging";
+import type { SetInput } from "@/src/utils/set-log";
 
 const TABULAR = { fontVariant: ["tabular-nums" as const] };
 
