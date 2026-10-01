@@ -4,8 +4,8 @@ import { useTranslation } from "react-i18next";
 
 import { ExerciseVideoModal } from "@/src/components/exercise-video-modal";
 import { ProgramExerciseModal } from "@/src/components/program/program-exercise-modal";
-import { useToast } from "@/src/components/ui";
 import { useAuth } from "@/src/hooks/use-auth";
+import { useCheckFeedback } from "@/src/hooks/use-check-feedback";
 import { useProgram } from "@/src/hooks/use-program";
 import { useProgramLogging } from "@/src/hooks/use-program-logging";
 import {
@@ -39,12 +39,11 @@ function findExercise(program: ProgramWithDetails | null, id: string): ProgramEx
  * session store (`@/src/lib/exercise-session`) to the program's logging.
  */
 export function ExerciseSessionHost({ tabBarHeight }: { tabBarHeight: number }) {
-  const { t } = useTranslation();
-  const toast = useToast();
   const { user } = useAuth();
   const session = useExerciseSession();
   const { program } = useProgram();
   const logging = useProgramLogging(program);
+  const feedback = useCheckFeedback(program);
   const rest = useRestTimer();
   const [videoUri, setVideoUri] = useState<string | null>(null);
 
@@ -93,19 +92,14 @@ export function ExerciseSessionHost({ tabBarHeight }: { tabBarHeight: number }) 
     if (activeLock == null) exerciseSession.togglePause();
   };
 
+  // «Terminar»: the clock stops and keeps its time (closing the sheet), then
+  // the check-off shows its card with that time («en 3:12»), or only the
+  // day-complete stamp when it was the day's last (read before the write).
   const finish = () => {
     if (sheet == null || sheetExercise == null || sheetLock != null) return;
-    const name = effectivePrescription(sheetExercise, weekByNumber(program!, sheet.week), sheet.week).name;
-    // The day's last exercise brings the day-complete stamp; no toast under it.
     const finishesDay = logging.completesDay(sheet.exerciseId, sheet.week);
     const seconds = exerciseSession.finish(sheet.exerciseId, sheet.week);
-    void logging.setCompletion(sheet.exerciseId, sheet.week, true);
-    if (!finishesDay && seconds > 0) {
-      toast.show({
-        type: "success",
-        message: t("program.sessionFinished", { name, time: formatClock(seconds) }),
-      });
-    }
+    feedback.afterFinish(sheet.exerciseId, sheet.week, seconds, finishesDay);
   };
 
   return (

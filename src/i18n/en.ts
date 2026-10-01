@@ -350,7 +350,6 @@ export default {
     sessionQuitTitle: "Quit {{name}}?",
     sessionQuitBody: "The time ({{time}}) is discarded and it won't be marked as done.",
     sessionOpen: "Back to {{name}}",
-    sessionFinished: "{{name}} done in {{time}}",
     demoFullScreen: "View full screen",
     // Current week only (weeks not open yet)
     lockedStart: "Your program starts on {{date}}",

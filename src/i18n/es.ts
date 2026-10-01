@@ -350,7 +350,6 @@ export default {
     sessionQuitTitle: "¿Salir de {{name}}?",
     sessionQuitBody: "Se descarta el tiempo ({{time}}) y no se marca como hecho.",
     sessionOpen: "Volver a {{name}}",
-    sessionFinished: "{{name}} terminado en {{time}}",
     demoFullScreen: "Ver en pantalla completa",
     // Solo semana actual (semanas que aún no abren)
     lockedStart: "Tu programa empieza el {{date}}",

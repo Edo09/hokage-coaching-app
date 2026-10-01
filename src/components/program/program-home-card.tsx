@@ -6,6 +6,7 @@ import { useTranslation } from "react-i18next";
 import { LockLine } from "@/src/components/program/lock-note";
 import { DoneCheckbox } from "@/src/components/program/program-exercise-row";
 import { Card, CapsLabel, PosterText, Skewed } from "@/src/components/ui";
+import { useCheckFeedback } from "@/src/hooks/use-check-feedback";
 import { useProgramLogging } from "@/src/hooks/use-program-logging";
 import { exerciseSession } from "@/src/lib/exercise-session";
 import { usePressScale } from "@/src/lib/motion";
@@ -53,6 +54,9 @@ export function ProgramHomeCard({ program, notStarted, onPress }: Props) {
   const today = useToday();
   const autoWeek = currentWeekOf(program.start_date, program.duration_weeks, today);
   const logging = useProgramLogging(program);
+  // A row's circle: a check-off gets its card (or the day modal), same as
+  // the Programa tab's rows.
+  const feedback = useCheckFeedback(program);
   // "Solo semana actual": next week still closed. Always false for free
   // programs (lockOf is null for them) and in the block's last week.
   const nextLocked = autoWeek < program.duration_weeks && logging.lockOf(autoWeek + 1) != null;
@@ -223,9 +227,7 @@ export function ProgramHomeCard({ program, notStarted, onPress }: Props) {
                     // The sheet keeps the week it was opened for, even if
                     // finishing moves this card on to the next day or week.
                     onPress={() => exerciseSession.open(ex.id, displayWeek)}
-                    onToggleDone={() =>
-                      logging.setCompletion(ex.id, displayWeek, !logging.isDone(ex.id, displayWeek))
-                    }
+                    onToggleDone={() => feedback.toggleFromRow(ex.id, displayWeek)}
                     locked={locked}
                   />
                 ))}

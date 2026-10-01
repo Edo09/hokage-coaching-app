@@ -6,6 +6,7 @@ import { ExerciseVideoModal } from "@/src/components/exercise-video-modal";
 import { LockNote } from "@/src/components/program/lock-note";
 import { ProgramExerciseRow } from "@/src/components/program/program-exercise-row";
 import { CapsLabel, Card, ExpandChevron } from "@/src/components/ui";
+import { useCheckFeedback } from "@/src/hooks/use-check-feedback";
 import { useProgramLogging } from "@/src/hooks/use-program-logging";
 import { exerciseSession } from "@/src/lib/exercise-session";
 import { PressableScale, Reveal, Swap } from "@/src/lib/motion";
@@ -53,6 +54,10 @@ export function ProgramView({
   // The exercise sheet lives in the tabs layout (ExerciseSessionHost) so an
   // exercise in progress can be hidden to a bar.
   const openExercise = (ex: ProgramExercise) => exerciseSession.open(ex.id, selectedWeek);
+  // A row's circle: a check-off gets its card (or the day modal), an uncheck
+  // stays quiet. The day's mark-all pill doesn't come this way: no card.
+  const feedback = useCheckFeedback(program);
+  const toggleExercise = (ex: ProgramExercise) => feedback.toggleFromRow(ex.id, selectedWeek);
   // Manual expand/collapse per day and week. Held here, outside the week
   // Swap (which re-mounts the day cards), so a pin survives a look at
   // another week; per week, because each week has its own completion.
@@ -173,6 +178,7 @@ export function ProgramView({
             week={week}
             selectedWeek={selectedWeek}
             onOpenExercise={openExercise}
+            onToggleExercise={toggleExercise}
             onPlayVideo={setVideoUri}
             logging={logging}
             locked={lock != null}
@@ -212,6 +218,7 @@ function DayCard({
   week,
   selectedWeek,
   onOpenExercise,
+  onToggleExercise,
   onPlayVideo,
   logging,
   locked,
@@ -222,6 +229,8 @@ function DayCard({
   week: ProgramWeek | null;
   selectedWeek: number;
   onOpenExercise: (exercise: ProgramExercise) => void;
+  /** A row's circle: check it off, or uncheck it (useCheckFeedback). */
+  onToggleExercise: (exercise: ProgramExercise) => void;
   onPlayVideo: (uri: string) => void;
   logging: ReturnType<typeof useProgramLogging>;
   /** "Solo semana actual": this week isn't open yet, so nothing can be checked. */
@@ -332,9 +341,7 @@ function DayCard({
               week={week}
               weekNumber={selectedWeek}
               done={logging.isDone(ex.id, selectedWeek)}
-              onToggleDone={() =>
-                logging.setCompletion(ex.id, selectedWeek, !logging.isDone(ex.id, selectedWeek))
-              }
+              onToggleDone={() => onToggleExercise(ex)}
               locked={locked}
               onOpen={() => onOpenExercise(ex)}
               onPlay={onPlayVideo}

@@ -169,6 +169,14 @@ export const exerciseSession = {
   finishedSeconds(exerciseId: string, week: number): number | null {
     return state.finished[sessionKey(exerciseId, week)] ?? null;
   },
+
+  /** Whether an exercise other than this one is in progress (running or
+      paused: the one in the bar). Read as an exercise is checked off: its
+      card then offers only «Deshacer», since «Siguiente» would juggle two. */
+  inProgressElsewhere(exerciseId: string, week: number): boolean {
+    const a = state.active;
+    return a != null && (a.exerciseId !== exerciseId || a.week !== week);
+  },
 };
 
 function subscribe(listener: () => void): () => void {
