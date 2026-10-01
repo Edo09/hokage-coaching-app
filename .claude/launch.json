@@ -15,6 +15,12 @@
         "cd /d C:\\Users\\edgarcia\\Documents\\projects\\hokage-web-panel\\hokage-web-panel && npm run dev -- --port 5173"
       ],
       "port": 5173
+    },
+    {
+      "name": "panel",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "../hokage-web-panel", "run", "dev", "--", "--port", "5181", "--strictPort"],
+      "port": 5181
     }
   ]
 }
