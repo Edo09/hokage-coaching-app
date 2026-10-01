@@ -28,6 +28,7 @@ import { useColors } from "@/src/theme/colors";
 import { Pressable, ScrollView, Text, View } from "@/src/tw";
 import { AnimatedView } from "@/src/tw/animated";
 import type { ProgramExercise, ProgramWeek } from "@/src/types/database";
+import type { NextExercise } from "@/src/utils/check-card";
 import {
   effectivePrescription,
   formatLoadPct,
@@ -70,6 +71,11 @@ type Props = {
   onFinish: () => void;
   /** Leave without marking done; the time is dropped. */
   onQuit: () => void;
+  /** The day's next exercise to do, offered as «Siguiente →» once this one
+      is done; null hides it. */
+  next: NextExercise | null;
+  /** Open `next` in this sheet. Starts nothing. */
+  onNext: () => void;
   /** Full-screen demo. */
   onPlay: (uri: string) => void;
 };
@@ -81,7 +87,8 @@ type Props = {
  *    its clock; "Marcar hecho" checks it off without one;
  *  - in progress: its clock, and the controls to pause, hide (to the bar),
  *    finish or quit it;
- *  - done: review, with the done toggle.
+ *  - done: review, with the done toggle and «Siguiente →» to the day's
+ *    next exercise.
  * On a locked week ("Solo semana actual") it is view only: a note says when
  * the week opens in place of the done/start buttons, the sets can't be
  * edited, and a clock already running on it can only be quit.
@@ -101,6 +108,8 @@ export function ProgramExerciseModal({
   onTogglePause,
   onFinish,
   onQuit,
+  next,
+  onNext,
   onPlay,
 }: Props) {
   const { t, i18n } = useTranslation();
@@ -162,6 +171,17 @@ export function ProgramExerciseModal({
       : null;
 
   const clock = formatClock(Math.floor(elapsedMs / 1000));
+
+  // «Marcar hecho» on the day's last exercise: its burst plays before the
+  // write, since the day-complete stamp closes the sheet (as on «Terminar»).
+  const finishesDay = exercise != null && logging.completesDay(exercise.id, weekNumber);
+  const nextName = next != null ? effectivePrescription(next.exercise, week, weekNumber).name : null;
+  // The next exercise opens at the top of its sheet (its demo), not scrolled
+  // down to where this one's sets were.
+  const goNext = () => {
+    scrollRef.current?.scrollTo({ y: 0, animated: false });
+    onNext();
+  };
 
   const confirmQuit = () => {
     if (p == null) return;
@@ -385,11 +405,31 @@ export function ProgramExerciseModal({
                       )}
                     </>
                   ) : done ? (
-                    <DoneButton
-                      done
-                      onPress={() => void logging.setCompletion(exercise.id, weekNumber, false)}
-                      className="flex-1"
-                    />
+                    <>
+                      <DoneButton
+                        done
+                        onPress={() => void logging.setCompletion(exercise.id, weekNumber, false)}
+                        className="flex-1"
+                      />
+                      {/* The day's next one (a superset's partner first):
+                          opens it here and starts nothing. */}
+                      {next != null && nextName != null && (
+                        <PressableScale
+                          scaleTo={0.98}
+                          haptic
+                          onPress={goNext}
+                          accessibilityRole="button"
+                          accessibilityLabel={
+                            next.slot != null
+                              ? t("checkCard.nextSuperset", { slot: next.slot, name: nextName })
+                              : t("checkCard.next", { name: nextName })
+                          }
+                          className="flex-[2] flex-row items-center justify-center gap-2 rounded-2xl bg-brand-primary px-4 py-3.5"
+                        >
+                          <Text className="text-base font-bold text-white">{t("checkCard.sheetNext")}</Text>
+                        </PressableScale>
+                      )}
+                    </>
                   ) : (
                     <>
                       {/* Done without the clock (e.g. trained earlier, logging now). */}
@@ -397,6 +437,7 @@ export function ProgramExerciseModal({
                         done={false}
                         tone="secondary"
                         label={t("program.markDoneShort")}
+                        settleMs={finishesDay ? FINISH_SETTLE_MS : 0}
                         onPress={() => void logging.setCompletion(exercise.id, weekNumber, true)}
                         className="flex-1"
                       />

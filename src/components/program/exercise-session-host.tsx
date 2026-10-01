@@ -19,7 +19,8 @@ import {
 import { formatClock, useRestTimer } from "@/src/providers/rest-timer-provider";
 import { useColors } from "@/src/theme/colors";
 import { Pressable, Text, View } from "@/src/tw";
-import type { ProgramExercise, ProgramWithDetails } from "@/src/types/database";
+import type { ProgramDayWithExercises, ProgramExercise, ProgramWithDetails } from "@/src/types/database";
+import { nextExercise } from "@/src/utils/check-card";
 import { effectivePrescription, weekByNumber } from "@/src/utils/program";
 
 /** The floating rest bar's footprint (card ~73 + its 8px bottom margin). */
@@ -31,6 +32,10 @@ function findExercise(program: ProgramWithDetails | null, id: string): ProgramEx
     if (ex != null) return ex;
   }
   return null;
+}
+
+function findDay(program: ProgramWithDetails | null, exerciseId: string): ProgramDayWithExercises | null {
+  return program?.program_days.find((d) => d.program_exercises.some((e) => e.id === exerciseId)) ?? null;
 }
 
 /**
@@ -102,6 +107,14 @@ export function ExerciseSessionHost({ tabBarHeight }: { tabBarHeight: number }) 
     feedback.afterFinish(sheet.exerciseId, sheet.week, seconds, finishesDay);
   };
 
+  // The done sheet's «Siguiente →»: the day's next exercise to do, the same
+  // one the check card offers.
+  const sheetDay = sheet != null ? findDay(program, sheet.exerciseId) : null;
+  const sheetNext =
+    sheet != null && sheetDay != null
+      ? nextExercise(sheetDay, sheet.exerciseId, (id) => isDone(id, sheet.week))
+      : null;
+
   return (
     <>
       <ProgramExerciseModal
@@ -120,6 +133,10 @@ export function ExerciseSessionHost({ tabBarHeight }: { tabBarHeight: number }) 
         onTogglePause={togglePause}
         onFinish={finish}
         onQuit={() => sheet != null && exerciseSession.quit(sheet.exerciseId, sheet.week)}
+        next={sheetNext}
+        onNext={() =>
+          sheet != null && sheetNext != null && exerciseSession.open(sheetNext.exercise.id, sheet.week)
+        }
         onPlay={setVideoUri}
       />
 
