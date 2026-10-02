@@ -403,3 +403,305 @@ inEachZone("planReminders: training day", () => {
     assert.ok(list.every((r) => r.fireAt.getHours() === 18 && r.fireAt.getMinutes() === 0));
   });
 });
+
+const INACTIVITY_ONLY = prefs({ training: false, inactivity: true });
+
+inEachZone("planReminders: inactivity", () => {
+  it("off by default", () => {
+    assert.ok(plan().every((r) => r.kind !== "inactivity"));
+  });
+
+  it("start date + 4 and + 7 when nothing is logged", () => {
+    const list = plan({ prefs: INACTIVITY_ONLY });
+    assert.deepEqual(ids(list), [
+      "reminder-2026-10-09-inactivity",
+      "reminder-2026-10-12-inactivity",
+    ]);
+    assert.equal(list[0].fireAt.getTime(), at("2026-10-09", 8).getTime());
+    assert.equal(list[0].titleKey, "reminders.inactivityTitle");
+    assert.equal(list[0].bodyKey, "reminders.inactivityBody");
+    assert.deepEqual(list[0].params, { days: 4, label: "Pierna" });
+    assert.deepEqual(list[1].params, { days: 7, label: "Pierna" });
+  });
+
+  it("counts from the last logged training, and a new log restarts it", () => {
+    const completions = checks(["a1"], 1, at("2026-10-06", 6));
+    assert.deepEqual(ids(plan({ prefs: INACTIVITY_ONLY, completions })), [
+      "reminder-2026-10-10-inactivity",
+      "reminder-2026-10-13-inactivity",
+    ]);
+
+    const later = plan({
+      prefs: INACTIVITY_ONLY,
+      now: at("2026-10-08", 20),
+      completions,
+      setLogs: [setLog("b1", 1, "2026-10-08", { weight_kg: 50, reps: 10 })],
+    });
+    assert.deepEqual(ids(later), [
+      "reminder-2026-10-12-inactivity",
+      "reminder-2026-10-15-inactivity",
+    ]);
+  });
+
+  it("a check late in the evening counts on the phone's date", () => {
+    // 23:30 on 10-06 is 10-07 in UTC west of Greenwich; the base is still 10-06.
+    const list = plan({
+      prefs: INACTIVITY_ONLY,
+      completions: checks(["a1"], 1, at("2026-10-06", 23, 30)),
+    });
+    assert.deepEqual(ids(list), [
+      "reminder-2026-10-10-inactivity",
+      "reminder-2026-10-13-inactivity",
+    ]);
+  });
+
+  it("a log dated after today counts as today", () => {
+    // A wrong clock on this or another phone: the count starts today, it isn't lost.
+    const futureCheck = plan({
+      prefs: INACTIVITY_ONLY,
+      completions: checks(["a1"], 1, at("2026-12-01", 9)),
+    });
+    const futureSet = plan({
+      prefs: INACTIVITY_ONLY,
+      setLogs: [setLog("a1", 1, "2026-10-20", { reps: 8 })],
+    });
+    for (const list of [futureCheck, futureSet]) {
+      assert.deepEqual(ids(list), [
+        "reminder-2026-10-10-inactivity",
+        "reminder-2026-10-13-inactivity",
+      ]);
+    }
+  });
+
+  it("the base is never before the start date", () => {
+    // Checked on 10-01, before the 10-05 start (possible with the lock off).
+    const list = plan({
+      prefs: INACTIVITY_ONLY,
+      completions: checks(["a1"], 1, at("2026-10-01", 18)),
+    });
+    assert.deepEqual(ids(list), [
+      "reminder-2026-10-09-inactivity",
+      "reminder-2026-10-12-inactivity",
+    ]);
+  });
+
+  it("only the ones still ahead, and nothing after the 7-day one", () => {
+    // Started Wed 09-30, nothing logged: + 4 (10-04) has passed, + 7 is 10-07.
+    const list = plan({
+      prefs: INACTIVITY_ONLY,
+      program: makeProgram({ start_date: "2026-09-30" }),
+    });
+    assert.deepEqual(ids(list), ["reminder-2026-10-07-inactivity"]);
+  });
+
+  it("only inside the 14-day window", () => {
+    // Starts Mon 10-12: + 4 (10-16) and + 7 (10-19) are inside 10-06 … 10-19.
+    const inside = plan({
+      prefs: INACTIVITY_ONLY,
+      program: makeProgram({ start_date: "2026-10-12" }),
+    });
+    assert.deepEqual(ids(inside), [
+      "reminder-2026-10-16-inactivity",
+      "reminder-2026-10-19-inactivity",
+    ]);
+    // Starts Fri 10-16: + 4 is 10-20, past the window; a later rebuild adds them.
+    const outside = plan({
+      prefs: INACTIVITY_ONLY,
+      program: makeProgram({ start_date: "2026-10-16" }),
+    });
+    assert.deepEqual(outside, []);
+  });
+
+  it("not while that date's week has nothing pending", () => {
+    // Week 1 (10-05 … 10-11) all done on 10-06: + 4 is 10-10, still week 1.
+    const list = plan({
+      prefs: INACTIVITY_ONLY,
+      completions: checks([...DAY_A, ...DAY_B, ...DAY_C], 1, at("2026-10-06", 6)),
+    });
+    assert.deepEqual(ids(list), ["reminder-2026-10-13-inactivity"]);
+    assert.deepEqual(list[0].params, { days: 7, label: "Pierna" });
+  });
+
+  it("program dates and membership apply", () => {
+    // A 1-week program ends Sun 10-11, so + 7 (10-12) is after its last day.
+    const short = plan({ prefs: INACTIVITY_ONLY, program: makeProgram({ duration_weeks: 1 }) });
+    assert.deepEqual(ids(short), ["reminder-2026-10-09-inactivity"]);
+
+    const expiring = plan({
+      prefs: INACTIVITY_ONLY,
+      membership: { status: "active", expires_at: "2026-10-10" },
+    });
+    assert.deepEqual(ids(expiring), ["reminder-2026-10-09-inactivity"]);
+  });
+});
+
+const WEEK_ONLY = prefs({ training: false, weekOpened: true });
+const LOCKED = makeProgram({ lock_future_weeks: true });
+
+inEachZone("planReminders: week opened", () => {
+  it("only with 'Solo semana actual' on and the preference on", () => {
+    assert.deepEqual(plan({ prefs: WEEK_ONLY }), []);
+    assert.ok(plan({ program: LOCKED }).every((r) => r.kind !== "week"));
+  });
+
+  it("weeks 2+ opening in the window, at the reminder hour", () => {
+    const list = plan({ prefs: WEEK_ONLY, program: LOCKED });
+    // Week 4 opens 10-26, past the window's last day (10-19).
+    assert.deepEqual(ids(list), ["reminder-2026-10-12-week", "reminder-2026-10-19-week"]);
+    assert.equal(list[0].fireAt.getTime(), at("2026-10-12", 8).getTime());
+    assert.equal(list[0].titleKey, "reminders.weekTitle");
+    assert.equal(list[0].bodyKey, "reminders.weekBody");
+    assert.deepEqual(list[0].params, { w: 2, label: "Pierna", count: 3 });
+    assert.deepEqual(list[1].params, { w: 3, label: "Pierna", count: 3 });
+  });
+
+  it("never for week 1", () => {
+    // Starts Wed 10-07, inside the window: week 1 opens with the program itself.
+    const list = plan({
+      prefs: WEEK_ONLY,
+      program: makeProgram({ lock_future_weeks: true, start_date: "2026-10-07" }),
+    });
+    assert.deepEqual(ids(list), ["reminder-2026-10-14-week"]);
+  });
+
+  it("today's only while the hour is still ahead", () => {
+    assert.equal(
+      plan({ prefs: WEEK_ONLY, program: LOCKED, now: at("2026-10-12", 7) })[0].id,
+      "reminder-2026-10-12-week",
+    );
+    assert.equal(
+      plan({ prefs: WEEK_ONLY, program: LOCKED, now: at("2026-10-12", 9) })[0].id,
+      "reminder-2026-10-19-week",
+    );
+  });
+
+  it("skipped when that week has nothing pending or the membership ends first", () => {
+    // Week 2 already fully checked (the lock was switched on after the checks).
+    const done = plan({
+      prefs: WEEK_ONLY,
+      program: LOCKED,
+      completions: checks([...DAY_A, ...DAY_B, ...DAY_C], 2, at("2026-10-05", 18)),
+    });
+    assert.deepEqual(ids(done), ["reminder-2026-10-19-week"]);
+
+    const expiring = plan({
+      prefs: WEEK_ONLY,
+      program: LOCKED,
+      membership: { status: "active", expires_at: "2026-10-15" },
+    });
+    assert.deepEqual(ids(expiring), ["reminder-2026-10-12-week"]);
+  });
+
+  it("merged with a training reminder on the same date", () => {
+    // Mon 10-12 and Mon 10-19 are both training days and week-opening days.
+    const list = plan({ prefs: prefs({ weekOpened: true }), program: LOCKED });
+    assert.deepEqual(ids(list), [
+      "reminder-2026-10-07-training",
+      "reminder-2026-10-09-training",
+      "reminder-2026-10-12-week",
+      "reminder-2026-10-14-training",
+      "reminder-2026-10-16-training",
+      "reminder-2026-10-19-week",
+    ]);
+    const merged = byId(list, "reminder-2026-10-12-week")!;
+    assert.equal(merged.kind, "week");
+    assert.equal(merged.titleKey, "reminders.weekTitle");
+    assert.equal(merged.bodyKey, "reminders.trainingBody");
+    assert.deepEqual(merged.params, { label: "Pierna", count: 3, w: 2 });
+    assert.equal(merged.fireAt.getTime(), at("2026-10-12", 8).getTime());
+  });
+});
+
+inEachZone("planReminders: one per date", () => {
+  it("an inactivity reminder replaces that date's training reminder", () => {
+    // Nothing logged: + 4 is Fri 10-09 and + 7 is Mon 10-12, both training days.
+    const list = plan({ prefs: prefs({ inactivity: true }) });
+    assert.deepEqual(ids(list), [
+      "reminder-2026-10-07-training",
+      "reminder-2026-10-09-inactivity",
+      "reminder-2026-10-12-inactivity",
+      "reminder-2026-10-14-training",
+      "reminder-2026-10-16-training",
+      "reminder-2026-10-19-training",
+    ]);
+    assert.deepEqual(byId(list, "reminder-2026-10-09-inactivity")!.params, {
+      days: 4,
+      label: "Pierna",
+    });
+  });
+
+  it("and the week-opened one, merged with a training reminder or not", () => {
+    // Mon 10-12 opens week 2 and is + 7: the inactivity reminder wins it.
+    // Mon 10-19 opens week 3 and stays merged with its training reminder.
+    const merged = plan({ prefs: prefs({ inactivity: true, weekOpened: true }), program: LOCKED });
+    assert.deepEqual(ids(merged), [
+      "reminder-2026-10-07-training",
+      "reminder-2026-10-09-inactivity",
+      "reminder-2026-10-12-inactivity",
+      "reminder-2026-10-14-training",
+      "reminder-2026-10-16-training",
+      "reminder-2026-10-19-week",
+    ]);
+    assert.equal(byId(merged, "reminder-2026-10-19-week")!.bodyKey, "reminders.trainingBody");
+
+    const alone = plan({
+      prefs: prefs({ training: false, inactivity: true, weekOpened: true }),
+      program: LOCKED,
+    });
+    assert.deepEqual(ids(alone), [
+      "reminder-2026-10-09-inactivity",
+      "reminder-2026-10-12-inactivity",
+      "reminder-2026-10-19-week",
+    ]);
+  });
+});
+
+/** A Date's local calendar day, "YYYY-MM-DD". */
+function dayKey(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+inEachZone("planReminders: everything on", () => {
+  it("at most one reminder per date, all ahead, with unique reminder- ids", () => {
+    const everything = prefs({ inactivity: true, weekOpened: true });
+    const logs: ProgramExerciseCompletion[][] = [
+      [],
+      checks([...DAY_A, ...DAY_B], 1, at("2026-10-06", 6)),
+    ];
+    // Every day from 09-25 (before the start) to 11-06 (after the end).
+    for (let i = 0; i <= 42; i++) {
+      for (const hour of [0, 7, 8, 23]) {
+        const now = new Date(2026, 8, 25 + i, hour);
+        for (const completions of logs) {
+          const list = plan({
+            program: LOCKED,
+            availableDays: ALL_DAYS,
+            prefs: everything,
+            completions,
+            now,
+          });
+          const label = now.toString();
+          const dates = list.map((r) => dayKey(r.fireAt));
+          assert.equal(new Set(dates).size, list.length, `${label}: ${dates.join(" ")}`);
+          assert.ok(list.length <= 14, `${label}: ${list.length}`);
+          assert.ok(list.every((r) => r.id === `reminder-${dayKey(r.fireAt)}-${r.kind}`), label);
+          assert.ok(list.every((r) => r.fireAt.getTime() > now.getTime()), label);
+        }
+      }
+    }
+    // 10-06 07:00: one reminder on each of the 14 days. Inactivity takes
+    // 10-09 and 10-12 (week 2 opens there too); 10-19 is week 3's opening
+    // merged with its training reminder.
+    const full = plan({ program: LOCKED, availableDays: ALL_DAYS, prefs: everything });
+    assert.equal(full.length, 14);
+    assert.deepEqual(
+      full.filter((r) => r.kind !== "training").map((r) => r.id),
+      [
+        "reminder-2026-10-09-inactivity",
+        "reminder-2026-10-12-inactivity",
+        "reminder-2026-10-19-week",
+      ],
+    );
+  });
+});

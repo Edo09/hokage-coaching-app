@@ -6,7 +6,7 @@ import type {
   WorkoutSetLog,
 } from "@/src/types/database";
 import { addDays, dateKeyToDate, toDateKey } from "@/src/utils/dates";
-import { currentWeekOf, isAfterEnd, isBeforeStart } from "@/src/utils/program";
+import { currentWeekOf, isAfterEnd, isBeforeStart, weekOpensOn } from "@/src/utils/program";
 import { dayNameToIndex, dowIndex } from "@/src/utils/progress";
 
 // Pure planner behind the local reminders (docs/superpowers/specs/
@@ -206,6 +206,113 @@ function planTraining(
   return out;
 }
 
+/** Inactivity reminders fire this many days after the base date. */
+const INACTIVITY_DAYS = [4, 7] as const;
+
+/** Inactivity: base + 4 and base + 7 days, where the base is the later of
+    the last logged training and the start date, so any new log restarts the
+    count. A log dated after today (a phone with a wrong clock, another
+    device) counts as today. Each fires only inside the 14-day window, while
+    still ahead, on an allowed date, and while that date's week has a pending
+    training — a client who finished the week and waits for a locked one to
+    open isn't nudged. Nothing comes after the 7-day one. */
+function planInactivity(
+  input: ReminderInput,
+  program: ProgramWithDetails,
+  log: LogView,
+): PlannedReminder[] {
+  const { membership, prefs, now, labelOf } = input;
+  if (!prefs.inactivity) return [];
+  const today = toDateKey(now);
+  const lastDay = addDays(today, WINDOW_DAYS - 1);
+  let base = program.start_date;
+  for (const logged of log.trainedOn) {
+    const date = logged > today ? today : logged;
+    if (date > base) base = date;
+  }
+
+  const out: PlannedReminder[] = [];
+  for (const days of INACTIVITY_DAYS) {
+    const date = addDays(base, days);
+    if (date > lastDay) continue;
+    const fireAt = atHour(date, prefs.hour);
+    if (!isAhead(fireAt, now)) continue;
+    if (!dateAllowed(program, membership, date)) continue;
+    const day = firstPending(program, log, weekOfDate(program, date));
+    if (day == null) continue;
+    out.push({
+      id: reminderId(date, "inactivity"),
+      fireAt,
+      kind: "inactivity",
+      titleKey: "reminders.inactivityTitle",
+      bodyKey: "reminders.inactivityBody",
+      params: { days, label: labelOf(day) },
+    });
+  }
+  return out;
+}
+
+/** Week opened: "Solo semana actual" programs only. Each week from 2 on
+    whose opening day (weekOpensOn) is in the window, naming that week's
+    first pending training. Week 1 opens with the program itself. */
+function planWeekOpened(
+  input: ReminderInput,
+  program: ProgramWithDetails,
+  log: LogView,
+): PlannedReminder[] {
+  const { membership, prefs, now, labelOf } = input;
+  if (!prefs.weekOpened || !program.lock_future_weeks) return [];
+  const today = toDateKey(now);
+  const lastDay = addDays(today, WINDOW_DAYS - 1);
+
+  const out: PlannedReminder[] = [];
+  for (let w = 2; w <= program.duration_weeks; w++) {
+    const date = weekOpensOn(program.start_date, w);
+    if (date < today || date > lastDay) continue;
+    if (!dateAllowed(program, membership, date)) continue;
+    const fireAt = atHour(date, prefs.hour);
+    if (!isAhead(fireAt, now)) continue;
+    const day = firstPending(program, log, w);
+    if (day == null) continue;
+    out.push({
+      id: reminderId(date, "week"),
+      fireAt,
+      kind: "week",
+      titleKey: "reminders.weekTitle",
+      bodyKey: "reminders.weekBody",
+      // `count` picks the plural form (weekBody_one / _other).
+      params: { w, label: labelOf(day), count: day.program_exercises.length },
+    });
+  }
+  return out;
+}
+
+/** At most one reminder per local date (spec). An inactivity reminder wins
+    its date: the client hasn't trained in days, which says more than the
+    day's training, so that date's training or week-opened reminder is
+    dropped. Otherwise a week opening on a training date becomes ONE
+    notification: the week-opened title (and its "week" id) over the training
+    body. Both name the same training — the date's week is the week that
+    opens. */
+function onePerDate(
+  training: PlannedReminder[],
+  weekOpened: PlannedReminder[],
+  inactivity: PlannedReminder[],
+): PlannedReminder[] {
+  const byDate = new Map<string, PlannedReminder>();
+  for (const r of training) byDate.set(toDateKey(r.fireAt), r);
+  for (const week of weekOpened) {
+    const date = toDateKey(week.fireAt);
+    const day = byDate.get(date);
+    byDate.set(
+      date,
+      day == null ? week : { ...day, id: week.id, kind: "week", titleKey: week.titleKey },
+    );
+  }
+  for (const r of inactivity) byDate.set(toDateKey(r.fireAt), r);
+  return [...byDate.values()];
+}
+
 /** Soonest first; same instant → by id, so the order is deterministic. */
 function sortPlan(list: PlannedReminder[]): PlannedReminder[] {
   return [...list].sort(
@@ -219,5 +326,11 @@ export function planReminders(input: ReminderInput): PlannedReminder[] {
   const { program } = input;
   if (program == null || program.status !== "active") return [];
   const log = readLog(program, input.completions, input.setLogs);
-  return sortPlan(planTraining(input, program, log));
+  return sortPlan(
+    onePerDate(
+      planTraining(input, program, log),
+      planWeekOpened(input, program, log),
+      planInactivity(input, program, log),
+    ),
+  );
 }
