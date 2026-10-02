@@ -707,4 +707,39 @@ export default {
     timing_bedtime: "Antes de dormir",
     timing_any: "Cualquier momento",
   },
+
+  // Recordatorios locales (notificaciones): día de entreno, inactividad y
+  // semana abierta, más su paso en el onboarding y su tarjeta en Ajustes
+  reminders: {
+    trainingTitle: "Hoy toca {{label}}",
+    // Plurales de i18next: t("reminders.trainingBody", { count, w }) elige
+    // _one (1 ejercicio) u _other
+    trainingBody_one: "{{count}} ejercicio · Semana {{w}}",
+    trainingBody_other: "{{count}} ejercicios · Semana {{w}}",
+    inactivityTitle: "Han pasado {{days}} días sin entrenar",
+    inactivityBody: "{{label}} te espera",
+    weekTitle: "Tu semana {{w}} ya está disponible",
+    weekBody_one: "{{label}} · {{count}} ejercicio",
+    weekBody_other: "{{label}} · {{count}} ejercicios",
+    // Día sin nombre ni día de la semana (Inicio usa program.dayN, en mayúsculas)
+    dayN: "Día {{n}}",
+    onboardingTitle: "¿Te avisamos los días de entreno?",
+    onboardingText:
+      "Te recordamos qué te toca entrenar en tus días de entreno. Puedes cambiarlo cuando quieras en Ajustes.",
+    enable: "Activar",
+    notNow: "Ahora no",
+    cardTitle: "Notificaciones",
+    statusOn: "Activadas",
+    statusOff: "Desactivadas",
+    enableButton: "Activar notificaciones",
+    openSettings: "Abrir ajustes del teléfono",
+    prefTraining: "Días de entreno",
+    prefInactivity: "Si llevo días sin entrenar",
+    prefWeek: "Cuando se abre una semana",
+    hour: "Hora del recordatorio",
+    noDaysHint: "Elige tus días de entreno para recibir recordatorios.",
+    daysLabel: "Tus días de entreno",
+    // Nombre del canal de notificaciones en los ajustes de Android
+    channelName: "Recordatorios",
+  },
 } as const;

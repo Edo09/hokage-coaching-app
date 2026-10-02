@@ -707,4 +707,39 @@ export default {
     timing_bedtime: "Before bed",
     timing_any: "Anytime",
   },
+
+  // Local reminders (notifications): training day, inactivity and week
+  // opened, plus their onboarding step and their Settings card
+  reminders: {
+    trainingTitle: "Today: {{label}}",
+    // i18next plurals: t("reminders.trainingBody", { count, w }) picks _one
+    // (1 exercise) or _other
+    trainingBody_one: "{{count}} exercise · Week {{w}}",
+    trainingBody_other: "{{count}} exercises · Week {{w}}",
+    inactivityTitle: "It's been {{days}} days since you trained",
+    inactivityBody: "{{label}} is waiting for you",
+    weekTitle: "Week {{w}} is now open",
+    weekBody_one: "{{label}} · {{count}} exercise",
+    weekBody_other: "{{label}} · {{count}} exercises",
+    // A day with no label or weekday (Home uses the all-caps program.dayN)
+    dayN: "Day {{n}}",
+    onboardingTitle: "Want reminders on your training days?",
+    onboardingText:
+      "We'll remind you what to train on your training days. You can change this anytime in Settings.",
+    enable: "Turn on",
+    notNow: "Not now",
+    cardTitle: "Notifications",
+    statusOn: "On",
+    statusOff: "Off",
+    enableButton: "Turn on notifications",
+    openSettings: "Open phone settings",
+    prefTraining: "Training days",
+    prefInactivity: "When I haven't trained in a while",
+    prefWeek: "When a new week opens",
+    hour: "Reminder time",
+    noDaysHint: "Pick your training days to get reminders.",
+    daysLabel: "Your training days",
+    // Notification channel name in Android settings
+    channelName: "Reminders",
+  },
 } as const;

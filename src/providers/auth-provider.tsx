@@ -1,5 +1,6 @@
 import { clearOutbox } from "@/src/lib/outbox";
 import { persister, queryClient } from "@/src/lib/query-client";
+import { cancelReminders } from "@/src/lib/reminders";
 import { supabase } from "@/src/utils/supabase";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Session, User } from "@supabase/supabase-js";
@@ -90,8 +91,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       if (event === "SIGNED_OUT") {
         // Wipe everything account-scoped so the next sign-in can't see the
-        // previous user's cached data or replay their queued writes.
+        // previous user's cached data or replay their queued writes, or get
+        // reminders built from them.
         void clearOutbox();
+        void cancelReminders();
         queryClient.clear();
         void persister.removeClient();
       }

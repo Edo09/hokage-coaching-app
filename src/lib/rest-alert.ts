@@ -9,6 +9,7 @@ import { AppState, Platform, Vibration } from "react-native";
 
 import i18n from "@/src/i18n";
 import { alertSounds, alertVibrates, type AlertMode, getAlertMode } from "@/src/lib/alert-mode";
+import { isReminderData } from "@/src/lib/reminders";
 
 /**
  * How the client learns their rest is over.
@@ -138,17 +139,21 @@ export function setupRestAlerts() {
     allowsRecording: false,
   }).catch(() => {});
 
-  // Foreground finishes are already covered by the chime and the vibration
-  // above, so the OS notification would double up. Suppress it rather than
-  // skipping the schedule: whether the app is foregrounded at 0:00 is not
-  // knowable when the timer starts.
+  // Foreground rest finishes are already covered by the chime and the
+  // vibration above, so the OS notification would double up. Suppress it
+  // rather than skipping the schedule: whether the app is foregrounded at 0:00
+  // is not knowable when the timer starts. The app's only handler, so it also
+  // decides for the local reminders (`@/src/lib/reminders`): those always
+  // show, since nothing on screen says what they say.
   Notifications.setNotificationHandler({
-    handleNotification: async () => {
-      const active = AppState.currentState === "active";
+    handleNotification: async (notification) => {
+      const show =
+        isReminderData(notification.request.content.data) ||
+        AppState.currentState !== "active";
       return {
-        shouldShowBanner: !active,
-        shouldShowList: !active,
-        shouldPlaySound: !active,
+        shouldShowBanner: show,
+        shouldShowList: show,
+        shouldPlaySound: show,
         shouldSetBadge: false,
       };
     },

@@ -11,6 +11,7 @@ import "@/src/lib/muscle-map-view";
 import { setupOnlineManager } from "@/src/lib/online";
 import { flushOutbox } from "@/src/lib/outbox";
 import { persister, PERSIST_MAX_AGE, queryClient } from "@/src/lib/query-client";
+import { ensureReminderChannel } from "@/src/lib/reminders";
 import { setupRestAlerts } from "@/src/lib/rest-alert";
 import { AuthProvider } from "@/src/providers/auth-provider";
 import { CelebrationProvider } from "@/src/providers/celebration-provider";
@@ -47,9 +48,14 @@ SplashScreen.preventAutoHideAsync();
 // the auth token refresh timer and retries any queued offline writes.
 setupOnlineManager();
 // Audio session, Android notification channel and the foreground notification
-// handler for the rest timer. Module scope, not an effect: the notification
-// handler has to be installed before any scheduled rest can fire.
+// handler for the rest timer (the handler also lets reminders show). Module
+// scope, not an effect: the handler has to be installed before any scheduled
+// rest or reminder can fire.
 setupRestAlerts();
+// The reminders' own Android channel («Recordatorios»), so a client can mute
+// them without muting the rest alert. Named in the language i18n starts in;
+// every rebuild re-applies the name in the current one (src/lib/reminders.ts).
+void ensureReminderChannel(i18n.t("reminders.channelName"));
 AppState.addEventListener("change", (status) => {
   focusManager.setFocused(status === "active");
   if (status === "active") {
