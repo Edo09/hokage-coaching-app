@@ -1,7 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import { Image } from "expo-image";
-import { useVideoPlayer, VideoView } from "expo-video";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -15,6 +13,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { DemoMedia } from "@/src/components/program/demo-media";
 import { LockNote } from "@/src/components/program/lock-note";
 import { RestButton } from "@/src/components/program/program-exercise-row";
 import { ProgramSetLogger } from "@/src/components/program/program-set-logger";
@@ -45,9 +44,6 @@ const REVEAL_CONTEXT = 56;
 const QUIT_CONFIRM_MS = 10_000;
 /** Let the finish burst play before the sheet slides away. */
 const FINISH_SETTLE_MS = 320;
-
-/** GIF/WebP demos are animated images (expo-image); anything else is video. */
-const isImageDemo = (uri: string): boolean => /\.(gif|apng|webp|png|jpe?g)$/i.test(uri.split("?")[0]);
 
 type Props = {
   exercise: ProgramExercise | null;
@@ -468,58 +464,6 @@ export function ProgramExerciseModal({
         </View>
       </View>
     </Modal>
-  );
-}
-
-/** The demo, playing in the sheet; the corner button opens it full screen. */
-function DemoMedia({ uri, onExpand }: { uri: string; onExpand: (uri: string) => void }) {
-  const { t } = useTranslation();
-  const image = isImageDemo(uri);
-  return (
-    <View
-      className="overflow-hidden rounded-2xl"
-      // The catalog's GIFs are drawn on white; videos letterbox on black.
-      style={{ height: 200, backgroundColor: image ? "#ffffff" : "#000000" }}
-    >
-      {image ? (
-        <Image
-          source={{ uri }}
-          style={{ width: "100%", height: "100%" }}
-          contentFit="contain"
-          cachePolicy="memory-disk"
-          transition={150}
-        />
-      ) : (
-        <InlineVideo uri={uri} />
-      )}
-      <Pressable
-        onPress={() => onExpand(uri)}
-        accessibilityRole="button"
-        accessibilityLabel={t("program.demoFullScreen")}
-        hitSlop={6}
-        className="absolute right-2 top-2 h-9 w-9 items-center justify-center rounded-full"
-        style={{ backgroundColor: "rgba(0,0,0,0.55)" }}
-      >
-        <Ionicons name="expand" size={17} color="#ffffff" />
-      </Pressable>
-    </View>
-  );
-}
-
-/** Muted and looping, like the GIF demos; controls live in full screen. */
-function InlineVideo({ uri }: { uri: string }) {
-  const player = useVideoPlayer(uri, (p) => {
-    p.loop = true;
-    p.muted = true;
-    p.play();
-  });
-  return (
-    <VideoView
-      style={{ width: "100%", height: "100%" }}
-      player={player}
-      contentFit="contain"
-      nativeControls={false}
-    />
   );
 }
 

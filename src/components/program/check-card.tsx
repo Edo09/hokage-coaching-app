@@ -1,5 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { BackHandler, PanResponder, StyleSheet } from "react-native";
 import {
@@ -9,6 +9,7 @@ import {
   withTiming,
 } from "react-native-reanimated";
 
+import { DemoMedia } from "@/src/components/program/demo-media";
 import { useProgram } from "@/src/hooks/use-program";
 import { useProgramLogging } from "@/src/hooks/use-program-logging";
 import { checkCard, type CheckCardState, useCheckCard } from "@/src/lib/check-card";
@@ -37,11 +38,11 @@ import { checkHighlight, type CheckHighlight, nextExercise } from "@/src/utils/c
 import { effectivePrescription, weekByNumber } from "@/src/utils/program";
 import { dayRecordLogs, exerciseNames, exerciseRecord } from "@/src/utils/records";
 
-/** How long a card stays up with no finger on it. */
-const AUTO_CLOSE_MS = 5000;
 /** A drag down this far (px), or a flick this fast (px/ms), swipes it away. */
 const SWIPE_CLOSE_PX = 40;
 const SWIPE_CLOSE_VY = 0.5;
+/** The next exercise's demo: short enough that the card fits a small phone. */
+const NEXT_DEMO_H = 168;
 
 const TABULAR = { fontVariant: ["tabular-nums" as const] };
 
@@ -75,8 +76,8 @@ function contentKey(card: CheckCardState): string {
  * The card that answers a check-off (`@/src/lib/check-card`): rendered once,
  * in the tabs layout, so it shows over whichever tab the check came from. A
  * small dialog in the middle of the screen, over a dimmed backdrop that
- * covers the tab bar and the rest and session bars too; a tap on the
- * backdrop, or Android back, closes it.
+ * covers the tab bar and the rest and session bars too. Up until the client
+ * closes it: its ✕, a tap on the backdrop, Android back or a swipe down.
  */
 export function CheckCardHost() {
   const card = useCheckCard();
@@ -120,22 +121,14 @@ export function CheckCardHost() {
 
 /**
  * A dialog in the middle of the screen: it fades in while growing over a
- * dimmed backdrop, and closes by itself after ~5 s, with a tap on the
- * backdrop or with a swipe down. A finger on the card holds it (letting go
- * gives it the full time again); a new check restarts the time. No haptic:
- * the check already gave one.
+ * dimmed backdrop. It never closes by itself; the client closes it with its
+ * ✕, a tap on the backdrop or a swipe down. No haptic: the check already
+ * gave one.
  */
 function CheckCardFrame({ card, program }: { card: CheckCardState; program: ProgramWithDetails }) {
   const { t } = useTranslation();
   const reduced = useReducedMotion();
-  const [touching, setTouching] = useState(false);
   const drag = useSharedValue(0);
-
-  useEffect(() => {
-    if (touching) return;
-    const id = setTimeout(() => checkCard.dismiss({ keepRun: true }), AUTO_CLOSE_MS);
-    return () => clearTimeout(id);
-  }, [card, touching]);
 
   // Vertical drags only, so taps still reach the buttons; a drag that starts
   // on a button takes over from it.
@@ -154,8 +147,6 @@ function CheckCardFrame({ card, program }: { card: CheckCardState; program: Prog
   }, [drag, reduced]);
   const dragStyle = useAnimatedStyle(() => ({ transform: [{ translateY: drag.get() }] }));
 
-  const hold = () => setTouching(true);
-  const release = () => setTouching(false);
   const close = () => checkCard.dismiss({ keepRun: true });
 
   return (
@@ -187,13 +178,6 @@ function CheckCardFrame({ card, program }: { card: CheckCardState; program: Prog
           {...pan.panHandlers}
           testID="check-card"
           style={dragStyle}
-          // Touch for phones, pointer for a mouse on web.
-          onTouchStart={hold}
-          onTouchEnd={release}
-          onTouchCancel={release}
-          onPointerDown={hold}
-          onPointerUp={release}
-          onPointerLeave={release}
           accessibilityViewIsModal
           accessibilityLiveRegion="polite"
           className="w-full max-w-[360px] overflow-hidden rounded-2xl border border-border bg-surface p-4"
@@ -261,6 +245,7 @@ function SingleCard({
 
   const next = undoOnly ? null : nextExercise(day, exercise.id, isDone);
   const nextName = next != null ? effectivePrescription(next.exercise, weekRow, week).name : null;
+  const nextDemo = next?.exercise.exercise?.video_url || null;
   const nextLabel =
     next == null
       ? null
@@ -316,6 +301,16 @@ function SingleCard({
       </View>
 
       {highlight != null && <HighlightLine highlight={highlight} />}
+
+      {/* What comes next, playing: a tap opens it, like «Siguiente» (which
+          screen readers use; the demo is only a picture to them). */}
+      {nextDemo != null && (
+        <Pressable onPress={openNext} accessible={false}>
+          <View pointerEvents="none">
+            <DemoMedia key={nextDemo} uri={nextDemo} height={NEXT_DEMO_H} />
+          </View>
+        </Pressable>
+      )}
 
       {/* Its own row, so the next exercise's name reads in full. */}
       {nextLabel != null && <NextButton label={nextLabel} onPress={openNext} />}
@@ -395,8 +390,12 @@ function DayAgainCard({
   );
 }
 
-/** The check and what was done; two lines, so a long name still reads. */
+/**
+ * The check and what was done (two lines, so a long name still reads), and
+ * the ✕ that closes the card: it doesn't close by itself.
+ */
 function CardHeader({ title }: { title: string }) {
+  const { t } = useTranslation();
   const colors = useColors();
   return (
     <View className="flex-row items-center gap-2.5">
@@ -406,6 +405,15 @@ function CardHeader({ title }: { title: string }) {
       <Text className="min-w-0 flex-1 text-[15px] font-semibold text-content-primary" numberOfLines={2}>
         {title}
       </Text>
+      <Pressable
+        onPress={() => checkCard.dismiss({ keepRun: true })}
+        accessibilityRole="button"
+        accessibilityLabel={t("common.close")}
+        hitSlop={10}
+        className="-mr-1 h-8 w-8 items-center justify-center self-start rounded-full"
+      >
+        <Ionicons name="close" size={20} color={colors.contentSecondary} />
+      </Pressable>
     </View>
   );
 }

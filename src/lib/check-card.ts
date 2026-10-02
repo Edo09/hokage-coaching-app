@@ -3,8 +3,8 @@ import { useSyncExternalStore } from "react";
 /**
  * The card that answers a check-off: which one is up, if any. One at a time,
  * so a new check replaces the card instead of stacking a second one. The
- * host (`CheckCardHost`, mounted in the tabs layout) renders it and closes it
- * after a few seconds.
+ * host (`CheckCardHost`, mounted in the tabs layout) renders it, up until the
+ * client closes it.
  *
  * Also the session's memory around it:
  *   - the burst of checks going on: a check within 8 s of the one before is
@@ -54,9 +54,9 @@ export const checkCard = {
 
   /**
    * Take the card down, and end the burst of checks (Deshacer, Siguiente, a
-   * sheet opening, the day modal). The card closing by itself, or swiped
-   * away, passes `keepRun`: the next quick check still collapses into the
-   * count.
+   * sheet opening, the day modal). The client closing the card (its ✕, the
+   * backdrop, back, a swipe) passes `keepRun`: the next quick check still
+   * collapses into the count.
    */
   dismiss(opts?: { keepRun?: boolean }) {
     if (opts?.keepRun !== true) run = null;
