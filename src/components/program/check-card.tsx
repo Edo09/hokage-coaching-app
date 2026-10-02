@@ -302,6 +302,11 @@ function SingleCard({
 
       {highlight != null && <HighlightLine highlight={highlight} />}
 
+      {/* Its own row, so the next exercise's name reads in full. Above the
+          demo, so the demo reads as the exercise it names, not the one just
+          checked. */}
+      {nextLabel != null && <NextButton label={nextLabel} onPress={openNext} />}
+
       {/* What comes next, playing: a tap opens it, like «Siguiente» (which
           screen readers use; the demo is only a picture to them). */}
       {nextDemo != null && (
@@ -311,9 +316,6 @@ function SingleCard({
           </View>
         </Pressable>
       )}
-
-      {/* Its own row, so the next exercise's name reads in full. */}
-      {nextLabel != null && <NextButton label={nextLabel} onPress={openNext} />}
 
       <View className="flex-row items-center gap-2">
         {showRest && (
