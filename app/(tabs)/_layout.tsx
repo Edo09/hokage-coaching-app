@@ -2,7 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { router, Tabs, useIsFocused } from "expo-router";
 import React, { useEffect } from "react";
 import { useTranslation } from "react-i18next";
-import { View } from "react-native";
+import { Platform, View } from "react-native";
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
 
 import { AppMenu } from "@/src/components/app-menu";
@@ -11,6 +11,8 @@ import { ExerciseSessionHost } from "@/src/components/program/exercise-session-h
 import { RestTimerBar } from "@/src/components/program/rest-timer-bar";
 import { TabHeader } from "@/src/components/ui";
 import { useAuth } from "@/src/hooks/use-auth";
+import { useReminderSync } from "@/src/hooks/use-reminder-sync";
+import { useReminderTaps } from "@/src/hooks/use-reminder-taps";
 import { DUR, EASE_OUT } from "@/src/lib/motion";
 import { useColors } from "@/src/theme/colors";
 import { Pressable } from "@/src/tw";
@@ -55,6 +57,17 @@ function ProfileHeader() {
   const name =
     (user?.user_metadata?.display_name as string | undefined) ?? user?.email?.split("@")[0] ?? null;
   return <TabHeader title={t("tabs.profile")} context={name} right={<AppMenu />} />;
+}
+
+// Local reminders: keeps the next 14 days scheduled and opens Programa when
+// one is tapped. Here because both need a signed-in, onboarded client, which
+// AuthGate has settled on once the tabs mount. Its own component, rendering
+// nothing, so the re-renders its data causes (every check-off, every refetch)
+// stay off the tab navigator.
+function Reminders() {
+  useReminderSync();
+  useReminderTaps();
+  return null;
 }
 
 export default function TabsLayout() {
@@ -156,6 +169,8 @@ export default function TabsLayout() {
     <CheckCardHost bottom={74} />
     {/* The exercise in progress: its sheet, or its bar above the rest bar. */}
     <ExerciseSessionHost tabBarHeight={74} />
+    {/* Web has no local notifications. */}
+    {Platform.OS !== "web" && <Reminders />}
     </View>
   );
 }

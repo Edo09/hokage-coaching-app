@@ -21,10 +21,14 @@ async function fetchMembership(userId: string): Promise<Membership | null> {
 
 export function useMembership() {
   const { user } = useAuth();
-  const { data: membership = null, isPending: loading } = useQuery({
+  const {
+    data: membership = null,
+    isPending: loading,
+    isError: error,
+  } = useQuery({
     queryKey: qk.membership(user?.id),
     queryFn: () => fetchMembership(user!.id),
     enabled: !!user,
   });
-  return { membership, loading };
+  return { membership, loading, error };
 }

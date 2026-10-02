@@ -21,7 +21,7 @@ export function useProfile(userId: string | undefined) {
   const queryClient = useQueryClient();
   const profileKey = qk.profile(userId);
 
-  const { data: profile = null, isPending: loading } = useQuery({
+  const { data: profile = null, isPending: loading, isError: error } = useQuery({
     queryKey: profileKey,
     queryFn: () => fetchProfile(userId!),
     enabled: !!userId,
@@ -46,5 +46,5 @@ export function useProfile(userId: string | undefined) {
     },
   });
 
-  return { profile, loading, updateProfile: updateProfileMutation.mutateAsync };
+  return { profile, loading, error, updateProfile: updateProfileMutation.mutateAsync };
 }
