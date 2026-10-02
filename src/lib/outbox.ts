@@ -40,6 +40,10 @@ const STORAGE_KEY = "hokage-outbox-v1";
 let queue: OutboxOp[] = [];
 let hydration: Promise<void> | null = null;
 let flushing: Promise<void> | null = null;
+/** The op doFlush is sending right now. A profile edit must not merge into
+    it: its payload is already on its way, and the op is removed once the
+    send returns, so a change merged into it would never reach the server. */
+let inFlightOpId: string | null = null;
 
 const countListeners = new Set<() => void>();
 const resultListeners = new Set<(result: FlushResult) => void>();
@@ -104,7 +108,8 @@ export async function enqueue(
         q.userId === op.userId &&
         q.table === "profiles" &&
         q.kind === "upsert" &&
-        q.payload.id === op.payload.id,
+        q.payload.id === op.payload.id &&
+        q.opId !== inFlightOpId,
     );
     if (prev) {
       prev.payload = { ...prev.payload, ...op.payload };
@@ -147,6 +152,7 @@ async function doFlush(): Promise<void> {
       await save();
       continue;
     }
+    inFlightOpId = op.opId;
     try {
       await execute(op);
     } catch (e) {
@@ -162,6 +168,8 @@ async function doFlush(): Promise<void> {
         `[outbox] dropped ${op.kind} on ${op.table}:`,
         (e as { message?: string })?.message ?? e,
       );
+    } finally {
+      inFlightOpId = null;
     }
     removeOp(op.opId);
     await save();

@@ -1,10 +1,12 @@
 import { Ionicons } from "@expo/vector-icons";
-import React, { useState } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Linking } from "react-native";
 
 import { openExactAlarmSettings, useCanScheduleExactAlarms } from "@/modules/exact-alarms";
 import { CoachSection } from "@/src/components/coach-section";
+import { NotificationsCard } from "@/src/components/notifications-card";
+import { SettingsRow } from "@/src/components/settings-row";
 import { Button, Card, Input, Screen, useToast } from "@/src/components/ui";
 import { setLanguage } from "@/src/i18n";
 import { ALERT_MODES, setAlertMode, useAlertMode } from "@/src/lib/alert-mode";
@@ -17,36 +19,6 @@ import { setThemeMode } from "@/src/theme/theme-mode";
 import { useThemeScheme } from "@/src/theme/theme-store";
 import { Pressable, Text, View } from "@/src/tw";
 import { supabase } from "@/src/utils/supabase";
-
-type RowProps = {
-  icon: React.ComponentProps<typeof Ionicons>["name"];
-  label: string;
-  value: string;
-  onPress: () => void;
-  last?: boolean;
-};
-
-// Tappable preference row: label left, current value + chevron right.
-// Tapping cycles a binary setting, or opens a card's options (rest alert,
-// password).
-function SettingsRow({ icon, label, value, onPress, last = false }: RowProps) {
-  const colors = useColors();
-  return (
-    <Pressable
-      onPress={onPress}
-      accessibilityRole="button"
-      accessibilityLabel={`${label}: ${value}`}
-      className={`flex-row items-center gap-3 py-3.5 ${last ? "" : "border-b border-border"}`}
-    >
-      <View className="h-8 w-8 items-center justify-center rounded-lg bg-brand-dark">
-        <Ionicons name={icon} size={16} color={colors.contentSecondary} />
-      </View>
-      <Text className="flex-1 text-[15px] font-medium text-content-primary">{label}</Text>
-      <Text className="text-sm text-content-tertiary">{value}</Text>
-      <Ionicons name="chevron-forward" size={16} color={colors.contentMuted} />
-    </Pressable>
-  );
-}
 
 // Lets a client rotate the temporary password the coach created their
 // account with (panel "Añadir cliente" flow) — or change it any time.
@@ -240,6 +212,8 @@ export default function SettingsScreen() {
       </Card>
 
       <RestAlertCard />
+
+      <NotificationsCard />
 
       <ChangePasswordCard />
 
