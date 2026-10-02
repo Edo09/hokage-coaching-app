@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import React, { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { PanResponder } from "react-native";
+import { BackHandler, PanResponder, StyleSheet } from "react-native";
 import {
   useAnimatedStyle,
   useReducedMotion,
@@ -11,10 +11,18 @@ import {
 
 import { useProgram } from "@/src/hooks/use-program";
 import { useProgramLogging } from "@/src/hooks/use-program-logging";
-import { barStackOffset, useBottomBarHeights } from "@/src/lib/bottom-bars";
 import { checkCard, type CheckCardState, useCheckCard } from "@/src/lib/check-card";
 import { exerciseSession, useExerciseSession } from "@/src/lib/exercise-session";
-import { DUR, EASE_OUT, enter, exit, PressableScale, Swap } from "@/src/lib/motion";
+import {
+  DUR,
+  EASE_OUT,
+  enterFade,
+  exit,
+  modalEnter,
+  modalExit,
+  PressableScale,
+  Swap,
+} from "@/src/lib/motion";
 import { kgToUnit1, useWeightUnit } from "@/src/lib/weight-unit";
 import { formatClock, useRestTimer } from "@/src/providers/rest-timer-provider";
 import { useColors } from "@/src/theme/colors";
@@ -65,15 +73,14 @@ function contentKey(card: CheckCardState): string {
 
 /**
  * The card that answers a check-off (`@/src/lib/check-card`): rendered once,
- * in the tabs layout, so it floats over whichever tab the check came from.
- * Clear of the tab bar (`bottom`), and above the rest bar and the
- * exercise-in-progress bar when they show. No backdrop: the screen stays
- * usable underneath.
+ * in the tabs layout, so it shows over whichever tab the check came from. A
+ * small dialog in the middle of the screen, over a dimmed backdrop that
+ * covers the tab bar and the rest and session bars too; a tap on the
+ * backdrop, or Android back, closes it.
  */
-export function CheckCardHost({ bottom }: { bottom: number }) {
+export function CheckCardHost() {
   const card = useCheckCard();
   const session = useExerciseSession();
-  const rest = useRestTimer();
   const { program } = useProgram();
 
   // An exercise sheet opening covers the card: take it down. And none is
@@ -90,22 +97,20 @@ export function CheckCardHost({ bottom }: { bottom: number }) {
     if (stale) checkCard.dismiss();
   }, [stale]);
 
-  // The same condition ExerciseSessionHost shows its bar on.
-  const sessionBar =
-    session.sheet == null &&
-    session.active != null &&
-    program != null &&
-    locate(program, session.active.exerciseId) != null;
-  // Stacked on the bars' measured heights: their text follows the system
-  // font size, so a fixed footprint would overlap them at large sizes.
-  const bars = useBottomBarHeights();
-  const offset = barStackOffset(bottom, { restShown: rest.running, sessionShown: sessionBar }, bars);
+  // Android back closes the card instead of leaving the screen under it.
+  const shown = card != null && program != null && renderable(card, program);
+  useEffect(() => {
+    if (!shown) return;
+    const sub = BackHandler.addEventListener("hardwareBackPress", () => {
+      checkCard.dismiss({ keepRun: true });
+      return true;
+    });
+    return () => sub.remove();
+  }, [shown]);
 
   return (
-    <View
-      pointerEvents="box-none"
-      style={{ position: "absolute", left: 0, right: 0, bottom: offset, zIndex: 50 }}
-    >
+    // Over everything the tabs layout draws (the bars sit at zIndex 50).
+    <View pointerEvents="box-none" style={[StyleSheet.absoluteFill, { zIndex: 60 }]}>
       {card != null && program != null && renderable(card, program) && (
         <CheckCardFrame card={card} program={program} />
       )}
@@ -114,11 +119,14 @@ export function CheckCardHost({ bottom }: { bottom: number }) {
 }
 
 /**
- * Slides up, closes by itself after ~5 s or with a swipe down. A finger on
- * the card holds it (letting go gives it the full time again); a new check
- * restarts the time. No haptic: the check already gave one.
+ * A dialog in the middle of the screen: it fades in while growing over a
+ * dimmed backdrop, and closes by itself after ~5 s, with a tap on the
+ * backdrop or with a swipe down. A finger on the card holds it (letting go
+ * gives it the full time again); a new check restarts the time. No haptic:
+ * the check already gave one.
  */
 function CheckCardFrame({ card, program }: { card: CheckCardState; program: ProgramWithDetails }) {
+  const { t } = useTranslation();
   const reduced = useReducedMotion();
   const [touching, setTouching] = useState(false);
   const drag = useSharedValue(0);
@@ -148,35 +156,60 @@ function CheckCardFrame({ card, program }: { card: CheckCardState; program: Prog
 
   const hold = () => setTouching(true);
   const release = () => setTouching(false);
+  const close = () => checkCard.dismiss({ keepRun: true });
 
   return (
-    // Entrance and exit on their own view: the drag owns the inner one's transform.
-    <AnimatedView entering={reduced ? undefined : enter()} exiting={reduced ? undefined : exit()}>
+    <>
+      {/* Dims the screen, like the day modal; a tap on it closes the card. */}
       <AnimatedView
-        {...pan.panHandlers}
-        testID="check-card"
-        style={dragStyle}
-        // Touch for phones, pointer for a mouse on web.
-        onTouchStart={hold}
-        onTouchEnd={release}
-        onTouchCancel={release}
-        onPointerDown={hold}
-        onPointerUp={release}
-        onPointerLeave={release}
-        accessibilityLiveRegion="polite"
-        className="mx-3 mb-2 overflow-hidden rounded-2xl border border-border bg-surface px-3 py-3"
+        entering={reduced ? undefined : enterFade()}
+        exiting={reduced ? undefined : exit()}
+        style={StyleSheet.absoluteFill}
       >
-        <Swap id={contentKey(card)}>
-          {card.kind === "single" ? (
-            <SingleCard card={card} program={program} />
-          ) : card.kind === "batch" ? (
-            <BatchCard items={card.items} program={program} />
-          ) : (
-            <DayAgainCard card={card} program={program} />
-          )}
-        </Swap>
+        <Pressable
+          onPress={close}
+          accessibilityRole="button"
+          accessibilityLabel={t("common.close")}
+          style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)" }}
+        />
       </AnimatedView>
-    </AnimatedView>
+      {/* Entrance and exit on this full-screen layer: its centre is the
+          card's, so it scales in place, and the drag owns the card's own
+          transform. Taps beside the card fall through to the backdrop. */}
+      <AnimatedView
+        pointerEvents="box-none"
+        entering={reduced ? undefined : modalEnter()}
+        exiting={reduced ? undefined : modalExit()}
+        style={StyleSheet.absoluteFill}
+        className="items-center justify-center px-5"
+      >
+        <AnimatedView
+          {...pan.panHandlers}
+          testID="check-card"
+          style={dragStyle}
+          // Touch for phones, pointer for a mouse on web.
+          onTouchStart={hold}
+          onTouchEnd={release}
+          onTouchCancel={release}
+          onPointerDown={hold}
+          onPointerUp={release}
+          onPointerLeave={release}
+          accessibilityViewIsModal
+          accessibilityLiveRegion="polite"
+          className="w-full max-w-[360px] overflow-hidden rounded-2xl border border-border bg-surface p-4"
+        >
+          <Swap id={contentKey(card)}>
+            {card.kind === "single" ? (
+              <SingleCard card={card} program={program} />
+            ) : card.kind === "batch" ? (
+              <BatchCard items={card.items} program={program} />
+            ) : (
+              <DayAgainCard card={card} program={program} />
+            )}
+          </Swap>
+        </AnimatedView>
+      </AnimatedView>
+    </>
   );
 }
 
@@ -255,8 +288,8 @@ function SingleCard({
   };
 
   return (
-    <View className="gap-2.5">
-      <CardHeader title={p.name} onUndo={undo} />
+    <View className="gap-3">
+      <CardHeader title={p.name} />
 
       {/* The day so far: one segment per exercise, in the day's order. */}
       <View className="flex-row items-center gap-2 pl-[34px]">
@@ -284,26 +317,27 @@ function SingleCard({
 
       {highlight != null && <HighlightLine highlight={highlight} />}
 
-      {(nextLabel != null || showRest) && (
-        <View className="flex-row items-center gap-2">
-          {nextLabel != null && <NextButton label={nextLabel} onPress={openNext} />}
-          {showRest && (
-            <Pressable
-              onPress={() => rest.start(restSeconds, p.name)}
-              accessibilityRole="button"
-              accessibilityLabel={t("program.restStart", { seconds: restSeconds, name: p.name })}
-              hitSlop={6}
-              className="flex-row items-center gap-1.5 rounded-lg border px-3 py-2"
-              style={{ borderColor: colors.border }}
-            >
-              <Ionicons name="play-circle" size={17} color={colors.brandSecondary} />
-              <Text className="text-[13px] font-bold text-brand-secondary" style={TABULAR}>
-                {t("checkCard.rest", { time: formatClock(restSeconds) })}
-              </Text>
-            </Pressable>
-          )}
-        </View>
-      )}
+      {/* Its own row, so the next exercise's name reads in full. */}
+      {nextLabel != null && <NextButton label={nextLabel} onPress={openNext} />}
+
+      <View className="flex-row items-center gap-2">
+        {showRest && (
+          <Pressable
+            onPress={() => rest.start(restSeconds, p.name)}
+            accessibilityRole="button"
+            accessibilityLabel={t("program.restStart", { seconds: restSeconds, name: p.name })}
+            hitSlop={6}
+            className="flex-row items-center gap-1.5 rounded-lg border px-3 py-2"
+            style={{ borderColor: colors.border }}
+          >
+            <Ionicons name="play-circle" size={17} color={colors.brandSecondary} />
+            <Text className="text-[13px] font-bold text-brand-secondary" style={TABULAR}>
+              {t("checkCard.rest", { time: formatClock(restSeconds) })}
+            </Text>
+          </Pressable>
+        )}
+        <UndoButton onPress={undo} />
+      </View>
     </View>
   );
 }
@@ -325,7 +359,14 @@ function BatchCard({
       for (const item of items) await logging.setCompletion(item.exerciseId, item.week, false);
     })();
   };
-  return <CardHeader title={t("checkCard.batch", { count: items.length })} onUndo={undo} />;
+  return (
+    <View className="gap-3">
+      <CardHeader title={t("checkCard.batch", { count: items.length })} />
+      <View className="flex-row">
+        <UndoButton onPress={undo} />
+      </View>
+    </View>
+  );
 }
 
 /** A day's last exercise re-checked after its celebration already played. */
@@ -344,31 +385,45 @@ function DayAgainCard({
     checkCard.dismiss();
     void logging.setCompletion(card.exerciseId, card.week, false);
   };
-  return <CardHeader title={t("checkCard.dayAgain", { n: day.day_index })} onUndo={undo} />;
+  return (
+    <View className="gap-3">
+      <CardHeader title={t("checkCard.dayAgain", { n: day.day_index })} />
+      <View className="flex-row">
+        <UndoButton onPress={undo} />
+      </View>
+    </View>
+  );
 }
 
-/** The check, what was done, and «Deshacer», which every card has. */
-function CardHeader({ title, onUndo }: { title: string; onUndo: () => void }) {
-  const { t } = useTranslation();
+/** The check and what was done; two lines, so a long name still reads. */
+function CardHeader({ title }: { title: string }) {
   const colors = useColors();
   return (
     <View className="flex-row items-center gap-2.5">
       <View className="h-6 w-6 items-center justify-center rounded-full bg-success">
         <Ionicons name="checkmark" size={15} color={colors.white} />
       </View>
-      <Text className="min-w-0 flex-1 text-[14px] font-semibold text-content-primary" numberOfLines={1}>
+      <Text className="min-w-0 flex-1 text-[15px] font-semibold text-content-primary" numberOfLines={2}>
         {title}
       </Text>
-      <Pressable
-        onPress={onUndo}
-        accessibilityRole="button"
-        hitSlop={8}
-        className="flex-row items-center gap-1 rounded-lg px-2 py-1.5"
-      >
-        <Ionicons name="arrow-undo" size={14} color={colors.contentSecondary} />
-        <Text className="text-[12px] font-semibold text-content-secondary">{t("checkCard.undo")}</Text>
-      </Pressable>
     </View>
+  );
+}
+
+/** «Deshacer», which every card has, at the end of its bottom row. */
+function UndoButton({ onPress }: { onPress: () => void }) {
+  const { t } = useTranslation();
+  const colors = useColors();
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      hitSlop={8}
+      className="ml-auto flex-row items-center gap-1 rounded-lg px-2 py-1.5"
+    >
+      <Ionicons name="arrow-undo" size={14} color={colors.contentSecondary} />
+      <Text className="text-[12px] font-semibold text-content-secondary">{t("checkCard.undo")}</Text>
+    </Pressable>
   );
 }
 
@@ -409,21 +464,21 @@ function HighlightLine({ highlight }: { highlight: CheckHighlight }) {
   );
 }
 
-/** «Siguiente»: the poster's red skewed block, one line however long the name. */
+/** «Siguiente»: the poster's red skewed block, full width; a long name takes a second line. */
 function NextButton({ label, onPress }: { label: string; onPress: () => void }) {
   const colors = useColors();
   return (
-    <PressableScale onPress={onPress} accessibilityRole="button" className="min-w-0 flex-1">
+    <PressableScale onPress={onPress} accessibilityRole="button" className="w-full">
       {/* Skew on a nested view: PressableScale's press style owns `transform`. */}
-      <View className="bg-brand-primary px-3.5 py-2.5" style={{ transform: [{ skewX: "-10deg" }] }}>
+      <View className="bg-brand-primary px-4 py-3" style={{ transform: [{ skewX: "-10deg" }] }}>
         <View
           className="flex-row items-center justify-center gap-1.5"
           style={{ transform: [{ skewX: "10deg" }] }}
         >
           <Text
-            className="shrink text-[12px] font-extrabold uppercase text-white"
+            className="shrink text-center text-[12px] font-extrabold uppercase text-white"
             style={{ letterSpacing: 1.2 }}
-            numberOfLines={1}
+            numberOfLines={2}
           >
             {label}
           </Text>

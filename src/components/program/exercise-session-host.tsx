@@ -8,7 +8,6 @@ import { useAuth } from "@/src/hooks/use-auth";
 import { useCheckFeedback } from "@/src/hooks/use-check-feedback";
 import { useProgram } from "@/src/hooks/use-program";
 import { useProgramLogging } from "@/src/hooks/use-program-logging";
-import { bottomBars } from "@/src/lib/bottom-bars";
 import {
   elapsedMs,
   exerciseSession,
@@ -180,12 +179,9 @@ function ExerciseSessionBar({
 }) {
   const { t } = useTranslation();
   const colors = useColors();
-  // Its footprint, for the check card to stack on (src/lib/bottom-bars).
-  useEffect(() => () => bottomBars.set("session", null), []);
   return (
     <View
       pointerEvents="box-none"
-      onLayout={(e) => bottomBars.set("session", e.nativeEvent.layout.height)}
       style={{ position: "absolute", left: 0, right: 0, bottom, zIndex: 50 }}
     >
       <View className="mx-3 mb-2 flex-row items-center gap-3 overflow-hidden rounded-2xl border border-border bg-surface py-2.5 pl-4 pr-3">

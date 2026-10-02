@@ -165,10 +165,10 @@ export default function TabsLayout() {
     {/* Floats clear of the 74px tab bar. Rendered here, not per screen, so the
         countdown keeps running while the client moves around the app. */}
     <RestTimerBar bottom={74} />
-    {/* The card that answers a check-off, above both bars when they show. */}
-    <CheckCardHost bottom={74} />
     {/* The exercise in progress: its sheet, or its bar above the rest bar. */}
     <ExerciseSessionHost tabBarHeight={74} />
+    {/* The card that answers a check-off: a dialog over everything above. */}
+    <CheckCardHost />
     {/* Web has no local notifications. */}
     {Platform.OS !== "web" && <Reminders />}
     </View>

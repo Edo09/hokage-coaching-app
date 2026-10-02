@@ -9,6 +9,7 @@ import RNAnimated, {
   FadeInLeft,
   FadeInRight,
   FadeOut,
+  Keyframe,
   LinearTransition,
   SlideInLeft,
   SlideInRight,
@@ -92,6 +93,22 @@ export const swapEnter = (direction: 1 | -1) =>
 // Loaders wait a beat before showing, so a fetch that lands quickly never
 // flashes a spinner.
 export const loaderEnter = () => FadeIn.duration(DUR.base).delay(DUR.fast).easing(EASE_OUT);
+// A dialog over a dimmed screen: it fades in while growing from 92 %, and
+// leaves fading out while shrinking a little. A plain fade on web (see IS_WEB).
+export const modalEnter = () =>
+  IS_WEB
+    ? FadeIn.duration(DUR.base).easing(EASE_OUT)
+    : new Keyframe({
+        0: { opacity: 0, transform: [{ scale: 0.92 }] },
+        100: { opacity: 1, transform: [{ scale: 1 }], easing: EASE_OUT },
+      }).duration(DUR.base);
+export const modalExit = () =>
+  IS_WEB
+    ? FadeOut.duration(DUR.fast).easing(EASE_IN)
+    : new Keyframe({
+        0: { opacity: 1, transform: [{ scale: 1 }] },
+        100: { opacity: 0, transform: [{ scale: 0.96 }], easing: EASE_IN },
+      }).duration(DUR.fast);
 
 // Stagger only the first few items; cells mounted later (FlatList windowing
 // on scroll, refetch inserts) animate immediately instead of queueing.
