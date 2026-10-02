@@ -3,7 +3,7 @@ import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Keyboard } from "react-native";
+import { Keyboard, Platform } from "react-native";
 import RAnimated, {
   interpolateColor,
   useAnimatedStyle,
@@ -15,6 +15,8 @@ import { Button, Chip, Input, Screen, useToast } from "@/src/components/ui";
 import { useAuth } from "@/src/hooks/use-auth";
 import { useProfile } from "@/src/hooks/use-profile";
 import { DUR, EASE_OUT, enter, exit, slideEnter } from "@/src/lib/motion";
+import { requestPermission } from "@/src/lib/notification-permission";
+import { setReminderPrefs } from "@/src/lib/reminder-prefs";
 import { setWeightUnit } from "@/src/lib/weight-unit";
 import { useColors } from "@/src/theme/colors";
 import { Pressable, Text, View } from "@/src/tw";
@@ -22,7 +24,12 @@ import { AnimatedView } from "@/src/tw/animated";
 import type { ProfileGoal } from "@/src/types/database";
 import { cn } from "@/src/utils/cn";
 
-const TOTAL_STEPS = 5;
+// The last step asks for notification permission, for the local reminders on
+// the client's training days. Reminders don't run on web, so there the step
+// is left out and the training-plan step stays the last one.
+const ASKS_REMINDERS = Platform.OS !== "web";
+const REMINDERS_STEP = 5;
+const TOTAL_STEPS = ASKS_REMINDERS ? 6 : 5;
 
 const DAY_KEYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"] as const;
 const DAY_VALUES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
@@ -125,6 +132,9 @@ export default function Onboarding() {
   // Slide direction for the step transition; set in the same batch as setStep
   const [direction, setDirection] = useState<1 | -1>(1);
   const [saving, setSaving] = useState(false);
+  // «Activar» was tapped: its button shows the spinner while the phone's
+  // prompt is up and during the save that follows.
+  const [enabling, setEnabling] = useState(false);
   const [stepError, setStepError] = useState<string | null>(null);
   const [form, setForm] = useState<FormData>({
     age: "",
@@ -258,6 +268,33 @@ export default function Onboarding() {
     } finally {
       setSaving(false);
     }
+  };
+
+  // «Activar»: training-day reminders on, the phone's permission prompt, then
+  // the same save as «Ahora no». Onboarding finishes whatever the client
+  // answers; a "no" can be turned around later in Ajustes → Notificaciones.
+  // The preferences are per device, so an earlier client's "off" on this
+  // phone (or a failed «Ahora no» save just before) doesn't stay.
+  const handleEnableReminders = async () => {
+    if (saving || enabling) return;
+    setEnabling(true);
+    void setReminderPrefs({ training: true });
+    try {
+      await requestPermission();
+    } catch {
+      // A prompt that fails only means no reminders; the save still runs
+    }
+    await handleSubmit();
+    setEnabling(false);
+  };
+
+  // «Ahora no»: no prompt, and the training-day reminder off. Android 12 and
+  // older allow notifications without asking, so without this the client
+  // would get them anyway. Ajustes → Notificaciones turns it back on.
+  const handleNotNow = async () => {
+    if (saving || enabling) return;
+    void setReminderPrefs({ training: false });
+    await handleSubmit();
   };
 
   // Skipping marks onboarding as done with an empty profile; AI features stay
@@ -550,6 +587,23 @@ export default function Onboarding() {
           </View>
         );
 
+      case REMINDERS_STEP:
+        return (
+          <View className="gap-6">
+            <View className="w-16 h-16 bg-brand-primary-soft rounded-2xl items-center justify-center">
+              <Ionicons name="notifications-outline" size={32} color={colors.brandPrimary} />
+            </View>
+            <View className="gap-1">
+              <Text className="text-2xl font-bold text-content-primary">
+                {t("reminders.onboardingTitle")}
+              </Text>
+              <Text className="text-content-tertiary text-base">
+                {t("reminders.onboardingText")}
+              </Text>
+            </View>
+          </View>
+        );
+
       default:
         return null;
     }
@@ -562,16 +616,20 @@ export default function Onboarding() {
           <Ionicons name="barbell" size={26} color={colors.white} />
         </View>
         <Text className="flex-1 text-3xl font-extrabold text-brand-primary">The Hokage Coaching APP</Text>
-        <Pressable
-          accessibilityRole="button"
-          onPress={handleSkip}
-          disabled={saving}
-          hitSlop={8}
-        >
-          <Text className="text-base font-semibold text-content-tertiary">
-            {t("onboarding.skip")}
-          </Text>
-        </Pressable>
+        {/* Not on the reminders step: skipping doesn't save the profile, so
+            there it would throw away every answer the client just gave. */}
+        {step !== REMINDERS_STEP && (
+          <Pressable
+            accessibilityRole="button"
+            onPress={handleSkip}
+            disabled={saving}
+            hitSlop={8}
+          >
+            <Text className="text-base font-semibold text-content-tertiary">
+              {t("onboarding.skip")}
+            </Text>
+          </Pressable>
+        )}
       </View>
 
       <ProgressBar step={step} />
@@ -595,12 +653,34 @@ export default function Onboarding() {
       </View>
 
       <View className="px-6 pb-12 gap-3">
-        <Button size="lg" onPress={handleNext} loading={saving}>
-          {step === TOTAL_STEPS - 1 ? t("common.start") : t("common.next")}
-        </Button>
+        {step === REMINDERS_STEP ? (
+          <>
+            <Button
+              size="lg"
+              onPress={handleEnableReminders}
+              loading={enabling}
+              disabled={saving}
+            >
+              {t("reminders.enable")}
+            </Button>
+            <Button
+              size="lg"
+              variant="secondary"
+              onPress={handleNotNow}
+              loading={saving && !enabling}
+              disabled={enabling}
+            >
+              {t("reminders.notNow")}
+            </Button>
+          </>
+        ) : (
+          <Button size="lg" onPress={handleNext} loading={saving}>
+            {step === TOTAL_STEPS - 1 ? t("common.start") : t("common.next")}
+          </Button>
+        )}
 
         {step > 0 && (
-          <Button variant="ghost" onPress={handleBack} disabled={saving}>
+          <Button variant="ghost" onPress={handleBack} disabled={saving || enabling}>
             {t("common.back")}
           </Button>
         )}
