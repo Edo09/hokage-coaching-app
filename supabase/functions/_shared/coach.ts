@@ -1,8 +1,8 @@
 // Helpers shared by the coach-only Edge Functions (create-client,
-// reset-client-password, generate-program): verify the caller is the coach,
-// get a caller-scoped or service-role client, and generate the one-time
-// temporary passwords the coach hands out. ai-complete, which any signed-in
-// client may call, uses only callerClient.
+// reset-client-password, generate-program, generate-nutrition-plan): verify
+// the caller is the coach, get a caller-scoped or service-role client, and
+// generate the one-time temporary passwords the coach hands out. ai-complete,
+// which any signed-in client may call, uses only callerClient.
 
 import { createClient, type SupabaseClient } from 'jsr:@supabase/supabase-js@2';
 

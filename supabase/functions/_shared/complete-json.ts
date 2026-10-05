@@ -1,12 +1,12 @@
-// LLM access for generate-program: Gemini first (JSON constrained by a
-// response schema), Groq on any Gemini failure (JSON mode, shape given in the
-// prompt). Models, endpoints and retries: ../_shared/llm.ts. Either key alone
-// works; with both, Groq is only the fallback.
+// LLM access shared by generate-program and generate-nutrition-plan: Gemini
+// first (JSON constrained by a response schema), Groq on any Gemini failure
+// (JSON mode, shape given in the prompt). Models, endpoints and retries:
+// ./llm.ts. Either key alone works; with both, Groq is only the fallback.
 
-import { callGemini, callGroq, errorText, GROQ_TEXT_MODELS, parseJson } from '../_shared/llm.ts';
+import { callGemini, callGroq, errorText, GROQ_TEXT_MODELS, parseJson } from './llm.ts';
 
 // Groq's free plan has a small tokens-per-minute budget, and a single request
-// over it is refused outright. A program is ~3–6k tokens.
+// over it is refused outright. A program or a nutrition plan is ~3–6k tokens.
 const GROQ_MAX_OUTPUT = 8000;
 
 export type Provider = 'gemini' | 'groq';

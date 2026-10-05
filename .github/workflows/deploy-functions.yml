@@ -46,7 +46,7 @@ jobs:
       # supabase/functions/_shared, which the dashboard editor can't do.
       - name: Deploy
         run: |
-          for fn in create-client reset-client-password ai-complete generate-program; do
+          for fn in create-client reset-client-password ai-complete generate-program generate-nutrition-plan; do
             echo "::group::$fn"
             supabase functions deploy "$fn" --project-ref "$PROJECT_REF"
             echo "::endgroup::"

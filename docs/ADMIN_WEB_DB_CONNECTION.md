@@ -369,6 +369,24 @@ supabase secrets set GEMINI_API_KEY=<key> GROQ_API_KEY=<key> --project-ref rzgwk
 
 App builds need no AI env at all: `EXPO_PUBLIC_GROQ_API_KEY` / `EXPO_PUBLIC_GEMINI_API_KEY` are gone, and should not be set in EAS (an `EXPO_PUBLIC_*` value is readable by anyone who downloads the app).
 
+### 6.5 AI nutrition drafts (`generate-nutrition-plan`)
+
+The panel's nutrition builder has the same **Generar / Editar con IA** assistant as the program builder (§6.3). The coach describes a nutrition plan (or a change to the current draft) and `generate-nutrition-plan` returns it as JSON — header, macro targets per day type, meal slots, rotation options and foods — which the panel loads into the builder. The function **writes nothing**: the coach reviews the draft and saves it through the normal `save_nutrition_plan` RPC, so every check still applies. It runs with the caller's JWT (RLS applies) and never uses the service role; it is server-side only to keep the model keys out of the browser.
+
+| Body | Returns |
+|---|---|
+| `{ prompt, current?, client_id?, include_notes? }` | `{ plan, provider }` |
+
+- `current` = the builder's draft (edit mode); omitted = a new plan. Slots and options carry a `ref` so the panel maps kept rows back to their DB ids (an option keeps the diary entries the client registered from it).
+- `client_id` adds the client's profile fields (goal, age, sex, height, weight, activity level, job, calorie goal, training days per week; never name or email). `include_notes: true` also sends the coach's private `client_notes` body (allergies, intolerances, dislikes, limits).
+- Foods are free text (there is no food catalog), so nothing is resolved or dropped: a portion, when useful, is part of the name ("Arroz 110 g"). The panel clamps every number to the ranges the DB CHECKs enforce before anything reaches the builder.
+- Models, fallback order and the `{ error, detail }` 502 shape are the same as §6.3 (`supabase/functions/_shared/complete-json.ts`, on top of `_shared/llm.ts`). It reads the same `GEMINI_API_KEY` / `GROQ_API_KEY` and `ALLOWED_ORIGINS` secrets, so nothing new has to be set.
+
+```bash
+supabase functions deploy generate-nutrition-plan --project-ref rzgwkwxskrovxnnymxqo
+# Same keys and origins as generate-program (§6.3) — already set if that one is deployed.
+```
+
 ## 7. Security Checklist
 
 - [ ] **Service-role key is never in the SPA** — only inside the Edge Functions (§6).

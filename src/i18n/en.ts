@@ -400,6 +400,8 @@ export default {
     lunch: "lunch",
     dinner: "dinner",
     snack: "snack",
+    pre_workout: "pre-workout",
+    post_workout: "post-workout",
     diary: "Diary",
     today: "Today",
     yesterday: "Yesterday",

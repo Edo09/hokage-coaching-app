@@ -12,14 +12,14 @@
 // save_coach_program RPC and its checks. Exercise names are forced onto the
 // shared catalog here (the panel drops any that still don't resolve).
 //
-// Deploy, and give it the provider keys (see llm.ts) and ALLOWED_ORIGINS
+// Deploy, and give it the provider keys (see ../_shared/complete-json.ts) and ALLOWED_ORIGINS
 // (see ../_shared/cors.ts):
 //   supabase functions deploy generate-program --project-ref rzgwkwxskrovxnnymxqo
 
 import type { SupabaseClient } from 'jsr:@supabase/supabase-js@2';
 import { callerClient, verifyCoach } from '../_shared/coach.ts';
 import { json, withCors } from '../_shared/cors.ts';
-import { completeJSON } from './llm.ts';
+import { completeJSON } from '../_shared/complete-json.ts';
 import { PROGRAM_SCHEMA, REPAIR_PROMPT, REPAIR_SCHEMA, SYSTEM_PROMPT } from './prompt.ts';
 
 const MAX_PROMPT_CHARS = 2000;

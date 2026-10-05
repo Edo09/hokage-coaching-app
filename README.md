@@ -32,10 +32,11 @@ iPhone testing without a paid Apple account: `docs/IOS-LOCAL-TESTING.md`.
 - **Schema:** `supabase/migrations` is the source of truth, applied in order in
   the SQL editor. `supabase/scripts` holds one-off scripts that are not part of a rebuild.
 - **Edge Functions** (`supabase/functions`): `create-client`,
-  `reset-client-password` and `generate-program` (AI program drafts), called by
-  the panel. Deploy and configure them as in `docs/ADMIN_WEB_DB_CONNECTION.md`
-  §6.1 and §6.3 (they need the `ALLOWED_ORIGINS` secret; `generate-program` also
-  needs `GEMINI_API_KEY` and/or `GROQ_API_KEY`). All four functions deploy from
+  `reset-client-password`, `generate-program` (AI program drafts) and
+  `generate-nutrition-plan` (AI nutrition-plan drafts), called by the panel.
+  Deploy and configure them as in `docs/ADMIN_WEB_DB_CONNECTION.md` §6.1, §6.3
+  and §6.5 (they need the `ALLOWED_ORIGINS` secret; the two AI functions also
+  need `GEMINI_API_KEY` and/or `GROQ_API_KEY`). All five functions deploy from
   GitHub (`.github/workflows/deploy-functions.yml`): automatically when
   `supabase/functions` changes on `main`, or via Actions → Deploy Edge Functions
   → Run workflow. It needs the `SUPABASE_ACCESS_TOKEN` repository secret.
