@@ -44,6 +44,17 @@ const REVEAL_CONTEXT = 56;
 const QUIT_CONFIRM_MS = 10_000;
 /** Let the finish burst play before the sheet slides away. */
 const FINISH_SETTLE_MS = 320;
+/** The sheet's height at most, as a share of the window's. */
+const SHEET_MAX_SHARE = 0.9;
+/** Room the sheet's other rows take at their busiest (a two-line name, the
+    clock, the rest bar, the buttons) at the default text size, so the demo
+    still shows whole then on a short phone; a coach's note can push it a
+    little. More on web, where rem is the browser's 16px (react-native-css
+    inlines 14 on native); the native figure allows for Android's taller text. */
+const DEMO_RESERVE = Platform.OS === "web" ? 380 : 350;
+/** The demo's cap never goes below its old fixed height: a busy sheet is no
+    worse off than before. */
+const DEMO_CAP_FLOOR = 200;
 
 type Props = {
   exercise: ProgramExercise | null;
@@ -111,7 +122,7 @@ export function ProgramExerciseModal({
   const { t, i18n } = useTranslation();
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { height: windowHeight } = useWindowDimensions();
+  const { height: windowHeight, fontScale } = useWindowDimensions();
   const keyboard = useKeyboardHeight();
   const scrollRef = useRef<RNScrollView>(null);
   const contentRef = useRef<RNView>(null);
@@ -143,6 +154,15 @@ export function ProgramExerciseModal({
   const done = exercise != null && logging.isDone(exercise.id, weekNumber);
   const videoUrl = exercise?.exercise?.video_url ?? null;
   const hasVideo = videoUrl != null && videoUrl !== "";
+  // The demo is as wide as the sheet (a catalog GIF, square, as tall), up to
+  // what the sheet can spare with its other rows all showing. Those grow with
+  // a larger system text size; a smaller one doesn't shrink their padding.
+  const demoMaxHeight = Math.max(
+    DEMO_CAP_FLOOR,
+    Math.round(
+      windowHeight * SHEET_MAX_SHARE - insets.bottom - DEMO_RESERVE * Math.max(1, fontScale),
+    ),
+  );
 
   // Step-by-step "how to" in the app language, falling back to the other.
   const cat = exercise?.exercise;
@@ -223,7 +243,8 @@ export function ProgramExerciseModal({
           className="rounded-t-3xl bg-surface"
           style={{
             paddingBottom: keyboard > 0 ? 12 : insets.bottom + 12,
-            maxHeight: keyboard > 0 ? windowHeight - keyboard - insets.top - 12 : windowHeight * 0.9,
+            maxHeight:
+              keyboard > 0 ? windowHeight - keyboard - insets.top - 12 : windowHeight * SHEET_MAX_SHARE,
           }}
         >
           <View className="items-center pt-2.5">
@@ -309,7 +330,9 @@ export function ProgramExerciseModal({
                 contentContainerClassName="gap-3 pt-2 pb-3"
                 keyboardShouldPersistTaps="handled"
               >
-                {hasVideo && <DemoMedia key={videoUrl} uri={videoUrl} onExpand={onPlay} />}
+                {hasVideo && (
+                  <DemoMedia key={videoUrl} uri={videoUrl} maxHeight={demoMaxHeight} onExpand={onPlay} />
+                )}
 
                 {steps != null && steps.length > 0 && (
                   <View className="rounded-2xl border border-border bg-brand-dark p-3.5">
