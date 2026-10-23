@@ -10,6 +10,7 @@ import { AppState, Platform, Vibration } from "react-native";
 import i18n from "@/src/i18n";
 import { alertSounds, alertVibrates, type AlertMode, getAlertMode } from "@/src/lib/alert-mode";
 import { isReminderData } from "@/src/lib/reminders";
+import { isProgramPushData } from "@/src/utils/push";
 
 /**
  * How the client learns their rest is over.
@@ -143,13 +144,14 @@ export function setupRestAlerts() {
   // vibration above, so the OS notification would double up. Suppress it
   // rather than skipping the schedule: whether the app is foregrounded at 0:00
   // is not knowable when the timer starts. The app's only handler, so it also
-  // decides for the local reminders (`@/src/lib/reminders`): those always
-  // show, since nothing on screen says what they say.
+  // decides for the local reminders (`@/src/lib/reminders`) and the coach's
+  // pushes (`@/src/lib/push`): those always show, since nothing on screen
+  // says what they say.
   Notifications.setNotificationHandler({
     handleNotification: async (notification) => {
+      const data = notification.request.content.data;
       const show =
-        isReminderData(notification.request.content.data) ||
-        AppState.currentState !== "active";
+        isReminderData(data) || isProgramPushData(data) || AppState.currentState !== "active";
       return {
         shouldShowBanner: show,
         shouldShowList: show,

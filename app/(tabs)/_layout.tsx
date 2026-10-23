@@ -12,6 +12,7 @@ import { RestTimerBar } from "@/src/components/program/rest-timer-bar";
 import { TabHeader } from "@/src/components/ui";
 import { useAuth } from "@/src/hooks/use-auth";
 import { useReminderSync } from "@/src/hooks/use-reminder-sync";
+import { usePushToken } from "@/src/hooks/use-push-token";
 import { useReminderTaps } from "@/src/hooks/use-reminder-taps";
 import { DUR, EASE_OUT } from "@/src/lib/motion";
 import { useColors } from "@/src/theme/colors";
@@ -60,13 +61,15 @@ function ProfileHeader() {
 }
 
 // Local reminders: keeps the next 14 days scheduled and opens Programa when
-// one is tapped. Here because both need a signed-in, onboarded client, which
-// AuthGate has settled on once the tabs mount. Its own component, rendering
-// nothing, so the re-renders its data causes (every check-off, every refetch)
-// stay off the tab navigator.
+// one is tapped (a coach's push too). Also keeps this phone registered for
+// those pushes. Here because all of it needs a signed-in, onboarded client,
+// which AuthGate has settled on once the tabs mount. Its own component,
+// rendering nothing, so the re-renders its data causes (every check-off,
+// every refetch) stay off the tab navigator.
 function Reminders() {
   useReminderSync();
   useReminderTaps();
+  usePushToken();
   return null;
 }
 

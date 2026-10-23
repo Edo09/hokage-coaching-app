@@ -1,3 +1,4 @@
+import { unregisterPushToken } from "@/src/lib/push";
 import { AuthContext } from "@/src/providers/auth-provider";
 import { supabase } from "@/src/utils/supabase";
 import React from "react";
@@ -29,6 +30,9 @@ export function useAuth() {
   };
 
   const signOut = async () => {
+    // Before signing out: the delete needs this session (RLS), and the next
+    // account on this phone must not get this client's pushes.
+    await unregisterPushToken();
     // scope "local" only clears this device's session; cache/outbox cleanup
     // happens on the SIGNED_OUT event in the auth provider.
     const { error } = await supabase.auth.signOut({ scope: "local" });

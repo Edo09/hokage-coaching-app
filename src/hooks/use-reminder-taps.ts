@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { Platform } from "react-native";
 
 import { isReminderData, REMINDER_URL } from "@/src/lib/reminders";
+import { isProgramPushData } from "@/src/utils/push";
 
 /**
  * Taps already acted on, by notification id and delivery time. Module scope:
@@ -18,7 +19,9 @@ function openReminder(response: Notifications.NotificationResponse | null) {
   if (response.actionIdentifier !== Notifications.DEFAULT_ACTION_IDENTIFIER) return;
   const { request, date } = response.notification;
   const data = request.content.data;
-  if (!isReminderData(data)) return;
+  // A reminder, or the coach's program push (`@/src/lib/push`): both open
+  // Programa.
+  if (!isReminderData(data) && !isProgramPushData(data)) return;
   const key = `${request.identifier}@${date}`;
   if (handled.has(key)) return;
   handled.add(key);
@@ -26,7 +29,8 @@ function openReminder(response: Notifications.NotificationResponse | null) {
   try {
     Notifications.clearLastNotificationResponse();
   } catch {}
-  // data.url (always REMINDER_URL today); only a tab route is followed.
+  // data.url (always REMINDER_URL today, the push's too); only a tab route is
+  // followed.
   const url =
     typeof data?.url === "string" && data.url.startsWith("/(tabs)/")
       ? (data.url as Href)
@@ -44,8 +48,9 @@ function lastResponse(): Notifications.NotificationResponse | null {
 }
 
 /**
- * Tapping a reminder opens the Programa tab: from a cold start (the tap that
- * launched the app) and while running. Mounted in the tabs layout, so it only
+ * Tapping a reminder, or the coach's «Tienes un nuevo programa» push, opens
+ * the Programa tab: from a cold start (the tap that launched the app) and
+ * while running. Mounted in the tabs layout, so it only
  * navigates once AuthGate has settled on the tabs; any earlier and the gate's
  * own redirect would override it.
  */
