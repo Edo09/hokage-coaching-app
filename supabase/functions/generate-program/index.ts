@@ -138,10 +138,23 @@ function friendlyError(detail: string): string {
 
 /* ---------------- context ---------------- */
 
+/** PostgREST returns at most 1000 rows per request (the project's max_rows)
+ *  and the catalog is past that, so it's read in pages. */
+const CATALOG_PAGE = 1000;
+
 async function loadCatalog(db: SupabaseClient): Promise<CatalogRow[]> {
-  const { data, error } = await db.from('exercises').select('name, body_part:bodyparts(name)');
-  if (error) throw error;
-  return ((data ?? []) as unknown as { name: string; body_part: { name: string } | null }[]).map((r) => ({
+  const rows: { name: string; body_part: { name: string } | null }[] = [];
+  for (let from = 0; ; from += CATALOG_PAGE) {
+    const { data, error } = await db
+      .from('exercises')
+      .select('name, body_part:bodyparts(name)')
+      .order('id')
+      .range(from, from + CATALOG_PAGE - 1);
+    if (error) throw error;
+    rows.push(...((data ?? []) as unknown as typeof rows));
+    if (!data || data.length < CATALOG_PAGE) break;
+  }
+  return rows.map((r) => ({
     name: r.name.trim(),
     bodyPart: r.body_part?.name ?? 'other',
   }));
