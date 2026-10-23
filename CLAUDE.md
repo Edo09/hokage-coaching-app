@@ -39,6 +39,9 @@ What this means when working here:
   `reset-client-password` (both hand out `Hkg-` temp passwords; no email is
   sent). Both only answer browser origins listed in the `ALLOWED_ORIGINS`
   function secret.
+- Push notifications: a database trigger on `programs` sends «Tienes un nuevo
+  programa» through `pg_net` to Expo's push API for the tokens in
+  `push_tokens` (no Edge Function). See `docs/PUSH-NOTIFICATIONS.md`.
 - Schema source of truth: `supabase/migrations`. Migrations here do not reach
   Zyron's database (and vice versa).
 - `supabase/scripts/convert_shared_db_to_hokage_only.sql` was a one-off, already
