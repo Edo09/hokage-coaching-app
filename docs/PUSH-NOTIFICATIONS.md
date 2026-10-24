@@ -1,28 +1,39 @@
 # Push notifications
 
-One push today: when the coach assigns a program, the client's phones get
-**«Tienes un nuevo programa»** with the program's name, and tapping it opens
-Programa.
+When the coach assigns something, the client's phones get a push with its
+name, and tapping it opens the tab where it is:
+
+| Assigned            | Push                                     | Opens     |
+|---------------------|------------------------------------------|-----------|
+| Program             | **«Tienes un nuevo programa»**           | Programa  |
+| Nutrition plan      | **«Tienes un nuevo plan de nutrición»**  | Nutrición |
+| Supplement plan     | **«Tienes un nuevo plan de suplementos»**| Nutrición |
+
+The body is «*name* ya está en tu pestaña Programa / Nutrición.»
 
 ## How it works
 
-- **Database** (`supabase/migrations/20261023150000_program_assigned_push.sql`):
-  the trigger `trg_notify_program_assigned` on `programs` fires when a client's
-  program becomes active: saved new from the panel, a template assigned, or
-  an older block switched back on with «Activar». It sends one request per
-  program to Expo's push API through `pg_net`, to every token in
-  `push_tokens` for that client. `program_assignment_pushes` remembers which
-  programs were handled, so edits and re-activations never notify again. A
-  client with no phone registered is recorded and nothing is sent. A push
+- **Database**: one trigger per table, `trg_notify_program_assigned` on
+  `programs` (`supabase/migrations/20261023150000_program_assigned_push.sql`),
+  `trg_notify_nutrition_plan_assigned` on `nutrition_plans` and
+  `trg_notify_supplement_plan_assigned` on `supplement_plans`
+  (`20261024120000_plan_assigned_push.sql`). Each fires when a client's
+  program or plan becomes active: saved new from the panel, a template
+  assigned, or an older one switched back on. `send_client_push` sends one
+  request to Expo's push API through `pg_net`, to every token in
+  `push_tokens` for that client. `program_assignment_pushes`,
+  `nutrition_plan_assignment_pushes` and `supplement_plan_assignment_pushes`
+  remember what was handled, so edits and re-activations never notify again.
+  A client with no phone registered is recorded and nothing is sent. A push
   that fails never blocks the save.
 - **App**: `usePushToken` (`src/hooks/use-push-token.ts`) registers the
   phone's Expo push token through `register_push_token` once notifications
   are allowed, and sign-out deletes it (`src/lib/push.ts`). The foreground
-  handler and the tap that opens Programa are the reminders' own
-  (`src/lib/rest-alert.ts`, `src/hooks/use-reminder-taps.ts`). Android
-  channel: «Tu coach».
+  handler and the tap that opens the tab (`data.url`) are the reminders' own
+  (`src/lib/rest-alert.ts`, `src/hooks/use-reminder-taps.ts`); the kinds are
+  in `src/utils/push.ts`. Android channel: «Tu coach».
 
-The text is Spanish and lives in the trigger function.
+The texts are Spanish and live in the trigger functions.
 
 ## Setup only the account owner can do
 
@@ -62,6 +73,7 @@ project settings): the trigger sends without an Expo access token.
 
    ```sql
    select * from public.program_assignment_pushes order by created_at desc limit 5;
+   -- nutrition_plan_assignment_pushes / supplement_plan_assignment_pushes for plans
    select id, status_code, content from net._http_response order by id desc limit 5;
    ```
 

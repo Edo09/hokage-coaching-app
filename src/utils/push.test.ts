@@ -4,22 +4,38 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { isProgramPushData, PROGRAM_PUSH_KIND, pushPlatform } from "@/src/utils/push";
+import {
+  isCoachPushData,
+  NUTRITION_PUSH_KIND,
+  PROGRAM_PUSH_KIND,
+  pushPlatform,
+  SUPPLEMENT_PUSH_KIND,
+} from "@/src/utils/push";
 
-describe("isProgramPushData", () => {
-  it("true for the program push, as the database sends it", () => {
+describe("isCoachPushData", () => {
+  it("true for each of the coach's pushes, as the database sends them", () => {
     assert.equal(
-      isProgramPushData({ kind: "program-assigned", url: "/(tabs)/routines", program_id: "p1" }),
+      isCoachPushData({ kind: "program-assigned", url: "/(tabs)/routines", program_id: "p1" }),
+      true,
+    );
+    assert.equal(
+      isCoachPushData({ kind: "nutrition-plan-assigned", url: "/(tabs)/nutrition", plan_id: "n1" }),
+      true,
+    );
+    assert.equal(
+      isCoachPushData({ kind: "supplement-plan-assigned", url: "/(tabs)/nutrition", plan_id: "s1" }),
       true,
     );
     assert.equal(PROGRAM_PUSH_KIND, "program-assigned");
+    assert.equal(NUTRITION_PUSH_KIND, "nutrition-plan-assigned");
+    assert.equal(SUPPLEMENT_PUSH_KIND, "supplement-plan-assigned");
   });
 
   it("false for reminders, the rest alert and anything without data", () => {
-    assert.equal(isProgramPushData({ kind: "reminder", url: "/(tabs)/routines" }), false);
-    assert.equal(isProgramPushData({}), false);
-    assert.equal(isProgramPushData(null), false);
-    assert.equal(isProgramPushData(undefined), false);
+    assert.equal(isCoachPushData({ kind: "reminder", url: "/(tabs)/routines" }), false);
+    assert.equal(isCoachPushData({}), false);
+    assert.equal(isCoachPushData(null), false);
+    assert.equal(isCoachPushData(undefined), false);
   });
 });
 

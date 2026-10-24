@@ -744,8 +744,9 @@ export default {
     // Nombre del canal de notificaciones en los ajustes de Android
     channelName: "Recordatorios",
   },
-  // Notificaciones push del coach («Tienes un nuevo programa»). El texto lo
-  // pone la base de datos (en español); aquí solo el canal de Android.
+  // Notificaciones push del coach («Tienes un nuevo programa», «… plan de
+  // nutrición», «… plan de suplementos»). El texto lo pone la base de datos
+  // (en español); aquí solo el canal de Android.
   push: {
     channelName: "Tu coach",
   },

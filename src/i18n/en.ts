@@ -744,8 +744,9 @@ export default {
     // Notification channel name in Android settings
     channelName: "Reminders",
   },
-  // The coach's push notifications ("Tienes un nuevo programa"). The database
-  // writes their text (in Spanish); only the Android channel is named here.
+  // The coach's push notifications (new program, nutrition plan, supplement
+  // plan). The database writes their text (in Spanish); only the Android
+  // channel is named here.
   push: {
     channelName: "Your coach",
   },

@@ -10,7 +10,7 @@ import { AppState, Platform, Vibration } from "react-native";
 import i18n from "@/src/i18n";
 import { alertSounds, alertVibrates, type AlertMode, getAlertMode } from "@/src/lib/alert-mode";
 import { isReminderData } from "@/src/lib/reminders";
-import { isProgramPushData } from "@/src/utils/push";
+import { isCoachPushData } from "@/src/utils/push";
 
 /**
  * How the client learns their rest is over.
@@ -151,7 +151,7 @@ export function setupRestAlerts() {
     handleNotification: async (notification) => {
       const data = notification.request.content.data;
       const show =
-        isReminderData(data) || isProgramPushData(data) || AppState.currentState !== "active";
+        isReminderData(data) || isCoachPushData(data) || AppState.currentState !== "active";
       return {
         shouldShowBanner: show,
         shouldShowList: show,

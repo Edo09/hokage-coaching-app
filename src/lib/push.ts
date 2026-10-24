@@ -8,11 +8,12 @@ import { supabase } from "@/src/utils/supabase";
 
 /**
  * The coach's push notifications: the device half. The database sends them
- * (the program-assigned trigger, through Expo's push service) to every token
- * in `push_tokens` for the client; this keeps this phone's token there while a
- * client is signed in (`usePushToken`) and takes it out on sign-out.
+ * (the program, nutrition plan and supplement plan triggers, through Expo's
+ * push service) to every token in `push_tokens` for the client; this keeps
+ * this phone's token there while a client is signed in (`usePushToken`) and
+ * takes it out on sign-out.
  *
- * Showing them in the foreground and opening Programa on tap is the local
+ * Showing them in the foreground and opening their tab on tap is the local
  * reminders' wiring (`@/src/lib/rest-alert`, `useReminderTaps`); what they
  * carry is in `@/src/utils/push`.
  *
