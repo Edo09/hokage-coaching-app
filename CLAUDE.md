@@ -39,9 +39,16 @@ What this means when working here:
   `reset-client-password` (both hand out `Hkg-` temp passwords; no email is
   sent). Both only answer browser origins listed in the `ALLOWED_ORIGINS`
   function secret.
-- Push notifications: a database trigger on `programs` sends «Tienes un nuevo
-  programa» through `pg_net` to Expo's push API for the tokens in
+- Push notifications: database triggers on `programs`, `nutrition_plans` and
+  `supplement_plans` send «Tienes un nuevo programa / plan de nutrición /
+  plan de suplementos» through `pg_net` to Expo's push API for the tokens in
   `push_tokens` (no Edge Function). See `docs/PUSH-NOTIFICATIONS.md`.
+- Coach notices (the bell in the panel): the database writes rows in
+  `coach_notifications`: a trigger when a client completes a training day,
+  and a daily `pg_cron` job (`create_coach_daily_notices`) for clients idle
+  for 4/7 days and blocks ending or ended. The panel reads them over Realtime.
+  The coach's time zone is in `coach_local_date()`. See
+  `supabase/migrations/20261024130000_coach_notifications.sql`.
 - Schema source of truth: `supabase/migrations`. Migrations here do not reach
   Zyron's database (and vice versa).
 - `supabase/scripts/convert_shared_db_to_hokage_only.sql` was a one-off, already
