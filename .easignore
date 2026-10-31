@@ -16,6 +16,9 @@ expo-env.d.ts
 *.key
 *.mobileprovision
 
+# Firebase's Android config: an EAS file variable (GOOGLE_SERVICES_JSON) on builds
+google-services.json
+
 # Metro
 .metro-health-check*
 
