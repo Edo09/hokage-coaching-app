@@ -60,7 +60,9 @@ Pushes need a development or store build (EAS). Expo Go can't receive them.
    console → IAM → Organization policies, on project `hokage-4eed7`, set that
    policy to not enforced (override the parent), generate the key, then set
    it back to inherit. Keys already made keep working.
-3. Build again (`eas build -p android --profile development`).
+3. *Done.* Verified in Oct 2026: the preview build from `fb9fd33` showed
+   «Tienes un nuevo programa» on an Android phone. Android builds older than
+   that have no Firebase config and never get a token.
 
 Without step 1, Android can't get a push token: the app carries on without
 one. Without step 2, the token exists but Expo can't deliver to it.
