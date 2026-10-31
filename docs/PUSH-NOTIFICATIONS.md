@@ -69,6 +69,9 @@ one. Without step 2, the token exists but Expo can't deliver to it.
 
 **iOS (APNs)**
 
+*Not done yet* (left for later in Oct 2026): until it is, iPhones get no
+push, and the app carries on without one.
+
 1. `eas credentials` → iOS → Push Notifications: let EAS create a push key
    (needs the Apple Developer account).
 2. Build again (`eas build -p ios`).
