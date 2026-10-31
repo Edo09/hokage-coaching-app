@@ -294,8 +294,8 @@ Grounded in the migrations (§10). **The panel must not weaken any existing poli
 
 - **GAP 1 — `body_measurements` had no coach-read policy (FIX WRITTEN).** `20260710120000_body_measurements.sql` defined only self-scoped policies, so the coach could not read client measurements. **Fix migration:** `supabase/migrations/20260717140000_body_measurements_coach_read.sql` adds a `coach reads all measurements` SELECT policy (`using (public.is_coach())`), mirroring the set-logs/completions pattern. **Apply it in the Supabase SQL editor before the tracking view ships.**
 - **GAP 2 — program `start_date` past-date guard also blocks the coach.** `guard_program_start_date` rejects `start_date < current_date` for **any** authenticated writer (`auth.uid()` non-null) except the service role. The coach authors via the panel with their JWT → they **cannot backdate** a block. *Decision needed:* (a) keep it — assigned programs always start today or later; or (b) exempt coaches (`OR public.is_coach()`) so a coach can set a retroactive start. Recommend (a) unless backdating is a real need.
-- **GAP 3 — no program template / duplicate.** Reassigning a block to another client is manual re-entry. Matches `COACH-PROGRAMS-SPEC.md` P2 (a clone/template capability). Future.
-- **GAP 4 — `create-client` Edge Function not yet deployed.** Documented in `ADMIN_WEB_DB_CONNECTION.md §6` but must be deployed + its secret set + CORS tightened before client creation works.
+- **GAP 3 — no program template / duplicate.** *Resolved:* program templates (`supabase/migrations/20260724120000_program_templates.sql`), which the panel assigns to clients.
+- **GAP 4 — `create-client` Edge Function.** *Resolved:* deployed and in use. Client accounts are created only through it, and forgotten passwords are reset through `reset-client-password` (`ADMIN_WEB_DB_CONNECTION.md §6`).
 
 ---
 
