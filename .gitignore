@@ -45,8 +45,9 @@ app-example
 # generated native folders
 /ios
 /android
-# Gradle output of local Expo modules (modules/*/android)
+# Gradle output and caches of local Expo modules (modules/*/android)
 /modules/*/android/build/
+/modules/*/android/.gradle/
 
 
 .vscode/mcp.json
