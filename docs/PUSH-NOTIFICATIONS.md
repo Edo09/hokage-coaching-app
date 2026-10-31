@@ -48,10 +48,13 @@ Pushes need a development or store build (EAS). Expo Go can't receive them.
    hands to `expo.android.googleServicesFile`. For a local prebuild, keep the
    downloaded file at the repo root (git-ignored). To replace it:
    `eas env:set --name GOOGLE_SERVICES_JSON --type file --value ./google-services.json --visibility sensitive --environment development --environment preview --environment production`.
-2. Firebase → Project settings → Service accounts → Generate new private
-   key. Upload that JSON to EAS: `eas credentials` → Android → Google Service
-   Account → FCM V1 (or expo.dev → the project → Credentials). Never commit
-   this one: it is a real secret, unlike `google-services.json`.
+2. *Done.* A key for
+   `firebase-adminsdk-fbsvc@hokage-4eed7.iam.gserviceaccount.com` (Firebase →
+   Project settings → Service accounts → Generate new private key) is on EAS:
+   expo.dev → project `habbito` → Project settings → Credentials → Android →
+   `com.edo09.hokagecoaching` → FCM V1 service account key (or
+   `eas credentials` → Android → Google Service Account → FCM V1). Never
+   commit it: it is a real secret, unlike `google-services.json`.
    The project's Google Cloud organization blocks key creation
    (`iam.managed.disableServiceAccountKeyCreation`). To make a key: Cloud
    console → IAM → Organization policies, on project `hokage-4eed7`, set that
