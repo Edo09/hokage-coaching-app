@@ -41,18 +41,21 @@ Pushes need a development or store build (EAS). Expo Go can't receive them.
 
 **Android (FCM V1)**
 
-1. In the [Firebase console](https://console.firebase.google.com), create a
-   project (or use one) and add an Android app with package
-   `com.edo09.hokagecoaching`. Download `google-services.json` to the repo
-   root and add `"googleServicesFile": "./google-services.json"` under
-   `expo.android` in `app.json`.
+1. *Done.* The Firebase project `hokage-4eed7` has the Android app
+   `com.edo09.hokagecoaching`. Its `google-services.json` is not in git: EAS
+   builds get it from the `GOOGLE_SERVICES_JSON` file variable (set in the
+   development, preview and production environments), which `app.config.js`
+   hands to `expo.android.googleServicesFile`. For a local prebuild, keep the
+   downloaded file at the repo root (git-ignored). To replace it:
+   `eas env:set --name GOOGLE_SERVICES_JSON --type file --value ./google-services.json --visibility sensitive --environment development --environment preview --environment production`.
 2. Firebase → Project settings → Service accounts → Generate new private
    key. Upload that JSON to EAS: `eas credentials` → Android → Google Service
-   Account → FCM V1 (or expo.dev → the project → Credentials).
+   Account → FCM V1 (or expo.dev → the project → Credentials). Never commit
+   this one: it is a real secret, unlike `google-services.json`.
 3. Build again (`eas build -p android --profile development`).
 
-Until step 1 is done, Android can't get a push token: the app carries on
-without one.
+Without step 1, Android can't get a push token: the app carries on without
+one. Without step 2, the token exists but Expo can't deliver to it.
 
 **iOS (APNs)**
 
