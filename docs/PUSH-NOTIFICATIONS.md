@@ -52,6 +52,11 @@ Pushes need a development or store build (EAS). Expo Go can't receive them.
    key. Upload that JSON to EAS: `eas credentials` → Android → Google Service
    Account → FCM V1 (or expo.dev → the project → Credentials). Never commit
    this one: it is a real secret, unlike `google-services.json`.
+   The project's Google Cloud organization blocks key creation
+   (`iam.managed.disableServiceAccountKeyCreation`). To make a key: Cloud
+   console → IAM → Organization policies, on project `hokage-4eed7`, set that
+   policy to not enforced (override the parent), generate the key, then set
+   it back to inherit. Keys already made keep working.
 3. Build again (`eas build -p android --profile development`).
 
 Without step 1, Android can't get a push token: the app carries on without
