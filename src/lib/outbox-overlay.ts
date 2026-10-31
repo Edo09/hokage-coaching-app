@@ -1,6 +1,6 @@
 import { getPendingOps } from "@/src/lib/outbox";
 import type {
-  Exercise,
+  CatalogExercise,
   Meal,
   MealItem,
   MealWithItems,
@@ -55,7 +55,7 @@ export async function overlayMeals(
 export async function overlayRoutines(
   userId: string,
   rows: RoutineWithExercises[],
-  exercisesById: Map<string, Exercise>,
+  exercisesById: Map<string, CatalogExercise>,
 ): Promise<RoutineWithExercises[]> {
   const ops = await getPendingOps(userId);
   let out = rows.map((r) => ({

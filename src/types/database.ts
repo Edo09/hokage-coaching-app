@@ -67,6 +67,14 @@ export type Exercise = {
   body_part?: { name: string } | null;
 };
 
+// A catalog row as useExercises reads it: without the instructions, which are
+// most of each row's size and never read from the catalog (the exercise sheet
+// gets them with the program).
+export type CatalogExercise = Pick<
+  Exercise,
+  "id" | "name" | "video_url" | "body_part_id" | "body_part"
+>;
+
 export type RoutineExercise = {
   id: string;
   routine_id: string;
@@ -79,11 +87,12 @@ export type RoutineExercise = {
   sort_order: number;
   notes: string | null;
   created_at: string;
-  // Joined via `exercise:exercises(*, body_part:bodyparts(name))`. Optional
-  // because the offline outbox overlay can transiently reconstruct a pending
-  // row before the exercise catalog cache is populated — always present once
+  // Joined via `exercise:exercises(*, body_part:bodyparts(name))`, or taken
+  // from the catalog (so no more than a CatalogExercise) for a row the offline
+  // outbox overlay reconstructs. Optional because that can transiently miss,
+  // before the exercise catalog cache is populated — always present once
   // synced. Render code must not assume it's there.
-  exercise?: Exercise;
+  exercise?: CatalogExercise;
 };
 
 export type MealType = "breakfast" | "lunch" | "dinner" | "snack";

@@ -73,6 +73,25 @@ function Reminders() {
   return null;
 }
 
+// Programa and Nutrición mount on their first visit, and mounting them is
+// heavy (Programa renders every day of the week, each exercise with its
+// looping GIF): done as the tab was tapped, it froze the switch for a moment.
+// So they mount in the background once home has settled, one at a time.
+const PRELOADS = [
+  { href: "/routines", afterMs: 1500 },
+  { href: "/nutrition", afterMs: 3000 },
+] as const;
+
+function PreloadTabs() {
+  useEffect(() => {
+    const timers = PRELOADS.map(({ href, afterMs }) =>
+      setTimeout(() => router.prefetch(href), afterMs),
+    );
+    return () => timers.forEach(clearTimeout);
+  }, []);
+  return null;
+}
+
 export default function TabsLayout() {
   const colors = useColors();
   const { t } = useTranslation();
@@ -174,6 +193,7 @@ export default function TabsLayout() {
     <CheckCardHost />
     {/* Web has no local notifications. */}
     {Platform.OS !== "web" && <Reminders />}
+    <PreloadTabs />
     </View>
   );
 }

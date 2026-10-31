@@ -1,5 +1,5 @@
 import type {
-  Exercise,
+  CatalogExercise,
   MealWithItems,
   Profile,
   ProgramWithDetails,
@@ -310,7 +310,7 @@ export function muscleGroupForBodyPart(name: string | null | undefined): MuscleG
 
 function groupOf(
   name: string,
-  catalogByName: Map<string, Exercise>,
+  catalogByName: Map<string, CatalogExercise>,
   plan: PlanIndex,
   routineId: string | null,
 ): { group: MuscleGroup; sets: number } {
@@ -373,7 +373,7 @@ export function programWork(setLogs: SetLogEntry[], completions: CompletionEntry
  *  Counts routine logs and, when given, program work. */
 export function muscleDistribution(
   logs: WorkoutLog[],
-  catalog: Exercise[],
+  catalog: CatalogExercise[],
   plan: PlanIndex,
   windowDays: 14 | 30,
   now = new Date(),
@@ -482,7 +482,7 @@ export type MuscleAlert = {
 export function muscleAlert(
   dist: MuscleRow[],
   logs: WorkoutLog[],
-  catalog: Exercise[],
+  catalog: CatalogExercise[],
   plan: PlanIndex,
   routines: RoutineWithExercises[],
   now = new Date(),

@@ -1,11 +1,11 @@
 import { useAuth } from "@/src/hooks/use-auth";
 import { overlayRoutines } from "@/src/lib/outbox-overlay";
 import { qk } from "@/src/lib/query-keys";
-import type { Exercise, RoutineWithExercises } from "@/src/types/database";
+import type { CatalogExercise, RoutineWithExercises } from "@/src/types/database";
 import { supabase } from "@/src/utils/supabase";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
-function exercisesById(list: Exercise[] | undefined): Map<string, Exercise> {
+function exercisesById(list: CatalogExercise[] | undefined): Map<string, CatalogExercise> {
   return new Map((list ?? []).map((e) => [e.id, e]));
 }
 
@@ -14,7 +14,7 @@ function exercisesById(list: Exercise[] | undefined): Map<string, Exercise> {
 // history predates programs. Exercises ride along in the same persisted query.
 async function fetchRoutines(
   userId: string,
-  catalog: Map<string, Exercise>,
+  catalog: Map<string, CatalogExercise>,
 ): Promise<RoutineWithExercises[]> {
   // Explicit user filter on top of RLS: the coach role can read every
   // client's rows — without it a coach signing into the app would see all
@@ -48,7 +48,7 @@ export function useRoutines() {
     queryFn: () =>
       fetchRoutines(
         user!.id,
-        exercisesById(queryClient.getQueryData<Exercise[]>(qk.exercises())),
+        exercisesById(queryClient.getQueryData<CatalogExercise[]>(qk.exercises())),
       ),
     enabled: !!user,
   });
