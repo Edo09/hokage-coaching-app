@@ -3,6 +3,7 @@ import * as Haptics from "expo-haptics";
 import { Image } from "expo-image";
 import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useWindowDimensions } from "react-native";
 
 import { Burst } from "@/src/components/ui";
 import { usePop } from "@/src/lib/motion";
@@ -38,6 +39,14 @@ type Props = {
   loggedCount?: number;
 };
 
+// The demo GIF's thumbnail: a third of the screen's width, so the movement
+// reads at a glance, within bounds. Past 120 the catalog's 180×180 GIFs go
+// soft, and below 88 they're too small to follow; the name and prescription
+// beside it wrap in what's left.
+const THUMB_RATIO = 0.3;
+const THUMB_MIN = 88;
+const THUMB_MAX = 120;
+
 // One prescription line, resolved for the selected week. Load shows %1RM when
 // present, else the qualitative tag (ligero/moderado/pesado) — the decided
 // display precedence. The checkbox marks the exercise done; tapping the row
@@ -55,6 +64,8 @@ export function ProgramExerciseRow({
 }: Props) {
   const { t } = useTranslation();
   const colors = useColors();
+  const { width: screenWidth } = useWindowDimensions();
+  const thumb = Math.round(Math.min(THUMB_MAX, Math.max(THUMB_MIN, screenWidth * THUMB_RATIO)));
   const p = effectivePrescription(exercise, week, weekNumber ?? week?.week_number ?? null);
   const videoUrl = exercise.exercise?.video_url ?? null;
 
@@ -129,7 +140,8 @@ export function ProgramExerciseRow({
           onPress={onThumbPress}
           accessibilityRole="button"
           accessibilityLabel={t("program.watchDemo", { name: p.name })}
-          className="h-20 w-20 overflow-hidden rounded-xl bg-brand-dark"
+          className="overflow-hidden rounded-xl bg-brand-dark"
+          style={{ width: thumb, height: thumb }}
         >
           <Image
             source={{ uri: videoUrl! }}
