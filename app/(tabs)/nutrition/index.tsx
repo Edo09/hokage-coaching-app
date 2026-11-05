@@ -145,7 +145,11 @@ function PlanPane({ plan }: { plan: ReturnType<typeof useNutritionPlan> }) {
 
   return (
     <>
-      <Screen entering={arrive} onRefresh={plan.refresh} contentContainerClassName="p-4 gap-3 pb-24">
+      <Screen
+        entering={arrive}
+        onRefresh={() => Promise.all([plan.refresh(), reg.refresh()])}
+        contentContainerClassName="p-4 gap-3 pb-24"
+      >
         <TodayCard
           target={targetFor(p, plan.day)}
           todays={reg.todays}

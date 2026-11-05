@@ -41,7 +41,7 @@ export type RegisterInput = {
 export function useMealRegistrations() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  const { meals } = useMeals();
+  const { meals, refresh } = useMeals();
   // Day-reactive: useToday re-renders at midnight, so the list moves on.
   const todayKey = toDateKey(useToday());
   const todays = mealsOnDate(meals, todayKey);
@@ -87,26 +87,36 @@ export function useMealRegistrations() {
 
     setMeals((old) => upsertItemInCache(old, container, row));
 
+    let saved = row;
     if (picked != null && photoPath != null) {
-      // The queue hands the row to the outbox once the photo is stored.
-      await queuePhotoJob({
-        userId: user.id,
-        registrationId: row.id,
-        sourceUri: picked.uri,
-        mimeType: picked.mimeType,
-        storagePath: photoPath,
-        container,
-        row,
-      });
+      try {
+        // The queue hands the row to the outbox once the photo is stored.
+        await queuePhotoJob({
+          userId: user.id,
+          registrationId: row.id,
+          sourceUri: picked.uri,
+          mimeType: picked.mimeType,
+          storagePath: photoPath,
+          container,
+          row,
+        });
+        if (oldUploaded != null && oldUploaded !== row.photo_path) removeMealPhoto(oldUploaded);
+        return;
+      } catch (e) {
+        // The picked file couldn't be kept (a bad uri, a full disk): the meal
+        // still saves, without its photo, as when an upload is given up.
+        console.warn("[meal-registrations] photo not queued:", (e as Error)?.message ?? e);
+        saved = { ...row, photo_path: null };
+        setMeals((old) => upsertItemInCache(old, container, saved));
+      }
     } else if (photo.kind === "keep" && choice.kind !== "skipped" && (await updateQueuedRow(row.id, row))) {
       // Its photo is still uploading: the queued job carries the new row.
       return;
-    } else {
-      await cancelPhotoJob(row.id);
-      await enqueue({ userId: user.id, table: "meals", kind: "insert", payload: { ...container } });
-      await enqueue({ userId: user.id, table: "meal_items", kind: "upsert", payload: { ...row } });
     }
-    if (oldUploaded != null && oldUploaded !== row.photo_path) removeMealPhoto(oldUploaded);
+    await cancelPhotoJob(row.id);
+    await enqueue({ userId: user.id, table: "meals", kind: "insert", payload: { ...container } });
+    await enqueue({ userId: user.id, table: "meal_items", kind: "upsert", payload: { ...saved } });
+    if (oldUploaded != null && oldUploaded !== saved.photo_path) removeMealPhoto(oldUploaded);
   };
 
   const undo = async (item: MealItem) => {
@@ -132,5 +142,6 @@ export function useMealRegistrations() {
     }
   };
 
-  return { todayKey, todays, registrations, register, undo, retry };
+  /** Re-reads the meals (pull to refresh): the way out of a missed estimate. */
+  return { todayKey, todays, registrations, register, undo, retry, refresh };
 }
