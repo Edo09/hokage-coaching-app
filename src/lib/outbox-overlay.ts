@@ -1,4 +1,4 @@
-import { getPendingOps } from "@/src/lib/outbox";
+import { getPendingOps, type OutboxOp } from "@/src/lib/outbox";
 import type {
   CatalogExercise,
   Meal,
@@ -18,11 +18,14 @@ import type {
 // and flush concurrently) would make optimistic items vanish until the next
 // flush completes.
 
+// extraOps: registrations still waiting for their photo (src/lib/photo-queue.ts),
+// which aren't in the outbox yet.
 export async function overlayMeals(
   userId: string,
   rows: MealWithItems[],
+  extraOps: OutboxOp[] = [],
 ): Promise<MealWithItems[]> {
-  const ops = await getPendingOps(userId);
+  const ops = [...(await getPendingOps(userId)), ...extraOps];
   let out = rows.map((r) => ({ ...r, meal_items: [...(r.meal_items ?? [])] }));
   for (const op of ops) {
     if (op.table === "meals") {

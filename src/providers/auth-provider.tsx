@@ -1,4 +1,5 @@
 import { clearOutbox } from "@/src/lib/outbox";
+import { clearPhotoQueue } from "@/src/lib/photo-queue";
 import { persister, queryClient } from "@/src/lib/query-client";
 import { cancelReminders } from "@/src/lib/reminders";
 import { supabase } from "@/src/utils/supabase";
@@ -94,6 +95,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // previous user's cached data or replay their queued writes, or get
         // reminders built from them.
         void clearOutbox();
+        void clearPhotoQueue();
         void cancelReminders();
         queryClient.clear();
         void persister.removeClient();

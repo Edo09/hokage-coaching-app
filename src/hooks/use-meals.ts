@@ -2,6 +2,7 @@ import { useAuth } from "@/src/hooks/use-auth";
 import i18n from "@/src/i18n";
 import { enqueue } from "@/src/lib/outbox";
 import { overlayMeals } from "@/src/lib/outbox-overlay";
+import { getPendingPhotoOps } from "@/src/lib/photo-queue";
 import { newId } from "@/src/lib/ids";
 import { qk } from "@/src/lib/query-keys";
 import { removeMealPhoto } from "@/src/services/meal-photos";
@@ -30,7 +31,7 @@ async function fetchMeals(userId: string): Promise<MealWithItems[]> {
     .eq("user_id", userId)
     .order("created_at", { ascending: false });
   if (error) throw error;
-  return overlayMeals(userId, data as MealWithItems[]);
+  return overlayMeals(userId, data as MealWithItems[], await getPendingPhotoOps(userId));
 }
 
 // Dedupes concurrent slot-container creation (e.g. rapid double-tap on add)

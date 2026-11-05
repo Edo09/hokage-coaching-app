@@ -10,6 +10,7 @@ import { stackScreenLayout } from "@/src/lib/motion";
 import "@/src/lib/muscle-map-view";
 import { setupOnlineManager } from "@/src/lib/online";
 import { flushOutbox } from "@/src/lib/outbox";
+import { processPhotoQueue, setupPhotoQueue } from "@/src/lib/photo-queue";
 import { persister, PERSIST_MAX_AGE, queryClient } from "@/src/lib/query-client";
 import { ensureReminderChannel } from "@/src/lib/reminders";
 import { setupRestAlerts } from "@/src/lib/rest-alert";
@@ -47,6 +48,9 @@ SplashScreen.preventAutoHideAsync();
 // returning to the app refetches stale queries. Foregrounding also restarts
 // the auth token refresh timer and retries any queued offline writes.
 setupOnlineManager();
+// Registrations waiting for their photo resume after a restart and whenever
+// the device is back online (src/lib/photo-queue.ts).
+setupPhotoQueue();
 // Audio session, Android notification channel and the foreground notification
 // handler for the rest timer (the handler also lets reminders show). Module
 // scope, not an effect: the handler has to be installed before any scheduled
@@ -61,6 +65,7 @@ AppState.addEventListener("change", (status) => {
   if (status === "active") {
     supabase.auth.startAutoRefresh();
     void flushOutbox();
+    void processPhotoQueue();
   } else {
     supabase.auth.stopAutoRefresh();
   }
@@ -159,6 +164,7 @@ export default function RootLayout() {
       onSuccess={() => {
         // Cache restored — safe to drain writes queued before the restart
         void flushOutbox();
+        void processPhotoQueue();
       }}
     >
       <I18nextProvider i18n={i18n}>
