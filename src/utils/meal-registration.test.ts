@@ -221,6 +221,57 @@ describe("today's plan model", () => {
     assert.equal(other.meal_id, containerId("u1", "2026-11-05", "breakfast"));
     assert.equal("estimate_version" in other, false);
   });
+  describe("re-saving a registration (spec «Changing or undoing»)", () => {
+    const base = {
+      userId: "u1",
+      dateKey: "2026-11-05",
+      meal: planMeal("lu", { meal_type: "lunch" }),
+      displayName: "Almuerzo",
+      now: "2026-11-05T14:00:00Z",
+    };
+    const estimated = { estimate_status: "done" as const, calories: 640, protein_g: 42, carbs_g: 70, fat_g: 18 };
+    // The sheet shows «otra cosa» with the AI's corrected text (name).
+    const otherDone = reg("lu", { kind: "other", name: "Arroz con pollo", original_text: "arros con poyo", ...estimated });
+
+    it("an unchanged «otra cosa» keeps the correction, its original text and its estimate", () => {
+      const row = buildRegistrationRow({
+        ...base,
+        previous: otherDone,
+        choice: { kind: "other", text: "Arroz con pollo " },
+        photoPath: null,
+      });
+      assert.deepEqual(
+        [row.name, row.original_text, row.estimate_status, row.calories, row.fat_g],
+        ["Arroz con pollo", "arros con poyo", "done", 640, 18],
+      );
+    });
+    it("edited «otra cosa» text is new content: a fresh original and a new estimate", () => {
+      const row = buildRegistrationRow({
+        ...base,
+        previous: otherDone,
+        choice: { kind: "other", text: "Arroz con pollo y ensalada" },
+        photoPath: null,
+      });
+      assert.deepEqual(
+        [row.name, row.original_text, row.estimate_status, row.calories],
+        ["Arroz con pollo y ensalada", "Arroz con pollo y ensalada", "pending", 0],
+      );
+    });
+    it("an unchanged plan option keeps its estimate; a new photo starts a new one", () => {
+      const lu = option("lu-o1", [food("150 g pechuga de pollo", "both")]);
+      const previous = reg("lu", { plan_option_id: "lu-o1", name: "150 g pechuga de pollo", photo_path: "u1/a.jpg", ...estimated });
+      const choice = { kind: "plan" as const, option: lu, foodsText: "150 g pechuga de pollo" };
+      const same = buildRegistrationRow({ ...base, previous, choice, photoPath: "u1/a.jpg" });
+      assert.deepEqual([same.estimate_status, same.calories], ["done", 640]);
+      const newPhoto = buildRegistrationRow({ ...base, previous, choice, photoPath: "u1/b.jpg" });
+      assert.deepEqual([newPhoto.estimate_status, newPhoto.calories], ["pending", 0]);
+    });
+    it("a failed estimate re-saved unchanged asks the server to try again", () => {
+      const failed = reg("lu", { kind: "other", name: "Arroz con pollo", original_text: "arros con poyo", estimate_status: "failed" });
+      const row = buildRegistrationRow({ ...base, previous: failed, choice: { kind: "other", text: "Arroz con pollo" }, photoPath: null });
+      assert.deepEqual([row.original_text, row.estimate_status], ["arros con poyo", "pending"]);
+    });
+  });
   it("capitalises the type name fallback only", () => {
     assert.equal(mealDisplayName({ label: null, meal_type: "lunch" }, () => "almuerzo"), "Almuerzo");
     assert.equal(mealDisplayName({ label: "cena ligera", meal_type: "dinner" }, () => "cena"), "cena ligera");
