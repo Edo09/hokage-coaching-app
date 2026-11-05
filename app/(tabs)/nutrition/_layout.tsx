@@ -4,25 +4,20 @@ import { useTranslation } from "react-i18next";
 
 import { TabHeader } from "@/src/components/ui";
 import { nestedStackScreenLayout } from "@/src/lib/motion";
+import { useToday } from "@/src/lib/today";
 import { useColors } from "@/src/theme/colors";
 
-// Context line: today, the day the diary below is about (same format as home).
+// Context line: today, the day the meals below are about (same format as
+// home). useToday turns it over at midnight with the tab open.
 function NutritionHeader() {
   const { t, i18n } = useTranslation();
-  const today = new Date().toLocaleDateString(i18n.language === "es" ? "es-ES" : "en-US", {
+  const today = useToday().toLocaleDateString(i18n.language === "es" ? "es-ES" : "en-US", {
     weekday: "long",
     month: "long",
     day: "numeric",
   });
   return <TabHeader title={t("tabs.nutrition")} context={today} />;
 }
-
-// Deep-linking straight to "create"/"edit" (e.g. from the Home tab) otherwise
-// builds this stack with no "index" beneath it — no parent screen means no
-// back button. This forces index to always be inserted first.
-export const unstable_settings = {
-  initialRouteName: "index",
-};
 
 export default function NutritionLayout() {
   const colors = useColors();
@@ -44,22 +39,6 @@ export default function NutritionLayout() {
       <Stack.Screen
         name="index"
         options={{ title: t("tabs.nutrition"), header: () => <NutritionHeader /> }}
-      />
-      <Stack.Screen
-        name="create"
-        options={{
-          title: t("meals.addFood"),
-          presentation: "modal",
-          ...(Platform.OS === "android" && { animation: "slide_from_bottom" as const }),
-        }}
-      />
-      <Stack.Screen
-        name="edit"
-        options={{
-          title: t("meals.editFood"),
-          presentation: "modal",
-          ...(Platform.OS === "android" && { animation: "slide_from_bottom" as const }),
-        }}
       />
     </Stack>
   );

@@ -3,7 +3,7 @@ import { Ionicons } from "@expo/vector-icons";
 import React, { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { Card, ExpandChevron } from "@/src/components/ui";
+import { CapsLabel, Card, ExpandChevron } from "@/src/components/ui";
 import { Reveal } from "@/src/lib/motion";
 import { useColors } from "@/src/theme/colors";
 import { Pressable, Text } from "@/src/tw";
@@ -53,10 +53,10 @@ export function ShoppingListCard({ plan }: { plan: NutritionPlanWithDetails }) {
         className="flex-row items-center gap-2"
       >
         <Ionicons name="cart-outline" size={16} color={colors.contentTertiary} />
-        <Text className="flex-1 text-[10px] font-bold tracking-widest text-content-tertiary">
-          {t("nutritionPlan.shoppingList").toUpperCase()}
-        </Text>
-        <Text className="text-xs text-content-tertiary" style={{ fontVariant: ["tabular-nums"] }}>
+        <CapsLabel size={8.5} em={0.16} className="flex-1 font-extrabold text-content-tertiary">
+          {t("nutritionPlan.shoppingList")}
+        </CapsLabel>
+        <Text className="text-[12px] font-semibold text-content-tertiary" style={{ fontVariant: ["tabular-nums"] }}>
           {done}/{items.length}
         </Text>
         <ExpandChevron open={open} size={16} color={colors.contentTertiary} />
@@ -81,8 +81,8 @@ export function ShoppingListCard({ plan }: { plan: NutritionPlanWithDetails }) {
               <Text
                 className={
                   isChecked
-                    ? "flex-1 text-sm text-content-tertiary line-through"
-                    : "flex-1 text-sm text-content-primary"
+                    ? "flex-1 text-[13px] text-content-tertiary line-through"
+                    : "flex-1 text-[13px] text-content-primary"
                 }
               >
                 {name}
@@ -92,7 +92,7 @@ export function ShoppingListCard({ plan }: { plan: NutritionPlanWithDetails }) {
         })}
         {done > 0 && (
           <Pressable onPress={clear} accessibilityRole="button" className="self-start py-1">
-            <Text className="text-sm font-semibold text-brand-primary">
+            <Text className="text-[13px] font-semibold text-brand-primary">
               {t("nutritionPlan.shoppingListClear")}
             </Text>
           </Pressable>

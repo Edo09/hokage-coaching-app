@@ -273,6 +273,7 @@ export function DoneCheckbox({
   onToggle,
   locked = false,
   className = "mt-0.5",
+  label,
 }: {
   done: boolean;
   name: string;
@@ -281,6 +282,8 @@ export function DoneCheckbox({
   locked?: boolean;
   /** Placement of the 24px check (margins). */
   className?: string;
+  /** Screen-reader label, for a check that isn't an exercise (supplements). */
+  label?: string;
 }) {
   const { t } = useTranslation();
   const colors = useColors();
@@ -306,9 +309,10 @@ export function DoneCheckbox({
           accessibilityRole="checkbox"
           accessibilityState={{ checked: done, disabled: locked }}
           accessibilityLabel={
-            locked
+            label ??
+            (locked
               ? t("program.lockedA11y", { name })
-              : t(done ? "program.markUndone" : "program.markDone", { name })
+              : t(done ? "program.markUndone" : "program.markDone", { name }))
           }
           hitSlop={8}
           className={

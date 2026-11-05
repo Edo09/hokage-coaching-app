@@ -1,73 +1,41 @@
-import { Ionicons } from "@expo/vector-icons";
-import * as Haptics from "expo-haptics";
-import { router } from "expo-router";
-import React, { useMemo, useState } from "react";
+import React, { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { RefreshControl } from "react-native";
 
-import { DiaryEntry, DiarySlot } from "@/src/components/diary-slot";
 import { EmptyState } from "@/src/components/empty-state";
-import { NutritionPlanView } from "@/src/components/nutrition/nutrition-plan-view";
+import { DayTypeChip } from "@/src/components/nutrition/day-type-chip";
+import { MealCard, NotTodayRow } from "@/src/components/nutrition/meal-card";
+import { RegistrationSheet, type SheetTarget } from "@/src/components/nutrition/registration-sheet";
+import { ShoppingListCard } from "@/src/components/nutrition/shopping-list-card";
 import { SupplementStackView } from "@/src/components/nutrition/supplement-stack-view";
-import {
-  Card,
-  ConfirmDialog,
-  ErrorState,
-  FAB,
-  LoadingBlock,
-  Screen,
-  ScreentoneBackdrop,
-  SegmentedControl,
-  useToast,
-} from "@/src/components/ui";
-import { useAuth } from "@/src/hooks/use-auth";
-import { useMeals } from "@/src/hooks/use-meals";
+import { TodayCard } from "@/src/components/nutrition/today-card";
+import { CapsLabel, Card, ErrorState, LoadingBlock, Screen, SegmentedControl } from "@/src/components/ui";
+import { useMealRegistrations, type RegisterInput } from "@/src/hooks/use-meal-registrations";
 import { useNutritionPlan } from "@/src/hooks/use-nutrition-plan";
-import { useProfile } from "@/src/hooks/use-profile";
-import { usePullRefresh } from "@/src/hooks/use-pull-refresh";
 import { useRefreshOnFocus } from "@/src/hooks/use-refresh-on-focus";
 import { useSupplementLog } from "@/src/hooks/use-supplement-log";
 import { useSupplementPlan } from "@/src/hooks/use-supplement-plan";
-import { useProgram } from "@/src/hooks/use-program";
-import {
-  mealTypeToDiarySlot,
-  planCalorieGoal,
-  resolveDayType,
-  visibleItems,
-} from "@/src/utils/nutrition-plan";
-import { PressableScale, staggered, Swap, useArrival } from "@/src/lib/motion";
-import { useColors } from "@/src/theme/colors";
-import { Pressable, ScrollView, Text, View } from "@/src/tw";
-import { AnimatedView } from "@/src/tw/animated";
-import type {
-  MealItem,
-  MealType,
-  NutritionPlanMeal,
-  NutritionPlanOption,
-} from "@/src/types/database";
-import {
-  caloriesConsumed,
-  macrosConsumed,
-  recommendedCalorieGoal,
-} from "@/src/utils/calories";
-import { addDays, formatDayLabel, toDateKey } from "@/src/utils/dates";
-import { MEAL_SLOTS, suggestedSlot } from "@/src/utils/meal-slots";
+import { Swap, useArrival } from "@/src/lib/motion";
+import { useIsOnline } from "@/src/lib/online";
+import { useToday } from "@/src/lib/today";
+import { Text, View } from "@/src/tw";
+import type { MealItem, NutritionPlanMeal } from "@/src/types/database";
+import { toDateKey } from "@/src/utils/dates";
+import { itemsOf } from "@/src/utils/meal-counting";
+import { doneCount, mealDisplayName, nextMealId, todayMeals } from "@/src/utils/meal-registration";
+import { targetFor, type ResolvedDay } from "@/src/utils/nutrition-plan";
 
-type Pane = "plan" | "supplements" | "diary";
+type Pane = "plan" | "supplements";
 // Segment order: a pane further right drifts in from the right.
-const PANES: Pane[] = ["plan", "supplements", "diary"];
+const PANES: Pane[] = ["plan", "supplements"];
+/** A saved meal's pop key is dropped after its pop has played, so a card that
+ *  remounts later can't replay it. */
+const POP_CLEAR_MS = 1200;
 
 /**
- * The Nutrición tab, which replaced the old Comidas tab. Three panes:
- *
- *   Plan        — the coach's protocol for today's day type
- *   Suplementos — the coach's stack, assigned SEPARATELY (so it has its own
- *                 loading and empty states; a client may have either, both, or
- *                 neither)
- *   Diario      — the client's own log, exactly as it worked before
- *
- * Opens on Plan when a plan is assigned, otherwise on Diario — so a client with
- * no coach plan sees the behaviour they already know.
+ * The Nutrición tab: PLAN (today's meals from the coach's plan, each
+ * registered as eaten, as something else or as skipped) and SUPLEMENTOS (the
+ * coach's stack, assigned separately: a client may have either, both or
+ * neither).
  */
 export default function NutritionScreen() {
   const { t } = useTranslation();
@@ -76,32 +44,12 @@ export default function NutritionScreen() {
   useRefreshOnFocus(plan.refresh);
   useRefreshOnFocus(supplements.refresh);
 
-  // Seeded once from whether a plan exists; after that the client's choice wins,
-  // so a refetch can't yank the pane out from under them.
+  // Seeded once both queries have loaded (spec «No plan»); after that the
+  // client's choice wins, so a refetch can't move the pane under them.
   const [pane, setPane] = useState<Pane | null>(null);
-  const resolvedPane: Pane = pane ?? (plan.plan != null ? "plan" : "diary");
-
-  // Hand the prescription to the existing add-food screen rather than writing a
-  // macro-less row: plan foods carry no numbers, so the photo + AI estimator is
-  // what makes the diary entry honest. plan_option_id rides along as the
-  // adherence link.
-  const registerOption = (
-    meal: NutritionPlanMeal,
-    option: NutritionPlanOption,
-  ) => {
-    const visible = visibleItems(option, plan.day);
-    router.push({
-      pathname: "/(tabs)/nutrition/create",
-      params: {
-        mealType: mealTypeToDiarySlot(meal.meal_type),
-        date: toDateKey(),
-        // The first visible food seeds the name; the client edits it to match
-        // what they actually plated before the photo goes in.
-        prefillName: visible[0]?.name ?? "",
-        planOptionId: option.id,
-      },
-    });
-  };
+  if (pane == null && !plan.loading && !supplements.loading) {
+    setPane(plan.plan != null ? "plan" : supplements.plan != null ? "supplements" : "plan");
+  }
 
   return (
     <View className="flex-1 bg-brand-dark">
@@ -110,72 +58,172 @@ export default function NutritionScreen() {
           segments={[
             { key: "plan", label: t("nutritionPlan.segmentPlan") },
             { key: "supplements", label: t("nutritionPlan.segmentSupplements") },
-            { key: "diary", label: t("nutritionPlan.segmentDiary") },
           ]}
-          value={resolvedPane}
+          value={pane ?? "plan"}
           onChange={(k) => setPane(k as Pane)}
         />
       </View>
 
-      <Swap id={resolvedPane} order={PANES.indexOf(resolvedPane)} className="flex-1">
-        {resolvedPane === "diary" ? (
-          <DiaryPane nutritionPlan={plan.plan} />
-        ) : resolvedPane === "plan" ? (
-          <PlanPane plan={plan} onRegister={registerOption} />
-        ) : (
-          <SupplementsPane supplements={supplements} day={plan.day} cycling={plan.plan?.day_cycling ?? false} />
-        )}
-      </Swap>
+      {pane == null ? (
+        <LoadingBlock />
+      ) : (
+        <Swap id={pane} order={PANES.indexOf(pane)} className="flex-1">
+          {pane === "plan" ? (
+            // A new day starts over: no open card or sheet carries past midnight.
+            <PlanPane key={plan.todayKey} plan={plan} />
+          ) : (
+            <SupplementsPane
+              supplements={supplements}
+              day={plan.day}
+              cycling={plan.plan?.day_cycling ?? false}
+            />
+          )}
+        </Swap>
+      )}
     </View>
   );
 }
 
-function PlanPane({
-  plan,
-  onRegister,
-}: {
-  plan: ReturnType<typeof useNutritionPlan>;
-  onRegister: (meal: NutritionPlanMeal, option: NutritionPlanOption) => void;
-}) {
+function PlanPane({ plan }: { plan: ReturnType<typeof useNutritionPlan> }) {
   const { t } = useTranslation();
-  const { meals } = useMeals();
-  const todayKey = toDateKey();
-  const consumed = useMemo(
-    () => macrosConsumed(meals.filter((m) => m.date === todayKey)),
-    [meals, todayKey],
-  );
+  const online = useIsOnline();
+  const reg = useMealRegistrations();
+  /** The card open in place of the next meal; null opens the next one. */
+  const [openId, setOpenId] = useState<string | null>(null);
+  const [sheet, setSheet] = useState<SheetTarget | null>(null);
+  const [popKeys, setPopKeys] = useState<Record<string, number>>({});
+  const popSeq = useRef(0);
   const arrive = useArrival(plan.loading && plan.plan == null);
 
   if (plan.loading && plan.plan == null) return <LoadingBlock />;
   if (plan.error && plan.plan == null) return <ErrorState onRetry={plan.refresh} />;
   if (plan.plan == null) {
     return (
-      <View className="flex-1 items-center justify-center px-6">
-        <EmptyState
-          icon="nutrition-outline"
-          title={t("nutritionPlan.noPlanTitle")}
-          subtitle={t("nutritionPlan.noPlanHint")}
-        />
-      </View>
+      <Screen entering={arrive} onRefresh={plan.refresh} contentContainerClassName="flex-grow justify-center p-4 pb-24">
+        <EmptyState icon="nutrition-outline" title={t("mealReg.noPlanTitle")} subtitle={t("mealReg.noPlanHint")} />
+      </Screen>
     );
   }
 
+  const p = plan.plan;
+  const cycling = p.day_cycling;
+  const items = todayMeals(p, plan.day, reg.registrations);
+  const nextId = nextMealId(items);
+  const openable = (id: string | null) =>
+    items.some((i) => i.meal.id === id && i.registration == null && !i.noteOnly);
+  const openMealId = openable(openId) ? openId : nextId;
+  const { done, total } = doneCount(items);
+  const nameOf = (meal: NutritionPlanMeal) => mealDisplayName(meal, (type) => t(`meals.${type}`));
+  const sheetOptions = items.find((i) => i.meal.id === sheet?.meal.id)?.options ?? [];
+
+  const save = (input: RegisterInput) => {
+    setSheet(null);
+    setOpenId(null);
+    if (input.choice.kind !== "skipped") {
+      const id = input.meal.id;
+      popSeq.current += 1;
+      const n = popSeq.current;
+      setPopKeys((k) => ({ ...k, [id]: n }));
+      setTimeout(() => {
+        setPopKeys((k) => {
+          if (k[id] !== n) return k;
+          const rest = { ...k };
+          delete rest[id];
+          return rest;
+        });
+      }, POP_CLEAR_MS);
+    }
+    void reg.register(input);
+  };
+
+  const undo = (item: MealItem) => {
+    setSheet(null);
+    void reg.undo(item);
+  };
+
+  const changeDay = (day: ResolvedDay) => plan.setViewDay(day === plan.autoDay ? null : day);
+
   return (
-    <Screen
-      entering={arrive}
-      onRefresh={plan.refresh}
-      contentContainerClassName="p-4 gap-3 pb-24"
-    >
-      <NutritionPlanView
-        plan={plan.plan}
+    <>
+      <Screen entering={arrive} onRefresh={plan.refresh} contentContainerClassName="p-4 gap-3 pb-24">
+        <TodayCard
+          target={targetFor(p, plan.day)}
+          todays={reg.todays}
+          onRetry={() => void reg.retry(itemsOf(reg.todays))}
+        />
+
+        <View className="min-h-[24px] flex-row items-center justify-between gap-3">
+          {cycling ? <DayTypeChip day={plan.day} overridden={plan.overridden} onChange={changeDay} /> : <View />}
+          {total > 0 && (
+            <CapsLabel size={8.5} em={0.16} className="font-extrabold text-content-tertiary">
+              {t("mealReg.doneCount", { done, count: total })}
+            </CapsLabel>
+          )}
+        </View>
+
+        {/* The meals follow the day type: the swap shows the change. A plan
+            that doesn't cycle shows the same meals every day. */}
+        <Swap
+          id={cycling ? plan.day : "all"}
+          order={cycling ? (plan.day === "training" ? 0 : 1) : undefined}
+          className="gap-2.5"
+        >
+          {items.map((item) =>
+            item.noteOnly ? (
+              <NotTodayRow key={item.meal.id} name={nameOf(item.meal)} note={item.meal.notes ?? ""} />
+            ) : (
+              <MealCard
+                key={item.meal.id}
+                item={item}
+                name={nameOf(item.meal)}
+                isNext={item.meal.id === nextId}
+                open={item.meal.id === openMealId}
+                day={plan.day}
+                cycling={cycling}
+                popKey={popKeys[item.meal.id] ?? 0}
+                onOpen={() => setOpenId(item.meal.id)}
+                onRegister={(optionId) =>
+                  setSheet({ meal: item.meal, name: nameOf(item.meal), registration: null, preselectOptionId: optionId })
+                }
+                onEdit={() =>
+                  setSheet({
+                    meal: item.meal,
+                    name: nameOf(item.meal),
+                    registration: item.registration,
+                    preselectOptionId: null,
+                  })
+                }
+                onRetry={() => {
+                  if (item.registration != null) void reg.retry([item.registration]);
+                }}
+              />
+            ),
+          )}
+        </Swap>
+
+        <ShoppingListCard plan={p} />
+
+        {p.notes != null && p.notes.trim() !== "" && (
+          <Card className="gap-1.5">
+            <CapsLabel size={8.5} em={0.16} className="font-extrabold text-content-tertiary">
+              {t("mealReg.coachNotes")}
+            </CapsLabel>
+            <Text className="text-[13px] text-content-secondary">{p.notes}</Text>
+          </Card>
+        )}
+      </Screen>
+
+      <RegistrationSheet
+        target={sheet}
+        options={sheetOptions}
         day={plan.day}
-        autoDay={plan.autoDay}
-        overridden={plan.overridden}
-        onSelectDay={plan.setViewDay}
-        onRegister={onRegister}
-        consumed={consumed}
+        cycling={cycling}
+        online={online}
+        onClose={() => setSheet(null)}
+        onSave={save}
+        onUndo={undo}
       />
-    </Screen>
+    </>
   );
 }
 
@@ -185,11 +233,13 @@ function SupplementsPane({
   cycling,
 }: {
   supplements: ReturnType<typeof useSupplementPlan>;
-  day: "training" | "rest";
+  day: ResolvedDay;
   cycling: boolean;
 }) {
   const { t } = useTranslation();
-  const intake = useSupplementLog();
+  // The day-reactive key: ticks start over at midnight with the tab open.
+  const today = useToday();
+  const intake = useSupplementLog(toDateKey(today));
   const arrive = useArrival(supplements.loading && supplements.plan == null);
 
   if (supplements.loading && supplements.plan == null) return <LoadingBlock />;
@@ -198,298 +248,29 @@ function SupplementsPane({
   }
   if (supplements.plan == null) {
     return (
-      <View className="flex-1 items-center justify-center px-6">
+      <Screen
+        entering={arrive}
+        onRefresh={supplements.refresh}
+        contentContainerClassName="flex-grow justify-center p-4 pb-24"
+      >
         <EmptyState
           icon="medkit-outline"
           title={t("supplements.noPlanTitle")}
           subtitle={t("supplements.noPlanHint")}
         />
-      </View>
+      </Screen>
     );
   }
 
   return (
-    <Screen
-      entering={arrive}
-      onRefresh={supplements.refresh}
-      contentContainerClassName="p-4 gap-3 pb-24"
-    >
+    <Screen entering={arrive} onRefresh={supplements.refresh} contentContainerClassName="p-4 gap-3 pb-24">
       <SupplementStackView
         plan={supplements.plan}
         day={day}
         cycling={cycling}
         isTaken={intake.isTaken}
-        onToggleTaken={(name) => {
-          Haptics.selectionAsync().catch(() => {});
-          void intake.setTaken(name, !intake.isTaken(name));
-        }}
+        onToggleTaken={(name) => void intake.setTaken(name, !intake.isTaken(name))}
       />
     </Screen>
-  );
-}
-
-// The diary, unchanged from when it was its own Comidas tab — date navigation,
-// day summary, per-slot entries, the add-food FAB and photo logging. It is now
-// one of three panes inside Nutrición.
-function DiaryPane({
-  nutritionPlan,
-}: {
-  nutritionPlan: ReturnType<typeof useNutritionPlan>["plan"];
-}) {
-  const colors = useColors();
-  const { t, i18n } = useTranslation();
-  const toast = useToast();
-  const { user } = useAuth();
-  const { profile } = useProfile(user?.id);
-  const { program } = useProgram();
-  const { meals, loading, error, refresh, removeDiaryItem } = useMeals();
-  useRefreshOnFocus(refresh);
-  const pull = usePullRefresh(refresh);
-
-  // Date navigation. todayKey is recomputed per render so the diary heals
-  // itself across midnight (label flips to a date, "›" re-enables).
-  const [dateKey, setDateKey] = useState(() => toDateKey());
-  const todayKey = toDateKey();
-  const onToday = dateKey === todayKey;
-
-  const [pendingRemove, setPendingRemove] = useState<MealItem | null>(null);
-
-  const goToDay = (delta: 1 | -1) => {
-    Haptics.selectionAsync().catch(() => {});
-    setDateKey((k) => {
-      const next = addDays(k, delta);
-      return next > todayKey ? k : next; // forward capped at today
-    });
-  };
-
-  const jumpToToday = () => setDateKey(todayKey);
-
-  const dayMeals = useMemo(
-    () => meals.filter((m) => m.date === dateKey),
-    [meals, dateKey],
-  );
-
-  // Flatten items across ALL meals of (date, slot) — legacy multi-meal slots
-  // merge naturally. mealId kept per entry so removal cleans the right container.
-  const bySlot = useMemo(() => {
-    const map: Record<MealType, DiaryEntry[]> = {
-      breakfast: [],
-      lunch: [],
-      dinner: [],
-      snack: [],
-    };
-    for (const meal of dayMeals) {
-      const assigned = meal.assigned_by != null;
-      for (const item of meal.meal_items) {
-        map[meal.meal_type].push({ item, mealId: meal.id, assigned });
-      }
-    }
-    for (const slot of MEAL_SLOTS) {
-      map[slot].sort((a, b) => a.item.created_at.localeCompare(b.item.created_at));
-    }
-    return map;
-  }, [dayMeals]);
-
-  const consumed = caloriesConsumed(dayMeals);
-  // An assigned plan's target for that day's type wins over the profile goal.
-  const goal =
-    planCalorieGoal(nutritionPlan, resolveDayType(program, dateKey)) ??
-    profile?.calorie_goal ??
-    recommendedCalorieGoal(profile);
-  const numberLocale = i18n.language === "es" ? "es-ES" : "en-US";
-  const kcalFmt = (v: number) => Math.round(v).toLocaleString(numberLocale);
-
-  // Day macro totals for the summary card (matches the old nutrition summary)
-  const dayItems = useMemo(() => dayMeals.flatMap((m) => m.meal_items), [dayMeals]);
-  const dayMacros = [
-    {
-      key: "protein",
-      label: t("meals.proteinName"),
-      value: dayItems.reduce((s, i) => s + i.protein_g, 0),
-      color: colors.macroProtein,
-    },
-    {
-      key: "carbs",
-      label: t("meals.carbsName"),
-      value: dayItems.reduce((s, i) => s + i.carbs_g, 0),
-      color: colors.macroCarbs,
-    },
-    {
-      key: "fat",
-      label: t("meals.fatName"),
-      value: dayItems.reduce((s, i) => s + i.fat_g, 0),
-      color: colors.macroFat,
-    },
-  ];
-
-  const openAdd = (slot: MealType) =>
-    router.push({
-      pathname: "/(tabs)/nutrition/create",
-      params: { mealType: slot, date: dateKey },
-    });
-
-  const handleConfirmRemove = async () => {
-    const target = pendingRemove;
-    setPendingRemove(null);
-    if (target == null) return;
-    try {
-      await removeDiaryItem(target.id);
-      toast.show({ type: "success", message: t("meals.itemRemoved") });
-    } catch {
-      toast.show({ type: "error", message: t("common.somethingWentWrong") });
-    }
-  };
-
-  if (loading && meals.length === 0) {
-    return (
-      <View className="flex-1 bg-brand-dark">
-        <LoadingBlock />
-      </View>
-    );
-  }
-
-  if (error && meals.length === 0) {
-    return (
-      <View className="flex-1 bg-brand-dark">
-        <ErrorState onRetry={refresh} />
-      </View>
-    );
-  }
-
-  return (
-    <View className="flex-1 bg-brand-dark">
-      <ScreentoneBackdrop />
-      {/* Date navigation */}
-      <View className="flex-row items-center justify-between px-4 pt-3 pb-1">
-        <PressableScale
-          haptic
-          onPress={() => goToDay(-1)}
-          accessibilityRole="button"
-          accessibilityLabel={t("meals.previousDay")}
-          className="h-10 w-10 rounded-full bg-surface border border-border items-center justify-center"
-        >
-          <Ionicons name="chevron-back" size={20} color={colors.contentSecondary} />
-        </PressableScale>
-        <Pressable
-          onPress={onToday ? undefined : jumpToToday}
-          accessibilityRole="button"
-          className="items-center"
-        >
-          <Text className="text-base font-semibold text-content-primary">
-            {formatDayLabel(dateKey, i18n.language, t)}
-          </Text>
-          {!onToday && (
-            <Text className="text-xs font-medium text-brand-primary">
-              {t("meals.backToToday")}
-            </Text>
-          )}
-        </Pressable>
-        <PressableScale
-          haptic
-          onPress={() => goToDay(1)}
-          disabled={onToday}
-          accessibilityRole="button"
-          accessibilityLabel={t("meals.nextDay")}
-          className={`h-10 w-10 rounded-full bg-surface border border-border items-center justify-center ${onToday ? "opacity-30" : ""}`}
-        >
-          <Ionicons name="chevron-forward" size={20} color={colors.contentSecondary} />
-        </PressableScale>
-      </View>
-
-      <ScrollView
-        contentContainerClassName="px-4 py-3 pb-28 gap-4"
-        refreshControl={
-          <RefreshControl
-            refreshing={pull.refreshing}
-            onRefresh={pull.onRefresh}
-            tintColor={colors.brandPrimary}
-            colors={[colors.brandPrimary]}
-            progressBackgroundColor={colors.surface}
-          />
-        }
-      >
-        {/* Day changes drift in from the travel direction (earlier = left) */}
-        <Swap id={dateKey} order={Date.parse(dateKey)} className="gap-4">
-          {/* Day summary */}
-          <Card className="gap-3">
-            <View className="flex-row items-end justify-between">
-              <View>
-                <Text className="text-xs text-content-tertiary">{t("meals.dayTotal")}</Text>
-                <Text
-                  className="text-2xl font-bold text-content-primary"
-                  style={{ fontVariant: ["tabular-nums"] }}
-                >
-                  {kcalFmt(consumed)}
-                  {goal != null ? ` / ${kcalFmt(goal)}` : ""}{" "}
-                  <Text className="text-sm font-normal text-content-tertiary">
-                    {t("meals.kcal")}
-                  </Text>
-                </Text>
-              </View>
-              {goal != null && (
-                <Text
-                  className={`text-sm font-medium ${goal - consumed < 0 ? "text-error" : "text-success"}`}
-                >
-                  {goal - consumed < 0
-                    ? t("meals.kcalOver", { kcal: kcalFmt(consumed - goal) })
-                    : t("meals.kcalLeft", { kcal: kcalFmt(goal - consumed) })}
-                </Text>
-              )}
-            </View>
-            {dayItems.length > 0 && (
-              <View className="flex-row justify-between border-t border-border pt-3">
-                {dayMacros.map((macro) => (
-                  <View key={macro.key} className="items-center flex-1">
-                    <Text
-                      className="text-lg font-bold"
-                      style={{ color: macro.color, fontVariant: ["tabular-nums"] }}
-                    >
-                      {macro.value.toFixed(1)}g
-                    </Text>
-                    <Text className="text-sm text-content-tertiary">{macro.label}</Text>
-                  </View>
-                ))}
-              </View>
-            )}
-          </Card>
-
-          {MEAL_SLOTS.map((slot, i) => (
-            <AnimatedView key={slot} entering={staggered(i)}>
-              <DiarySlot
-                slot={slot}
-                entries={bySlot[slot]}
-                onAdd={() => openAdd(slot)}
-                onEdit={(entry) =>
-                  router.push({
-                    pathname: "/(tabs)/nutrition/edit",
-                    params: { itemId: entry.item.id },
-                  })
-                }
-                onRemove={(entry) => setPendingRemove(entry.item)}
-              />
-            </AnimatedView>
-          ))}
-        </Swap>
-      </ScrollView>
-
-      <FAB
-        onPress={() => openAdd(suggestedSlot())}
-        accessibilityLabel={t("meals.addFood")}
-      />
-
-      <ConfirmDialog
-        visible={pendingRemove != null}
-        destructive
-        title={t("meals.removeFoodItem")}
-        message={
-          pendingRemove != null
-            ? t("meals.removeConfirm", { name: pendingRemove.name })
-            : undefined
-        }
-        confirmLabel={t("common.remove")}
-        onConfirm={handleConfirmRemove}
-        onClose={() => setPendingRemove(null)}
-      />
-    </View>
   );
 }
