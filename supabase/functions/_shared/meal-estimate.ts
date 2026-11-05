@@ -98,10 +98,15 @@ function levenshtein(a: string, b: string): number {
   return prev[b.length];
 }
 
+/** Edits a word may take and still count as a misspelling of itself. Tight on
+ *  purpose: it stops a rewrite into another food («ensalada» → «empanada»).
+ *  A one-letter swap can still change the food («batata» → «patata»); no
+ *  distance rule can tell that from a typo, so the prompt's spelling-only
+ *  instruction carries that case. */
 function allowedDistance(n: number): number {
   if (n <= 3) return 1;
-  if (n <= 5) return 2;
-  return Math.floor(n * 0.4);
+  if (n <= 8) return 2;
+  return 3;
 }
 
 /** Whether a spelling correction may replace the client's text: same words in

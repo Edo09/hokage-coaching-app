@@ -26,6 +26,13 @@ describe("acceptCorrection", () => {
     assert.equal(acceptCorrection("pechugade pollo", "pechuga de pollo"), false);
     assert.equal(acceptCorrection("yogur con fresas", ""), false);
   });
+  it("rejects a one-word swap to another food that is a few letters away", () => {
+    // 3 edits on 8 letters: a salad must not become a fried pastry.
+    assert.equal(acceptCorrection("ensalada verde", "empanada verde"), false);
+  });
+  it("still accepts real misspellings of long words", () => {
+    assert.equal(acceptCorrection("verengena asada", "berenjena asada"), true);
+  });
 });
 
 describe("parseEstimate", () => {
