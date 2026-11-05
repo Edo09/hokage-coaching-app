@@ -12,6 +12,7 @@ import { RestTimerBar } from "@/src/components/program/rest-timer-bar";
 import { TabHeader } from "@/src/components/ui";
 import { useAuth } from "@/src/hooks/use-auth";
 import { useReminderSync } from "@/src/hooks/use-reminder-sync";
+import { useMealEstimateSync } from "@/src/hooks/use-meal-estimate-sync";
 import { usePushToken } from "@/src/hooks/use-push-token";
 import { useReminderTaps } from "@/src/hooks/use-reminder-taps";
 import { DUR, EASE_OUT } from "@/src/lib/motion";
@@ -70,6 +71,8 @@ function Reminders() {
   useReminderSync();
   useReminderTaps();
   usePushToken();
+  // Meal estimates landing while the app is open (src/hooks/use-meal-estimate-sync.ts).
+  useMealEstimateSync();
   return null;
 }
 

@@ -4,7 +4,13 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type { Meal, MealItem, MealWithItems } from "@/src/types/database";
-import { removeItemFromCache, upsertItemInCache } from "@/src/utils/meal-cache";
+import {
+  normalizeMealItem,
+  patchItemInCache,
+  pendingRecheckIds,
+  removeItemFromCache,
+  upsertItemInCache,
+} from "@/src/utils/meal-cache";
 
 function item(over: Partial<MealItem> = {}): MealItem {
   return {
@@ -51,5 +57,29 @@ describe("meal cache edits", () => {
       ms.map((m) => [m.id, m.meal_items.length]),
       [["c2", 0], ["c1", 0]],
     );
+  });
+});
+
+describe("estimates reaching the cache", () => {
+  it("patches a row in place, or asks for a refetch when its container is missing", () => {
+    const ms = [meal("c1", [item({ id: "r", meal_id: "c1", estimate_status: "pending" })])];
+    const patched = patchItemInCache(ms, item({ id: "r", meal_id: "c1", estimate_status: "done", calories: 410 }));
+    assert.equal(patched?.[0].meal_items[0].calories, 410);
+    assert.equal(patchItemInCache(ms, item({ id: "z", meal_id: "c9" })), null);
+  });
+  it("normalises numeric strings", () => {
+    const r = normalizeMealItem({ id: "r", meal_id: "c1", calories: "410", protein_g: "30.5", carbs_g: "0", fat_g: "1" });
+    assert.deepEqual([r.calories, r.protein_g], [410, 30.5]);
+  });
+  it("re-reads pending rows unless their next try is minutes away", () => {
+    const now = new Date("2026-11-05T13:00:00Z");
+    const ms = [
+      meal("c1", [
+        item({ id: "a", kind: "other", estimate_status: "pending", estimate_next_at: null }),
+        item({ id: "b", kind: "plan", estimate_status: "pending", estimate_next_at: "2026-11-05T13:10:00Z" }),
+        item({ id: "c", kind: "plan", estimate_status: "done" }),
+      ]),
+    ];
+    assert.deepEqual(pendingRecheckIds(ms, now), ["a"]);
   });
 });
