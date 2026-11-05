@@ -6,8 +6,11 @@
 # preferences → Access Tokens) saved as the repository secret
 # SUPABASE_ACCESS_TOKEN (Settings → Secrets and variables → Actions).
 #
-# Function secrets (ALLOWED_ORIGINS, GEMINI_API_KEY, GROQ_API_KEY) are not
-# set here: set them in the dashboard (Edge Functions → Secrets).
+# Function secrets (ALLOWED_ORIGINS, GEMINI_API_KEY, GROQ_API_KEY,
+# ESTIMATE_MEAL_SECRET, and the optional test-only ESTIMATE_FAIL_USER_ID) are
+# not set here: set them in the dashboard (Edge Functions → Secrets).
+# ESTIMATE_MEAL_SECRET also goes in Vault, with estimate-meal's URL
+# (docs/ADMIN_WEB_DB_CONNECTION.md §6.6).
 
 name: Deploy Edge Functions
 
@@ -51,3 +54,7 @@ jobs:
             supabase functions deploy "$fn" --project-ref "$PROJECT_REF"
             echo "::endgroup::"
           done
+          # estimate-meal is called by the database (pg_net) with its own secret, not a user JWT.
+          echo "::group::estimate-meal"
+          supabase functions deploy estimate-meal --project-ref "$PROJECT_REF" --no-verify-jwt
+          echo "::endgroup::"
