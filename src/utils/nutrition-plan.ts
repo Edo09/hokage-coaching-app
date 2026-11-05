@@ -127,14 +127,16 @@ export function shoppingList(plan: NutritionPlanWithDetails): string[] {
   return [...seen.values()];
 }
 
-/** "150" + "155" -> "150–155"; equal bounds collapse; one-sided is allowed. */
+/** "150" + "155" -> "150–155"; equal bounds collapse; one-sided is allowed.
+ *  `format` renders each bound (the locale's digit grouping, say). */
 export function formatRange(
   a: number | null,
   b: number | null,
+  format: (n: number) => string = String,
 ): string | null {
-  if (a != null && b != null) return a === b ? String(a) : `${a}–${b}`;
-  if (a != null) return String(a);
-  if (b != null) return String(b);
+  if (a != null && b != null) return a === b ? format(a) : `${format(a)}–${format(b)}`;
+  if (a != null) return format(a);
+  if (b != null) return format(b);
   return null;
 }
 
