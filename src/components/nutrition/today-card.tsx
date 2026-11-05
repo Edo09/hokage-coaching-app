@@ -41,7 +41,7 @@ export function TodayCard({
       topAccent={kcalTarget != null ? hoyAccent(kcal, min, max) : undefined}
       className="gap-3 rounded-[20px] p-[18px]"
     >
-      <View className="flex-row items-end justify-between gap-3">
+      <View className="flex-row items-start justify-between gap-3">
         <View className="min-w-0 flex-1 gap-1.5">
           <View className="flex-row items-center gap-1">
             <CapsLabel size={8.5} em={0.16} className="font-extrabold text-content-tertiary">
