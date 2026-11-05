@@ -230,3 +230,352 @@ create trigger trg_meal_items_20_estimate
   before insert or update on public.meal_items
   for each row
   execute function public.meal_items_estimate_state();
+
+-- 4) Sending -----------------------------------------------------------------------
+-- The one place that posts to estimate-meal: {id, version} with the secret in
+-- a header. The URL and the secret come from Vault, set by hand; without them
+-- nothing is sent and the row waits for the cron. pg_net sends only once the
+-- transaction commits. Never raises.
+create or replace function public.send_meal_estimate(p_id uuid, p_version bigint)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_url    text;
+  v_secret text;
+begin
+  select decrypted_secret into v_url from vault.decrypted_secrets where name = 'estimate_meal_url';
+  select decrypted_secret into v_secret from vault.decrypted_secrets where name = 'estimate_meal_secret';
+  if v_url is null or v_secret is null then
+    return false;
+  end if;
+  perform net.http_post(
+    url                  := v_url,
+    body                 := jsonb_build_object('id', p_id, 'version', p_version),
+    headers              := jsonb_build_object('Content-Type', 'application/json',
+                                               'x-estimate-secret', v_secret),
+    timeout_milliseconds := 10000);
+  return true;
+exception when others then
+  raise warning 'meal estimate % not sent: %', p_id, sqlerrm;
+  return false;
+end;
+$$;
+
+revoke all on function public.send_meal_estimate(uuid, bigint) from public, anon, authenticated;
+
+-- Posts exactly when meal_items_estimate_state() started a send for a client
+-- write: it bumped the version and, with Vault set, counted attempt 1. Server
+-- writes post nothing from here (auth.uid() is null for them); the cron sends
+-- its own. Never updates the row.
+create or replace function public.meal_items_send_estimate()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  perform public.send_meal_estimate(new.id, new.estimate_version);
+  return null;
+end;
+$$;
+
+revoke all on function public.meal_items_send_estimate() from public, anon, authenticated;
+
+drop trigger if exists trg_meal_items_30_send_ins on public.meal_items;
+create trigger trg_meal_items_30_send_ins
+  after insert on public.meal_items
+  for each row
+  when (new.kind in ('plan', 'other') and new.estimate_status = 'pending'
+        and new.estimate_attempts > 0 and auth.uid() is not null)
+  execute function public.meal_items_send_estimate();
+
+drop trigger if exists trg_meal_items_30_send_upd on public.meal_items;
+create trigger trg_meal_items_30_send_upd
+  after update on public.meal_items
+  for each row
+  when (new.kind in ('plan', 'other') and new.estimate_status = 'pending'
+        and new.estimate_attempts > 0 and auth.uid() is not null
+        and new.estimate_version is distinct from old.estimate_version)
+  execute function public.meal_items_send_estimate();
+
+-- 5) Write-back, for estimate-meal (service role only) --------------------------------
+-- Each acts only while the row is still pending and still the version the call
+-- was sent for; otherwise the answer is stale and changes nothing.
+create or replace function public.finish_meal_estimate(
+  p_id uuid,
+  p_version bigint,
+  p_calories integer,
+  p_protein_g numeric,
+  p_carbs_g numeric,
+  p_fat_g numeric,
+  p_name text)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  update public.meal_items
+     set calories = p_calories,
+         protein_g = p_protein_g,
+         carbs_g = p_carbs_g,
+         fat_g = p_fat_g,
+         name = coalesce(p_name, name),
+         estimate_status = 'done',
+         estimate_next_at = null
+   where id = p_id and estimate_version = p_version and estimate_status = 'pending';
+  return found;
+end;
+$$;
+
+-- The attempt was counted when the call was sent, so a failure only schedules
+-- the next try (1, 5, 15, then 60 minutes) or, after attempt 5, fails for good.
+create or replace function public.fail_meal_estimate(p_id uuid, p_version bigint)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  update public.meal_items
+     set estimate_status = case when estimate_attempts >= 5 then 'failed' else 'pending' end,
+         estimate_next_at = case
+           when estimate_attempts >= 5 then null
+           when estimate_attempts <= 1 then now() + interval '1 minute'
+           when estimate_attempts = 2 then now() + interval '5 minutes'
+           when estimate_attempts = 3 then now() + interval '15 minutes'
+           else now() + interval '60 minutes'
+         end
+   where id = p_id and estimate_version = p_version and estimate_status = 'pending';
+  return found;
+end;
+$$;
+
+-- The client's AI quota is used up: give the attempt back and look again in
+-- 15 minutes. It never fails for that reason.
+create or replace function public.defer_meal_estimate(p_id uuid, p_version bigint)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  update public.meal_items
+     set estimate_attempts = greatest(estimate_attempts - 1, 0),
+         estimate_next_at = now() + interval '15 minutes'
+   where id = p_id and estimate_version = p_version and estimate_status = 'pending';
+  return found;
+end;
+$$;
+
+revoke all on function public.finish_meal_estimate(uuid, bigint, integer, numeric, numeric, numeric, text) from public, anon, authenticated;
+revoke all on function public.fail_meal_estimate(uuid, bigint) from public, anon, authenticated;
+revoke all on function public.defer_meal_estimate(uuid, bigint) from public, anon, authenticated;
+grant execute on function public.finish_meal_estimate(uuid, bigint, integer, numeric, numeric, numeric, text) to service_role;
+grant execute on function public.fail_meal_estimate(uuid, bigint) to service_role;
+grant execute on function public.defer_meal_estimate(uuid, bigint) to service_role;
+
+-- 6) Retries -------------------------------------------------------------------------
+-- Every 2 minutes: re-send what is due, whatever its date. Each send moves the
+-- row's next try one 3-minute lease ahead and counts the attempt in the same
+-- update, so a call still running is never sent twice and a lost one goes out
+-- again once its lease runs out. Rows that used every attempt fail for good.
+create or replace function public.resend_meal_estimates()
+returns integer
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  r   record;
+  v_n integer := 0;
+begin
+  if not public.meal_estimate_configured() then
+    return 0;
+  end if;
+
+  update public.meal_items
+     set estimate_status = 'failed', estimate_next_at = null
+   where estimate_status = 'pending' and kind in ('plan', 'other')
+     and estimate_attempts >= 5 and estimate_next_at <= now();
+
+  for r in
+    with due as (
+      select id
+        from public.meal_items
+       where estimate_status = 'pending' and kind in ('plan', 'other')
+         and estimate_attempts < 5
+         and (estimate_next_at is null or estimate_next_at <= now())
+       order by estimate_next_at nulls first
+       limit 50
+       for update skip locked
+    )
+    update public.meal_items m
+       set estimate_attempts = m.estimate_attempts + 1,
+           estimate_next_at = now() + interval '3 minutes',
+           estimate_version = coalesce(m.estimate_version, nextval('public.meal_estimate_version_seq'))
+      from due
+     where m.id = due.id
+    returning m.id, m.estimate_version
+  loop
+    if public.send_meal_estimate(r.id, r.estimate_version) then
+      v_n := v_n + 1;
+    end if;
+  end loop;
+  return v_n;
+end;
+$$;
+
+-- Once a day: each failed estimate from the last 7 days gets one more try
+-- (attempt 5), so an outage heals without the client tapping «Sin estimar».
+create or replace function public.retry_failed_meal_estimates()
+returns integer
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_n integer;
+begin
+  update public.meal_items
+     set estimate_status = 'pending', estimate_attempts = 4, estimate_next_at = now()
+   where estimate_status = 'failed' and kind in ('plan', 'other')
+     and created_at > now() - interval '7 days';
+  get diagnostics v_n = row_count;
+  return v_n;
+end;
+$$;
+
+revoke all on function public.resend_meal_estimates() from public, anon, authenticated;
+revoke all on function public.retry_failed_meal_estimates() from public, anon, authenticated;
+
+-- cron.schedule with a job name replaces that job, so this is safe to re-run.
+create extension if not exists pg_cron;
+select cron.schedule('meal-estimates-resend', '*/2 * * * *', 'select public.resend_meal_estimates()');
+select cron.schedule('meal-estimates-daily-retry', '0 11 * * *', 'select public.retry_failed_meal_estimates()');
+
+-- 7) The client's AI quota, for the server ---------------------------------------------
+-- take_ai_quota() and refund_ai_quota() act for auth.uid(), the caller. The
+-- server estimates a meal for a client, so these take the client. Same table,
+-- limits and lock key: ai-complete and estimate-meal share one allowance of
+-- 30 per hour and 100 per day, and wait for each other.
+create or replace function public.take_ai_quota_for(p_user_id uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_last_hour int;
+  v_last_day  int;
+begin
+  if p_user_id is null then
+    return false;
+  end if;
+
+  perform pg_advisory_xact_lock(hashtext('ai_quota:' || p_user_id::text));
+
+  delete from public.ai_requests
+   where user_id = p_user_id and created_at < now() - interval '1 day';
+
+  select count(*) filter (where created_at > now() - interval '1 hour'), count(*)
+    into v_last_hour, v_last_day
+    from public.ai_requests
+   where user_id = p_user_id;
+
+  if v_last_hour >= 30 or v_last_day >= 100 then
+    return false;
+  end if;
+
+  insert into public.ai_requests (user_id) values (p_user_id);
+  return true;
+end;
+$$;
+
+create or replace function public.refund_ai_quota_for(p_user_id uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_id bigint;
+begin
+  if p_user_id is null then
+    return false;
+  end if;
+
+  select id into v_id
+    from public.ai_requests
+   where user_id = p_user_id
+     and created_at > now() - interval '10 minutes'
+   order by created_at desc, id desc
+   limit 1;
+
+  if v_id is null then
+    return false;
+  end if;
+
+  delete from public.ai_requests where id = v_id;
+  return true;
+end;
+$$;
+
+-- ai-complete calls take_ai_quota() with the caller's JWT, so it keeps its
+-- grant to authenticated; it now shares the code above.
+create or replace function public.take_ai_quota()
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  return public.take_ai_quota_for(auth.uid());
+end;
+$$;
+
+-- A client could call refund_ai_quota() after each request and never run
+-- out; ai-complete now refunds through refund_ai_quota_for() instead.
+revoke all on function public.refund_ai_quota() from public, anon, authenticated;
+revoke all on function public.take_ai_quota_for(uuid) from public, anon, authenticated;
+revoke all on function public.refund_ai_quota_for(uuid) from public, anon, authenticated;
+grant execute on function public.take_ai_quota_for(uuid) to service_role;
+grant execute on function public.refund_ai_quota_for(uuid) to service_role;
+
+-- 8) Realtime: the app hears its estimates land (RLS applies: own rows) ------------------
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables
+     where pubname = 'supabase_realtime'
+       and schemaname = 'public'
+       and tablename = 'meal_items'
+  ) then
+    alter publication supabase_realtime add table public.meal_items;
+  end if;
+end $$;
+
+-- 9) PostgREST: pick up the new columns and functions (sent on commit) -------------------
+notify pgrst, 'reload schema';
+
+commit;
+
+-- Verify:
+--   select tgname from pg_trigger
+--    where tgrelid = 'public.meal_items'::regclass and tgname like 'trg_meal_items_%';      -- 4 rows
+--   select jobname, schedule from cron.job
+--    where jobname in ('meal-estimates-resend', 'meal-estimates-daily-retry');               -- 2 rows
+--   select proname from pg_proc
+--    where proname in ('meal_estimate_configured', 'meal_items_drop_missing_links',
+--                      'meal_items_estimate_state', 'send_meal_estimate', 'meal_items_send_estimate',
+--                      'finish_meal_estimate', 'fail_meal_estimate', 'defer_meal_estimate',
+--                      'resend_meal_estimates', 'retry_failed_meal_estimates',
+--                      'take_ai_quota_for', 'refund_ai_quota_for', 'take_ai_quota')
+--      and prosrc like '%' || chr(65533) || '%';                                              -- 0 rows
+--   select public.meal_estimate_configured();                                                 -- true once Vault is set
+--   select id, status_code, content from net._http_response order by id desc limit 5;
+--   select status, return_message from cron.job_run_details order by start_time desc limit 5;
+--   Then run supabase/scripts/smoke_meal_registrations.sql (expects «SMOKE OK»).

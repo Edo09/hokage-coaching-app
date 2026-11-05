@@ -20,13 +20,17 @@ declare
   v_plan   uuid := gen_random_uuid();
   v_pmeal  uuid := gen_random_uuid();
   v_opt    uuid := gen_random_uuid();
+  v_row4   uuid := gen_random_uuid();   -- undone, then registered again
   v_ver    bigint;
+  v_v1     bigint;
+  v_v2     bigint;
   v_rule   smallint := case when public.meal_estimate_configured() then 1 else 0 end;
   r        public.meal_items%rowtype;
   v_client text;
   v_server text := json_build_object('role', 'service_role')::text;
 begin
-  select id into v_uid from auth.users order by created_at limit 1;
+  -- Any account with a profile: meals point at auth.users, plans at profiles.
+  select p.id into v_uid from public.profiles p join auth.users u on u.id = p.id limit 1;
   assert v_uid is not null, 'there is no user to act as';
   v_client := json_build_object('sub', v_uid, 'role', 'authenticated')::text;
 
@@ -131,6 +135,66 @@ begin
   assert r.calories = 250 and r.estimate_status is null, '10: an old diary row is left alone';
 
   -- ---- part 2: sending, write-back, retries, quota (sections 4-8) ---------
+
+  -- 11. An answer meant for an undone registration never lands on the row
+  --     registered again under the same id (review focus 5).
+  perform set_config('request.jwt.claims', v_client, true);
+  insert into public.meal_items (id, meal_id, user_id, name, kind, original_text)
+  values (v_row4, v_meal, v_uid, 'arros con poyo', 'other', 'arros con poyo')
+  returning estimate_version into v_v1;
+  delete from public.meal_items where id = v_row4;
+  insert into public.meal_items (id, meal_id, user_id, name, kind, original_text)
+  values (v_row4, v_meal, v_uid, 'yogur', 'other', 'yogur')
+  returning estimate_version into v_v2;
+  assert v_v2 > v_v1, '11: a re-insert gets a newer version';
+  perform set_config('request.jwt.claims', v_server, true);
+  assert not public.finish_meal_estimate(v_row4, v_v1, 410, 30, 55, 10, 'Arroz con pollo'), '11: an old answer is refused';
+  select * into r from public.meal_items where id = v_row4;
+  assert r.estimate_status = 'pending' and r.name = 'yogur', '11: the refused answer changed nothing';
+  assert public.finish_meal_estimate(v_row4, v_v2, 180, 10, 25, 4, 'Yogur'), '11: the current answer lands';
+  select * into r from public.meal_items where id = v_row4;
+  assert r.estimate_status = 'done' and r.calories = 180 and r.name = 'Yogur', '11: done, with its numbers and name';
+  assert r.estimate_next_at is null, '11: a finished estimate has no next try';
+
+  -- 12. A failed call backs off, then fails for good after the last attempt.
+  update public.meal_items set estimate_attempts = 2 where id = v_row2;
+  select estimate_version into v_ver from public.meal_items where id = v_row2;
+  assert public.fail_meal_estimate(v_row2, v_ver), '12: a failure is recorded';
+  select * into r from public.meal_items where id = v_row2;
+  assert r.estimate_status = 'pending', '12: it stays pending while attempts remain';
+  assert r.estimate_next_at = now() + interval '5 minutes', '12: after attempt 2 the next try is 5 minutes away';
+  update public.meal_items set estimate_attempts = 5 where id = v_row2;
+  assert public.fail_meal_estimate(v_row2, v_ver), '12: the last failure is recorded';
+  select * into r from public.meal_items where id = v_row2;
+  assert r.estimate_status = 'failed' and r.estimate_next_at is null, '12: after attempt 5 it is failed';
+
+  -- 13. A quota wait gives the attempt back and looks again in 15 minutes.
+  update public.meal_items set estimate_status = 'pending', estimate_attempts = 1 where id = v_row2;
+  assert public.defer_meal_estimate(v_row2, v_ver), '13: the wait is recorded';
+  select * into r from public.meal_items where id = v_row2;
+  assert r.estimate_attempts = 0, '13: a quota wait is not an attempt';
+  assert r.estimate_next_at = now() + interval '15 minutes', '13: the next try is 15 minutes away';
+
+  -- 14. Clients can't run the server's functions; take_ai_quota() stays theirs.
+  assert not has_function_privilege('authenticated', 'public.take_ai_quota_for(uuid)', 'execute'), '14: take_ai_quota_for is server-only';
+  assert not has_function_privilege('authenticated', 'public.refund_ai_quota_for(uuid)', 'execute'), '14: refund_ai_quota_for is server-only';
+  assert not has_function_privilege('authenticated', 'public.refund_ai_quota()', 'execute'), '14: clients can no longer refund';
+  assert not has_function_privilege('authenticated', 'public.finish_meal_estimate(uuid,bigint,integer,numeric,numeric,numeric,text)', 'execute'), '14: finish is server-only';
+  assert not has_function_privilege('authenticated', 'public.fail_meal_estimate(uuid,bigint)', 'execute'), '14: fail is server-only';
+  assert not has_function_privilege('authenticated', 'public.defer_meal_estimate(uuid,bigint)', 'execute'), '14: defer is server-only';
+  assert not has_function_privilege('authenticated', 'public.send_meal_estimate(uuid,bigint)', 'execute'), '14: send is server-only';
+  assert not has_function_privilege('authenticated', 'public.resend_meal_estimates()', 'execute'), '14: resend is server-only';
+  assert not has_function_privilege('authenticated', 'public.retry_failed_meal_estimates()', 'execute'), '14: the daily retry is server-only';
+  assert not has_function_privilege('anon', 'public.finish_meal_estimate(uuid,bigint,integer,numeric,numeric,numeric,text)', 'execute'), '14: anon can''t finish';
+  assert has_function_privilege('authenticated', 'public.take_ai_quota()', 'execute'), '14: take_ai_quota stays callable';
+  assert has_function_privilege('service_role', 'public.take_ai_quota_for(uuid)', 'execute'), '14: the function can take quota';
+
+  -- 15. Both jobs are scheduled, and the app hears meal_items over Realtime.
+  assert (select count(*) from cron.job
+           where jobname in ('meal-estimates-resend', 'meal-estimates-daily-retry')) = 2, '15: both cron jobs exist';
+  assert exists (select 1 from pg_publication_tables
+                  where pubname = 'supabase_realtime' and schemaname = 'public'
+                    and tablename = 'meal_items'), '15: meal_items is on supabase_realtime';
 
   raise exception 'SMOKE OK: meal registrations; nothing was saved';
 end $$;
