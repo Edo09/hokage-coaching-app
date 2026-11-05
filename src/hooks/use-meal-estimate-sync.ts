@@ -9,6 +9,7 @@ import { hasQueuedPhoto } from "@/src/lib/photo-queue";
 import { qk } from "@/src/lib/query-keys";
 import type { MealWithItems } from "@/src/types/database";
 import { normalizeMealItem, patchItemInCache, pendingRecheckIds } from "@/src/utils/meal-cache";
+import { mealsOnDate } from "@/src/utils/meal-registration";
 import { supabase } from "@/src/utils/supabase";
 
 // Brings the server's estimates into the app while it is open: Realtime on
@@ -38,8 +39,13 @@ async function applyRow(queryClient: QueryClient, uid: string, raw: Record<strin
 export function useMealEstimateSync(): void {
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  const { todays } = useMealRegistrations();
+  const { todayKey, todays } = useMealRegistrations();
   const uid = user?.id;
+  // Any eaten registration still without its estimate keeps the re-read
+  // running; which rows are due is decided at each tick.
+  const waiting = todays.some((m) =>
+    m.meal_items.some((i) => (i.kind === "plan" || i.kind === "other") && i.estimate_status === "pending"),
+  );
 
   useEffect(() => {
     if (uid == null) return;
@@ -63,12 +69,15 @@ export function useMealEstimateSync(): void {
     };
   }, [uid, queryClient]);
 
-  const recheckKey = pendingRecheckIds(todays, new Date()).join(",");
   useEffect(() => {
-    if (uid == null || recheckKey === "") return;
-    const ids = recheckKey.split(",");
+    if (uid == null || !waiting) return;
     const timer = setInterval(() => {
       if (AppState.currentState !== "active") return;
+      // From the cache at each tick: a row whose lease runs out comes back in
+      // without waiting for a render, and a long quota wait stays out.
+      const cached = queryClient.getQueryData<MealWithItems[]>(qk.meals(uid)) ?? [];
+      const ids = pendingRecheckIds(mealsOnDate(cached, todayKey), new Date());
+      if (ids.length === 0) return;
       void supabase
         .from("meal_items")
         .select("*")
@@ -78,5 +87,5 @@ export function useMealEstimateSync(): void {
         });
     }, RECHECK_MS);
     return () => clearInterval(timer);
-  }, [uid, recheckKey, queryClient]);
+  }, [uid, waiting, todayKey, queryClient]);
 }

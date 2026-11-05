@@ -42,11 +42,15 @@ export function patchItemInCache(meals: MealWithItems[], row: MealItem): MealWit
   });
 }
 
+/** How far ahead a pending row's next try may be and still be re-read: past
+ *  the server's 3-minute lease (set on every client write and send), short of
+ *  a 15-minute quota wait (migration 20261105120000). */
+const RECHECK_WINDOW_MS = 4 * 60_000;
+
 /** Today's rows worth re-reading while the app waits for their estimate:
- *  pending, and not in a long wait (a quota wait sets the next try minutes
- *  ahead). */
+ *  pending, and not in a long wait. */
 export function pendingRecheckIds(todays: MealWithItems[], now: Date): string[] {
-  const soon = now.getTime() + 60_000;
+  const soon = now.getTime() + RECHECK_WINDOW_MS;
   return todays
     .flatMap((m) => m.meal_items)
     .filter(

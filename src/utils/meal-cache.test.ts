@@ -82,4 +82,16 @@ describe("estimates reaching the cache", () => {
     ];
     assert.deepEqual(pendingRecheckIds(ms, now), ["a"]);
   });
+  it("re-reads a row inside the server's 3-minute lease, not one waiting 15 minutes for quota", () => {
+    // Every client write sets estimate_next_at one 3-minute lease ahead
+    // (migration 20261105120000); a quota wait puts it 15 minutes ahead.
+    const now = new Date("2026-11-05T13:00:00Z");
+    const ms = [
+      meal("c1", [
+        item({ id: "leased", kind: "other", estimate_status: "pending", estimate_next_at: "2026-11-05T13:03:00Z" }),
+        item({ id: "quota", kind: "plan", estimate_status: "pending", estimate_next_at: "2026-11-05T13:15:00Z" }),
+      ]),
+    ];
+    assert.deepEqual(pendingRecheckIds(ms, now), ["leased"]);
+  });
 });
