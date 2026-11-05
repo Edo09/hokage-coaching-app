@@ -124,7 +124,20 @@ export type MealItem = {
   // the adherence link the coach reads. null = free-form entry.
   plan_option_id: string | null;
   created_at: string;
+  // Meal registration (migration 20261105120000). Optional: rows cached before
+  // the update lack these keys, so test them with == null. kind null = an old
+  // diary row. The server owns the estimate_* columns.
+  plan_meal_id?: string | null;
+  kind?: RegistrationKind | null;
+  original_text?: string | null;
+  estimate_status?: EstimateStatus | null;
+  estimate_version?: number | null;
+  estimate_attempts?: number | null;
+  estimate_next_at?: string | null;
 };
+
+export type RegistrationKind = "plan" | "other" | "skipped";
+export type EstimateStatus = "pending" | "done" | "failed";
 
 export type WorkoutLog = {
   id: string;
