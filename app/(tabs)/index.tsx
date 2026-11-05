@@ -19,6 +19,7 @@ import {
   SectionHeader,
 } from "@/src/components/ui";
 import { useAuth } from "@/src/hooks/use-auth";
+import { useMealRegistrations } from "@/src/hooks/use-meal-registrations";
 import { useMeals } from "@/src/hooks/use-meals";
 import { useNutritionPlan } from "@/src/hooks/use-nutrition-plan";
 import { useProfile } from "@/src/hooks/use-profile";
@@ -27,6 +28,7 @@ import { useProgramLogging } from "@/src/hooks/use-program-logging";
 import { useProgress } from "@/src/hooks/use-progress";
 import { useRefreshOnFocus } from "@/src/hooks/use-refresh-on-focus";
 import { exit, staggered, useArrival } from "@/src/lib/motion";
+import { useToday } from "@/src/lib/today";
 import { useColors } from "@/src/theme/colors";
 import { Pressable, Text, View } from "@/src/tw";
 import { AnimatedView } from "@/src/tw/animated";
@@ -37,7 +39,8 @@ import {
   recommendedCalorieGoal,
 } from "@/src/utils/calories";
 import { toDateKey } from "@/src/utils/dates";
-import { MEAL_SLOTS, suggestedSlot } from "@/src/utils/meal-slots";
+import { combinedEstimateState, fuelSlots, itemsOf } from "@/src/utils/meal-counting";
+import { capitalizeFirst } from "@/src/utils/meal-registration";
 import { planCalorieGoal } from "@/src/utils/nutrition-plan";
 
 export default function HomeScreen() {
@@ -55,8 +58,11 @@ export default function HomeScreen() {
   } = useProgram();
   const programLogging = useProgramLogging(program);
   const nutrition = useNutritionPlan();
+  // Today's registrations by the day-reactive key (useToday), counted by the
+  // nutrition rules: «No la comí» adds nothing, a missing estimate is flagged.
+  const { todays } = useMealRegistrations();
+  const todayDate = useToday();
 
-  const { todaysMeals } = meals;
   const { todaysLogs } = progress;
 
   // Daily calorie KPIs — recompute whenever today's meals/logs change, so
@@ -67,7 +73,7 @@ export default function HomeScreen() {
     planCalorieGoal(nutrition.plan, nutrition.day) ??
     profile?.calorie_goal ??
     recommendedCalorieGoal(profile);
-  const consumed = caloriesConsumed(todaysMeals);
+  const consumed = caloriesConsumed(todays);
   // Burned = logged sessions (legacy) + an estimate from today's program
   // check-offs, since checking exercises off records no duration of its own.
   const programDoneToday = programLogging.completions.filter(
@@ -83,17 +89,10 @@ export default function HomeScreen() {
   const kcal = (value: number | null) =>
     value != null ? Math.round(value).toLocaleString(numberLocale) : "—";
 
-  // Per-slot summary for the nutrition section (only slots with items)
-  const slotSummaries = MEAL_SLOTS.map((slot) => {
-    const items = todaysMeals
-      .filter((m) => m.meal_type === slot)
-      .flatMap((m) => m.meal_items);
-    return {
-      slot,
-      count: items.length,
-      kcal: items.reduce((sum, i) => sum + i.calories, 0),
-    };
-  }).filter((s) => s.count > 0);
+  // «Combustible de Hoy»: one row per diary type with rows today.
+  const fuel = fuelSlots(todays);
+  const hasTodayRows = itemsOf(todays).length > 0;
+  const estimateGap = combinedEstimateState(itemsOf(todays));
 
   const loading = meals.loading || progress.loading;
   const error = meals.error || progress.error;
@@ -120,7 +119,7 @@ export default function HomeScreen() {
     user?.email?.split("@")[0] ??
     "there";
 
-  const today = new Date().toLocaleDateString(i18n.language === "es" ? "es-ES" : "en-US", {
+  const today = todayDate.toLocaleDateString(i18n.language === "es" ? "es-ES" : "en-US", {
     weekday: "long",
     month: "long",
     day: "numeric",
@@ -231,20 +230,23 @@ export default function HomeScreen() {
               }
             >
               <View className="flex-row items-center gap-[18px]">
-                <Ring
-                  size={104}
-                  strokeWidth={9}
-                  frac={fuelFrac}
-                  color={colors.brandPrimary}
-                  trackColor={colors.border}
-                >
-                  <PosterText size={23} tabular>
-                    {kcal(consumed)}
-                  </PosterText>
-                  <CapsLabel size={8.5} em={0.14}>
-                    {t("home.caloriesConsumed")}
-                  </CapsLabel>
-                </Ring>
+                <View className="items-center gap-1.5">
+                  <Ring
+                    size={104}
+                    strokeWidth={9}
+                    frac={fuelFrac}
+                    color={colors.brandPrimary}
+                    trackColor={colors.border}
+                  >
+                    <PosterText size={23} tabular>
+                      {kcal(consumed)}
+                    </PosterText>
+                    <CapsLabel size={8.5} em={0.14}>
+                      {t("home.caloriesConsumed")}
+                    </CapsLabel>
+                  </Ring>
+                  <EstimateGapLabel gap={estimateGap} />
+                </View>
                 <View className="flex-1">
                   {fuelRows.map((row, i) => (
                     <View
@@ -328,24 +330,10 @@ export default function HomeScreen() {
               onAction={() => router.push("/(tabs)/nutrition")}
             />
 
-            {slotSummaries.length === 0 ? (
+            {!hasTodayRows ? (
               <Pressable
                 key="meals-empty"
-                onPress={() => {
-                  // Seed the Meals tab's own stack with its index first, then
-                  // push "create" on the next tick — pushing both in the same
-                  // tick gets coalesced into one history entry (no parent
-                  // screen, no back button); yielding first makes them two.
-                  router.push("/(tabs)/nutrition");
-                  setTimeout(
-                    () =>
-                      router.push({
-                        pathname: "/(tabs)/nutrition/create",
-                        params: { mealType: suggestedSlot(), date: toDateKey() },
-                      }),
-                    0
-                  );
-                }}
+                onPress={() => router.push("/(tabs)/nutrition")}
                 className="bg-surface rounded-2xl p-7 items-center border-2 border-dashed border-border-strong"
               >
                 <Text className="text-content-tertiary font-medium mb-2">
@@ -360,31 +348,36 @@ export default function HomeScreen() {
               </Pressable>
             ) : (
               <View key="meals-list" className="gap-2.5">
-                {slotSummaries.map((summary, index) => (
-                  <AnimatedView key={summary.slot} entering={staggered(index)} exiting={exit()}>
+                {fuel.map((row, index) => (
+                  <AnimatedView key={row.slot} entering={staggered(index)} exiting={exit()}>
                     <Pressable
                       onPress={() => router.push("/(tabs)/nutrition")}
                       className="bg-surface rounded-2xl px-4 py-3.5 flex-row items-center gap-3.5 border border-border"
                     >
                       <Ionicons
-                        name={summary.slot === "breakfast" ? "cafe-outline" : "restaurant-outline"}
+                        name={row.slot === "breakfast" ? "cafe-outline" : "restaurant-outline"}
                         size={20}
                         color={colors.brandPrimary}
                       />
                       <View className="flex-1">
-                        <Text className="text-sm font-bold text-content-primary capitalize">
-                          {t(`meals.${summary.slot}`, { defaultValue: summary.slot })}
+                        <Text className="text-sm font-bold text-content-primary">
+                          {capitalizeFirst(t(`meals.${row.slot}`, { defaultValue: row.slot }))}
                         </Text>
                         <Text className="text-content-muted text-[11px]">
-                          {t("meals.itemCount", { count: summary.count })}
+                          {row.skippedOnly ? t("mealReg.skipped") : t("mealReg.mealsCount", { count: row.meals })}
                         </Text>
                       </View>
-                      <View className="flex-row items-baseline gap-1">
-                        <PosterText size={17} tabular>
-                          {kcal(summary.kcal)}
-                        </PosterText>
-                        <Text className="text-[10px] text-content-muted">{t("home.kcal")}</Text>
-                      </View>
+                      {!row.skippedOnly && (
+                        <View className="items-end gap-0.5">
+                          <View className="flex-row items-baseline gap-1">
+                            <PosterText size={17} tabular>
+                              {kcal(row.kcal)}
+                            </PosterText>
+                            <Text className="text-[10px] text-content-muted">{t("home.kcal")}</Text>
+                          </View>
+                          <EstimateGapLabel gap={row.gap} />
+                        </View>
+                      )}
                     </Pressable>
                   </AnimatedView>
                 ))}
@@ -442,4 +435,29 @@ export default function HomeScreen() {
       )}
     </Screen>
   );
+}
+
+/** «✦ Calculando…» in gold while an estimate is pending, else a muted «Sin
+ *  estimar» while one has failed (spec «Inicio and Progreso»). */
+function EstimateGapLabel({ gap }: { gap: "pending" | "failed" | null }) {
+  const { t } = useTranslation();
+  const colors = useColors();
+  if (gap === "pending") {
+    return (
+      <View className="flex-row items-center gap-1">
+        <Ionicons name="sparkles" size={9} color={colors.brandAccent} />
+        <CapsLabel size={8.5} em={0.1} className="font-extrabold text-brand-accent">
+          {t("mealReg.estimating")}
+        </CapsLabel>
+      </View>
+    );
+  }
+  if (gap === "failed") {
+    return (
+      <CapsLabel size={8.5} em={0.1} className="font-extrabold text-content-muted">
+        {t("mealReg.notEstimated")}
+      </CapsLabel>
+    );
+  }
+  return null;
 }
