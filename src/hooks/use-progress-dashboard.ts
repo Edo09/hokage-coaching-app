@@ -15,6 +15,7 @@ import { useRoutines } from "@/src/hooks/use-routines";
 import type { BodyMeasurement, WorkoutLog } from "@/src/types/database";
 import { burnFromMinutes, estimateProgramMinutes, recommendedCalorieGoal } from "@/src/utils/calories";
 import { addDays, toDateKey } from "@/src/utils/dates";
+import { isEaten } from "@/src/utils/meal-counting";
 import {
   achievements,
   bestMonth,
@@ -329,7 +330,7 @@ export function useProgressDashboard(periodo: Periodo) {
     const lifetimeVolume = estimatedVolume(logs, plan);
     const totalWorkouts = sessionLogs.length;
 
-    const hasMeals = meals.some((m) => m.meal_items.length > 0);
+    const hasMeals = meals.some((m) => m.meal_items.some(isEaten));
     const isEmpty = sessionLogs.length === 0 && !hasMeals;
 
     const weight = weightStats(

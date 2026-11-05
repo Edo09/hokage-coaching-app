@@ -1,4 +1,5 @@
 import type { MealWithItems, Profile, WorkoutLog } from "@/src/types/database";
+import { countsTowardTotals } from "@/src/utils/meal-counting";
 
 // Daily-calorie math shared by the dashboard KPIs and the profile screen.
 
@@ -99,22 +100,25 @@ export function estimateProgramBurn(
   return burnFromMinutes(estimateProgramMinutes(exercisesDone, profile), profile);
 }
 
-/** Total kcal across the given meals' items. */
+/** Total kcal across the given meals' items that count (Counting rules:
+ *  pending, failed and «No la comí» add nothing). */
 export function caloriesConsumed(meals: MealWithItems[]): number {
   return meals.reduce(
     (total, meal) =>
-      total + meal.meal_items.reduce((sum, item) => sum + item.calories, 0),
+      total +
+      meal.meal_items.reduce((sum, item) => (countsTowardTotals(item) ? sum + item.calories : sum), 0),
     0,
   );
 }
 
 export type MacroTotals = { kcal: number; protein_g: number; carbs_g: number; fat_g: number };
 
-/** kcal + macro grams across the given meals' items. */
+/** kcal + macro grams across the given meals' items that count. */
 export function macrosConsumed(meals: MealWithItems[]): MacroTotals {
   const totals: MacroTotals = { kcal: 0, protein_g: 0, carbs_g: 0, fat_g: 0 };
   for (const meal of meals) {
     for (const item of meal.meal_items) {
+      if (!countsTowardTotals(item)) continue;
       totals.kcal += item.calories;
       totals.protein_g += item.protein_g;
       totals.carbs_g += item.carbs_g;

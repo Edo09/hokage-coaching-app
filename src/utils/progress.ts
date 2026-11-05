@@ -1,5 +1,6 @@
 import type {
   CatalogExercise,
+  MealItem,
   MealWithItems,
   Profile,
   ProgramWithDetails,
@@ -9,6 +10,7 @@ import type {
 } from "@/src/types/database";
 import { estimateCaloriesBurned } from "@/src/utils/calories";
 import { addDays, dateKeyToDate, toDateKey } from "@/src/utils/dates";
+import { countsTowardTotals, isLoggedDay } from "@/src/utils/meal-counting";
 import { currentWeekOf, effectivePrescription, isBeforeStart, weekByNumber } from "@/src/utils/program";
 
 // Pure, synchronous calculations behind the progress dashboard. Everything
@@ -574,8 +576,10 @@ export type NutritionStats = {
   macro: { protein: number; carbs: number; fat: number } | null;
 };
 
-/** Aggregates over the last `days` days ending today. Days without logged
- *  meals are null (no bar, excluded from averages and adherence). */
+/** Aggregates over the last `days` days ending today. A day counts as logged
+ *  only with at least one meal eaten and no estimate still missing (see
+ *  isLoggedDay); other days are null: no bar, and out of the averages,
+ *  adherence and the macro split. */
 export function nutritionStats(
   meals: MealWithItems[],
   goalKcal: number | null,
@@ -585,18 +589,27 @@ export function nutritionStats(
   const today = toDateKey(now);
   const from = addDays(today, -(days - 1));
 
-  const byDate = new Map<string, { kcal: number; p: number; c: number; f: number }>();
+  const itemsByDate = new Map<string, MealItem[]>();
   for (const meal of meals) {
     if (meal.date < from || meal.date > today || meal.meal_items.length === 0)
       continue;
-    const agg = byDate.get(meal.date) ?? { kcal: 0, p: 0, c: 0, f: 0 };
-    for (const item of meal.meal_items) {
+    const items = itemsByDate.get(meal.date) ?? [];
+    items.push(...meal.meal_items);
+    itemsByDate.set(meal.date, items);
+  }
+
+  const byDate = new Map<string, { kcal: number; p: number; c: number; f: number }>();
+  for (const [date, items] of itemsByDate) {
+    if (!isLoggedDay(items)) continue;
+    const agg = { kcal: 0, p: 0, c: 0, f: 0 };
+    for (const item of items) {
+      if (!countsTowardTotals(item)) continue;
       agg.kcal += item.calories;
       agg.p += item.protein_g;
       agg.c += item.carbs_g;
       agg.f += item.fat_g;
     }
-    byDate.set(meal.date, agg);
+    byDate.set(date, agg);
   }
 
   const perDay: NutritionDay[] = [];
