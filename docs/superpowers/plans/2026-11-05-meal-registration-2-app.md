@@ -120,7 +120,7 @@ it("derives stable, distinct ids", () => {
 ```
 - [ ] **Step 2: Run the tests and check they fail.** `npm test` → FAIL (`uuidV5` is not exported).
 - [ ] **Step 3: Implement.**
-  - `uuidV5` is synchronous: an inline SHA-1 over `TextEncoder` UTF-8 bytes of the namespace bytes plus the name. Set the version nibble to `5` and the variant to `10xx`. A checked prototype is at `C:\Users\Signos\AppData\Local\Temp\claude\C--Users-Signos--claude-spares-spare-OKgSSD\c3c8b904-252d-456a-b0f7-3eefdcacd0a2\scratchpad\uuidv5\v5.ts`.
+  - `uuidV5` is synchronous: an inline SHA-1 over `TextEncoder` UTF-8 bytes of the namespace bytes plus the name. Set the version nibble to `5` and the variant to `10xx`.
   - Add no dependency (`uuid` is only a transitive build-time package).
   - Add the `database.ts` types.
 - [ ] **Step 4: Run the gates.** `npm test`, `npx tsc --noEmit` → pass.

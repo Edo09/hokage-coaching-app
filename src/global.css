@@ -2,6 +2,11 @@
 @import "tailwindcss/preflight.css" layer(base);
 @import "tailwindcss/utilities.css";
 
+/* Class names come from the app code only. Docs can hold Windows paths,
+   whose backslash + hex digits read as a CSS escape (an invalid code point
+   stops the whole CSS build). */
+@source not "../docs";
+
 /* Theme architecture (light/dark):
    - Raw values live in :root as --hb-* vars (light) with a
      prefers-color-scheme override block (dark). react-native-css evaluates
