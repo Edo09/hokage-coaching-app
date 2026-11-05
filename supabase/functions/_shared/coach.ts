@@ -2,7 +2,9 @@
 // reset-client-password, generate-program, generate-nutrition-plan): verify
 // the caller is the coach, get a caller-scoped or service-role client, and
 // generate the one-time temporary passwords the coach hands out. ai-complete,
-// which any signed-in client may call, uses only callerClient.
+// which any signed-in client may call, uses callerClient, and adminClient only
+// to refund a failed call; estimate-meal, which only the database calls, uses
+// adminClient.
 
 import { createClient, type SupabaseClient } from 'jsr:@supabase/supabase-js@2';
 

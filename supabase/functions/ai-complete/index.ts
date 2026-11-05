@@ -1,35 +1,41 @@
-// Mobile app AI — meal estimates from a name or a photo, and the weekly
-// progress insight. The app builds the prompt; this function calls the model
-// with the server-side keys (see llm.ts) so they never ship in the app
-// bundle, and returns the parsed JSON:
+// Mobile app AI — the weekly progress insight. (Registered meals are
+// estimated by estimate-meal, which the database calls; older app builds may
+// still send their own meal estimates here.) The app builds the prompt; this
+// function calls the model with the server-side keys (see
+// ../_shared/complete-json-photo.ts) so they never ship in the app bundle, and
+// returns the parsed JSON:
 //
 //   { system, user, image?: { base64, mimeType } } → { result, provider }
 //
 // Callers are the clients, so any signed-in user may call it (not only the
 // coach), within a per-user quota: take_ai_quota() in migration
-// 20260926140000_ai_request_quota.sql, 30 requests/hour and 100/day. Native
-// app requests carry no Origin, so ../_shared/cors.ts lets them through.
+// 20260926140000_ai_request_quota.sql, 30 requests/hour and 100/day, shared
+// with estimate-meal. Native app requests carry no Origin, so
+// ../_shared/cors.ts lets them through.
 //
-// A failed model call gives the request back (refund_ai_quota() in
-// 20260928120000_ai_quota_refund.sql), so outages don't use up quota.
+// A failed model call gives the request back through the service role
+// (refund_ai_quota_for() in 20261105120000_meal_registrations.sql, which also
+// stops clients from calling the refund themselves), so outages don't use up
+// quota.
 //
 // Apply those migrations first (without the quota one every request gets
-// 503), then deploy and give it the provider keys (see llm.ts):
+// 503), then deploy and give it the provider keys (see ../_shared/llm.ts):
 //   supabase functions deploy ai-complete --project-ref rzgwkwxskrovxnnymxqo
 
-import { callerClient } from '../_shared/coach.ts';
+import { adminClient, callerClient } from '../_shared/coach.ts';
+import {
+  completeJSONWithPhoto,
+  IMAGE_TYPES,
+  MAX_IMAGE_BASE64_CHARS,
+  type PhotoInput,
+} from '../_shared/complete-json-photo.ts';
 import { json, withCors } from '../_shared/cors.ts';
-import { completeJSON, type ImageInput } from './llm.ts';
 
 // The app's prompts are ~2 KB each; the caps only bound what one request
 // can spend.
 const MAX_SYSTEM_CHARS = 6000;
 const MAX_USER_CHARS = 6000;
-// ~5 MB decoded. The app's photos (quality 0.5) are typically 1–3 MB of
-// base64; Gemini takes up to 20 MB per request.
-const MAX_IMAGE_BASE64_CHARS = 7_000_000;
 const MAX_BODY_BYTES = MAX_IMAGE_BASE64_CHARS + MAX_SYSTEM_CHARS + MAX_USER_CHARS + 16_384;
-const IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif']);
 const BASE64 = /^[A-Za-z0-9+/]+={0,2}$/;
 
 type Obj = Record<string, unknown>;
@@ -60,7 +66,7 @@ Deno.serve(withCors(async (req) => {
       return json({ error: 'prompt too long' }, 413);
     }
 
-    let image: ImageInput | undefined;
+    let image: PhotoInput | undefined;
     if (body.image != null) {
       if (!isObj(body.image) || typeof body.image.base64 !== 'string' || typeof body.image.mimeType !== 'string') {
         return json({ error: 'invalid image' }, 400);
@@ -81,14 +87,14 @@ Deno.serve(withCors(async (req) => {
     if (allowed !== true) return json({ error: 'rate limited' }, 429);
 
     try {
-      const { json: result, provider } = await completeJSON({ system, user: prompt, image });
+      const { json: result, provider } = await completeJSONWithPhoto({ system, user: prompt, image });
       return json({ result, provider }, 200);
     } catch (e) {
       // The model call failed (providers down, keys missing, bad output):
       // give the request back so an outage doesn't use up the user's quota.
-      // Best-effort — without migration 20260928120000 it's just a no-op.
-      const { error: refundError } = await db.rpc('refund_ai_quota');
-      if (refundError) console.warn('refund_ai_quota failed (migration applied?):', refundError.message);
+      // Best-effort — without migration 20261105120000 it's just a no-op.
+      const { error: refundError } = await adminClient().rpc('refund_ai_quota_for', { p_user_id: user.id });
+      if (refundError) console.warn('refund_ai_quota_for failed (migration applied?):', refundError.message);
       throw e;
     }
   } catch (e) {

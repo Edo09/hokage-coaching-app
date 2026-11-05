@@ -1,4 +1,5 @@
-// Provider calls shared by generate-program and ai-complete: which models,
+// Provider calls shared by the AI functions (generate-program,
+// generate-nutrition-plan, ai-complete, estimate-meal): which models,
 // which endpoints, and what to do when one fails live here, so a provider
 // change is one edit. The keys are function secrets — never in a URL, a
 // browser or an app bundle:
