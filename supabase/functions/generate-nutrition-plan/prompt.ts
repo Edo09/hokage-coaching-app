@@ -5,7 +5,7 @@
 // optional field is an explicit null, targets are a list instead of a map
 // keyed by day type, and slots/options carry a `ref` so an edit can say which
 // existing row it kept (the panel maps refs back to DB ids, so an option keeps
-// the diary entries the client registered from it). A food is a NAME and a
+// the registrations the client made from it). A food is a NAME and a
 // day type — no portion column, no macros: a portion goes into the name. The
 // limits below mirror the CHECK constraints in
 // 20260807120000_nutrition_plans.sql; the panel re-validates every number
@@ -139,9 +139,9 @@ HARD LIMITS — the app rejects the plan if any is broken
 HOW THE APP READS THE PLAN
 - The client's app knows whether today is a training day or a rest day. It shows the slots whose applies_to covers that day, and inside each option only the foods whose day_type covers it: "both" shows every day, "training" only on training days, "rest" only on rest days. That per-food gating IS the carb cycling: "Arroz 110 g" (training) + "Pechuga de pollo 140 g" (both) is one option that shows two foods on a training day and one on a rest day.
 - A slot gated to "training" is hidden on rest days; if it has notes, the app shows them that day as the substitution ("En días de descanso, 1 scoop de proteína con agua"). Always give a gated slot such a note.
-- The client picks ONE option per slot and registers it in their diary. Options are alternatives for the same slot ("Opción 1" / "Opción 2", or "Día 1-2" / "Día 3-4"), not courses of one meal.
-- Foods carry NO macros and NO portion field: the client photographs the plate and the app measures it. When a portion matters, write it IN the name: "Arroz 110 g", "5 oz (140 g) pechuga de pollo", "1 scoop proteína whey", "2 huevos enteros + 3 claras". One food per row; never a whole meal in one name.
-- The targets table is what the client's measured intake is compared against: the only numbers the coach PRESCRIBES. A portion written into a food name is guidance for the plate, not a target.
+- The client picks ONE option per slot and registers it. Options are alternatives for the same slot ("Opción 1" / "Opción 2", or "Día 1-2" / "Día 3-4"), not courses of one meal.
+- Foods carry NO macros and NO portion field: when the client registers an option, the AI estimates it from these food names, plus a photo when the client adds one. When a portion matters, write it IN the name: "Arroz 110 g", "5 oz (140 g) pechuga de pollo", "1 scoop proteína whey", "2 huevos enteros + 3 claras". One food per row; never a whole meal in one name.
+- The targets table is what the client's estimated intake is compared against: the only numbers the coach PRESCRIBES. A portion written into a food name is guidance for the plate, not a target.
 - label null means the slot shows its meal_type's default name (Desayuno, Almuerzo, Cena, Merienda, Pre-entrenamiento, Post-entrenamiento). Set a label only when the slot needs a different name ("Merienda opcional", "Cena ligera").
 - time_hint is a short "when" ("30-45 min antes de entrenar"). notes on a slot or an option only for a useful instruction.
 

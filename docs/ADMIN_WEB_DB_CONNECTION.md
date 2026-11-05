@@ -238,23 +238,13 @@ await supabase.from("routine_exercises").insert([
 
 ### Assign nutrition
 
-Two levers:
+The coach assigns a nutrition plan (§6.5) and sets the client's daily calorie target:
 
 ```ts
-// (a) Set / override the client's daily calorie target
 await supabase.from("profiles").update({ calorie_goal: 2200 }).eq("id", clientId);
-
-// (b) Optionally seed assigned meals (appear read-only in the client's diary)
-const { data: meal } = await supabase
-  .from("meals")
-  .insert({ user_id: clientId, assigned_by: coachId, name: "Lunch", meal_type: "lunch" })
-  .select()
-  .single();
-
-await supabase.from("meal_items").insert([
-  { meal_id: meal.id, user_id: clientId, name: "Chicken & rice", calories: 600, protein_g: 45, carbs_g: 60, fat_g: 12 },
-]);
 ```
+
+The app has no diary since meal registration (2026-11): the client registers each of today's plan meals, and those registrations are the `meals` / `meal_items` rows (§6.6). Don't seed meals: a coach-written row shows nowhere in the app, only in the client's calorie totals.
 
 ### Manage a membership
 
@@ -348,14 +338,14 @@ supabase secrets set GEMINI_API_KEY=<key> GROQ_API_KEY=<key> --project-ref rzgwk
 
 ### 6.4 App AI (`ai-complete`)
 
-The **mobile app's** AI features — estimating a meal's nutrition from its name or a photo, and the weekly analysis card on the progress dashboard — call `ai-complete` instead of Groq/Gemini directly, so the model keys are function secrets and never ship in the app bundle. The app's `src/services/llm.ts` (`completeJSON` / `completeJSONWithImage`) is a thin `supabase.functions.invoke("ai-complete")` wrapper; the prompts are still built in the app.
+The **mobile app's** weekly analysis card on the progress dashboard calls `ai-complete` instead of Groq/Gemini directly, so the model keys are function secrets and never ship in the app bundle. The app's `src/services/llm.ts` is a thin `supabase.functions.invoke("ai-complete")` wrapper; the prompts are still built in the app. Registered meals are estimated by `estimate-meal` instead (§6.6); app builds from before meal registration still send their own meal estimates here, photo included.
 
 | Body | Returns |
 |---|---|
 | `{ system, user, image?: { base64, mimeType } }` | `{ result, provider }` (`result` = the model's JSON, parsed) |
 
 - Callers are **clients**, so any signed-in user may call it (it checks `auth.getUser()`, not the coach role). Requests from the native app carry no `Origin`, so `ALLOWED_ORIGINS` doesn't affect them. The app's **web** build (`vercel.json`), if deployed, is a browser: add its origin to `ALLOWED_ORIGINS` (§6.1) or its AI calls are refused.
-- **Quota:** 30 requests per hour and 100 per day per user, enforced by `take_ai_quota()` from migration `20260926140000_ai_request_quota.sql` before any model call; over the limit the function answers `429`. The migration must be applied first: until it is, the function answers `503` to every request. A request whose model call fails (`502`) is given back by `refund_ai_quota()` from `20260928120000_ai_quota_refund.sql`, so a provider outage doesn't use up users' quota; without that migration the refund is skipped (logged) and the failure still counts.
+- **Quota:** 30 requests per hour and 100 per day per user, shared with `estimate-meal`, enforced by `take_ai_quota()` from migration `20260926140000_ai_request_quota.sql` before any model call; over the limit the function answers `429`. The migration must be applied first: until it is, the function answers `503` to every request. A request whose model call fails (`502`) is given back through the service role by `refund_ai_quota_for()` from `20261105120000_meal_registrations.sql`, so a provider outage doesn't use up users' quota; without that migration the refund is skipped (logged) and the failure still counts. Clients can no longer call `refund_ai_quota()` themselves: that migration revokes it, because a client could otherwise refund every request and never run out.
 - **Limits:** `system` and `user` at most 6,000 characters each; `image.base64` at most 7,000,000 characters (~5 MB; the app's photos at quality 0.5 are typically 1–3 MB of base64). `mimeType`: `image/jpeg`, `png`, `webp`, `heic` or `heif`. Supabase doesn't document a request-body limit for Edge Functions; Gemini accepts up to 20 MB per request.
 - Models (same lists and retries as §6.3, `_shared/llm.ts`): text goes to Groq (`openai/gpt-oss-120b`, then `-20b`) first with Gemini as the fallback, as the app did before; photos go to Gemini first with Groq (`qwen/qwen3.8-27b`) as the fallback. The app's old Groq vision model, `llama-4-scout`, was shut down on 2026-07-17.
 
@@ -377,7 +367,7 @@ The panel's nutrition builder has the same **Generar / Editar con IA** assistant
 |---|---|
 | `{ prompt, current?, client_id?, include_notes? }` | `{ plan, provider }` |
 
-- `current` = the builder's draft (edit mode); omitted = a new plan. Slots and options carry a `ref` so the panel maps kept rows back to their DB ids (an option keeps the diary entries the client registered from it).
+- `current` = the builder's draft (edit mode); omitted = a new plan. Slots and options carry a `ref` so the panel maps kept rows back to their DB ids (an option keeps the registrations made from it).
 - `client_id` adds the client's profile fields (goal, age, sex, height, weight, activity level, job, calorie goal, training days per week; never name or email). `include_notes: true` also sends the coach's private `client_notes` body (allergies, intolerances, dislikes, limits).
 - Foods are free text (there is no food catalog), so nothing is resolved or dropped: a portion, when useful, is part of the name ("Arroz 110 g"). The panel clamps every number to the ranges the DB CHECKs enforce before anything reaches the builder.
 - Models, fallback order and the `{ error, detail }` 502 shape are the same as §6.3 (`supabase/functions/_shared/complete-json.ts`, on top of `_shared/llm.ts`). It reads the same `GEMINI_API_KEY` / `GROQ_API_KEY` and `ALLOWED_ORIGINS` secrets, so nothing new has to be set.
@@ -385,6 +375,48 @@ The panel's nutrition builder has the same **Generar / Editar con IA** assistant
 ```bash
 supabase functions deploy generate-nutrition-plan --project-ref rzgwkwxskrovxnnymxqo
 # Same keys and origins as generate-program (§6.3) — already set if that one is deployed.
+```
+
+### 6.6 Meal estimates (`estimate-meal`)
+
+The client registers each of today's plan meals in the app: the plan option, «otra cosa» (typed) or «No la comí». The **server** estimates the calories and macros of every meal eaten, and fixes only the spelling of «otra cosa». Neither a browser nor the app calls this function: the **database** does, through `pg_net`, from the triggers and `pg_cron` jobs in `supabase/migrations/20261105120000_meal_registrations.sql`.
+
+| Body | Returns |
+|---|---|
+| `{ id, version }`, header `x-estimate-secret` | `202 { accepted: true }` at once; the estimate is written back later |
+
+- **Auth:** deployed with `--no-verify-jwt`, because the database carries no user JWT. The only way in is the shared secret, set in two places (below). A call without it gets `401`; with the secret unset, every call gets `503`.
+- **Flow:** the function reads the row, takes the client's quota (`take_ai_quota_for`, the same 30/hour and 100/day allowance as `ai-complete`), calls the model with the option's foods or the typed text plus the photo when there is one, and writes back through `finish_meal_estimate` only while the row is still the version it was sent for. A quota wait (`defer_meal_estimate`) looks again in 15 minutes and isn't an attempt. A failure (`fail_meal_estimate`) is refunded and retried.
+- **Retries:** each send moves the row's next try one 3-minute lease ahead and counts an attempt. Failures back off 1, 5, 15, then 60 minutes; after 5 attempts the row is `failed`, which the app and the panel show as «Sin estimar». The `meal-estimates-resend` job (every 2 minutes) re-sends lost calls, and `meal-estimates-daily-retry` (11:00 UTC) gives each failure from the last 7 days one more try. A client can also retry from the app.
+- **Test switch:** with the optional function secret `ESTIMATE_FAIL_USER_ID` set to a client's uuid, that client's estimates fail as a provider failure would, without calling the model. Remove it after testing.
+
+Setup, in this order (the owner):
+
+```bash
+# 1. Deploy: a push to main runs .github/workflows/deploy-functions.yml, which
+#    deploys estimate-meal with --no-verify-jwt.
+# 2. A fresh secret (or: select encode(extensions.gen_random_bytes(32), 'hex'); in the SQL editor):
+supabase secrets set ESTIMATE_MEAL_SECRET=<secret> --project-ref rzgwkwxskrovxnnymxqo
+```
+
+```sql
+-- 3. SQL editor: the URL and the same secret in Vault (vault.update_secret changes them later).
+select vault.create_secret('https://rzgwkwxskrovxnnymxqo.supabase.co/functions/v1/estimate-meal', 'estimate_meal_url');
+select vault.create_secret('<secret>', 'estimate_meal_secret');
+-- 4. Run supabase/migrations/20261105120000_meal_registrations.sql and its Verify block, then
+--    supabase/scripts/smoke_meal_registrations.sql (expects «SMOKE OK») and
+--    supabase/scripts/e2e_meal_estimate.sql with a test client.
+-- 5. Only then let an app build with meal registration talk to the project.
+```
+
+Checks:
+
+```sql
+select estimate_status, count(*) from public.meal_items where kind is not null group by 1;  -- pending / done / failed
+select id, status_code, content from net._http_response order by id desc limit 5;         -- recent posts
+select j.jobname, d.status, d.return_message
+  from cron.job_run_details d join cron.job j using (jobid)
+ where j.jobname like 'meal-estimates-%' order by d.start_time desc limit 5;
 ```
 
 ## 7. Security Checklist

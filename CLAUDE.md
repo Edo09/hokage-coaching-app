@@ -49,6 +49,12 @@ What this means when working here:
   for 4/7 days and blocks ending or ended. The panel reads them over Realtime.
   The coach's time zone is in `coach_local_date()`. See
   `supabase/migrations/20261024130000_coach_notifications.sql`.
+- Meal estimates: triggers on `meal_items` post new or changed registrations
+  through `pg_net` to the `estimate-meal` Edge Function (deployed with
+  `--no-verify-jwt`; it checks `ESTIMATE_MEAL_SECRET`, which Vault also holds
+  as `estimate_meal_secret`, with the URL as `estimate_meal_url`). `pg_cron`
+  re-sends lost calls and retries failures. See
+  `docs/ADMIN_WEB_DB_CONNECTION.md` §6.6.
 - Schema source of truth: `supabase/migrations`. Migrations here do not reach
   Zyron's database (and vice versa).
 - `supabase/scripts/convert_shared_db_to_hokage_only.sql` was a one-off, already
