@@ -1,11 +1,13 @@
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
 
 import { useAuth } from "@/src/hooks/use-auth";
 import { useProgram } from "@/src/hooks/use-program";
 import { useRealtimeInvalidate } from "@/src/hooks/use-realtime-invalidate";
+import { setDayOverride, useDayOverride } from "@/src/lib/day-override";
 import { qk } from "@/src/lib/query-keys";
+import { useToday } from "@/src/lib/today";
 import type { NutritionPlanWithDetails } from "@/src/types/database";
+import { toDateKey } from "@/src/utils/dates";
 import { supabase } from "@/src/utils/supabase";
 import { resolveDayType, type ResolvedDay } from "@/src/utils/nutrition-plan";
 
@@ -78,12 +80,17 @@ export function useNutritionPlan() {
     qk.nutritionPlan(user?.id),
   );
 
-  const autoDay = resolveDayType(program);
+  // Follows the day: useToday re-renders at midnight and on foreground.
+  const todayKey = toDateKey(useToday());
+  const autoDay = resolveDayType(program, todayKey);
 
   // Manual override for the days a client trains off-schedule; null = follow
-  // the program. Same shape as useProgram's viewWeek.
-  const [viewDay, setViewDay] = useState<ResolvedDay | null>(null);
-  const day: ResolvedDay = viewDay ?? autoDay;
+  // the program. It lasts for today and is shared with Inicio.
+  const override = useDayOverride(user?.id, todayKey);
+  const day: ResolvedDay = override ?? autoDay;
+  const setViewDay = (next: ResolvedDay | null) => {
+    if (user) void setDayOverride(user.id, todayKey, next == null || next === autoDay ? null : next);
+  };
 
   return {
     plan,
@@ -91,12 +98,14 @@ export function useNutritionPlan() {
     error,
     refreshing,
     refresh: refetch,
+    /** Today's date key, day-reactive. */
+    todayKey,
     /** What the program says today is. */
     autoDay,
     /** What the screen is actually showing. */
     day,
     setViewDay,
     /** True when the client is looking at something other than today's type. */
-    overridden: viewDay != null && viewDay !== autoDay,
+    overridden: override != null && override !== autoDay,
   };
 }

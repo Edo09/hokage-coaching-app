@@ -64,7 +64,7 @@ export default function HomeScreen() {
   // An assigned nutrition plan's target for today's day type (training/rest)
   // wins over the profile's single calorie goal.
   const calorieGoal =
-    planCalorieGoal(nutrition.plan, nutrition.autoDay) ??
+    planCalorieGoal(nutrition.plan, nutrition.day) ??
     profile?.calorie_goal ??
     recommendedCalorieGoal(profile);
   const consumed = caloriesConsumed(todaysMeals);
