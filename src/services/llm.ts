@@ -7,16 +7,13 @@ import { supabase } from "@/src/utils/supabase";
 // as secrets — they are not in the app bundle — checks the caller is signed
 // in, applies a per-user quota, and returns the model's JSON already parsed.
 
-export type ImageInput = { base64: string; mimeType: string };
-
 /** Why an AI call failed, so screens can say what happened (and skip a
  *  retry that would fail the same way). */
 export type AiErrorKind =
-  | "too_large" // 413: the photo (or prompt) is over the function's cap
+  | "too_large" // 413: the prompt is over the function's cap
   | "rate_limited" // 429: the user's hourly/daily quota is spent
   | "unavailable" // 503/404: quota migration missing or function not deployed
   | "offline" // the request never reached the function
-  | "no_food" // the photo isn't food (ai-nutrition)
   | "failed"; // anything else: the model call failed, bad output, auth
 
 export class AiError extends Error {
@@ -45,11 +42,7 @@ const KIND_BY_STATUS: Record<number, AiErrorKind> = {
   503: "unavailable",
 };
 
-/** Same cap as the function (~5 MB decoded): fail here instead of
- *  uploading a photo it would refuse. */
-const MAX_IMAGE_BASE64_CHARS = 7_000_000;
-
-async function invoke(body: { system: string; user: string; image?: ImageInput }): Promise<unknown> {
+async function invoke(body: { system: string; user: string }): Promise<unknown> {
   const { data, error } = await supabase.functions.invoke("ai-complete", { body });
   if (error) {
     let reason = error.message;
@@ -71,14 +64,4 @@ async function invoke(body: { system: string; user: string; image?: ImageInput }
 /** Text prompt → parsed JSON (Groq first, Gemini fallback, server-side). */
 export async function completeJSON(system: string, user: string): Promise<unknown> {
   return invoke({ system, user });
-}
-
-/** Vision variant (Gemini first, Groq fallback, server-side). */
-export async function completeJSONWithImage(
-  system: string,
-  user: string,
-  image: ImageInput
-): Promise<unknown> {
-  if (image.base64.length > MAX_IMAGE_BASE64_CHARS) throw new AiError("too_large", "Photo too large");
-  return invoke({ system, user, image });
 }

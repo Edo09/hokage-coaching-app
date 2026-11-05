@@ -366,7 +366,7 @@ export type PlanStatus = "active" | "completed" | "archived";
 export type DayType = "both" | "training" | "rest";
 
 /** Six slots, but meals.meal_type allows only four — pre/post_workout collapse
- *  to "snack" on diary write-back (see mealTypeToDiarySlot). */
+ *  to "snack" in the registration's container (see mealTypeToDiarySlot). */
 export type PlanMealType = MealType | "pre_workout" | "post_workout";
 
 export type SupplementTier = "base" | "conditional" | "optional";

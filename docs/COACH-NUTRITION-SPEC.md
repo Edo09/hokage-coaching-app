@@ -1,5 +1,12 @@
 # Coach Nutrition & Supplementation Plans (PRD)
 
+> **Superseded in part (2026-11-05).** Clients no longer keep a diary: they register each of
+> today's plan meals (an option, «Comí otra cosa» or «No la comí»), and the AI estimates them on
+> the server. The Diario pane (P0-7), the diary write-back (P0-8) and the related stories,
+> including coach-assigned meals showing in the client's diary, are replaced by
+> [`superpowers/specs/2026-11-05-nutrition-meal-registration-design.md`](./superpowers/specs/2026-11-05-nutrition-meal-registration-design.md).
+> The plan model and supplements described here still stand.
+
 **Status:** Draft for review · **Author:** generated from `Nutrición y suplementación fase 2.pdf` gap analysis · **Date:** 2026-08-07
 
 This spec covers representing and delivering the kind of nutrition protocol a coach hands a

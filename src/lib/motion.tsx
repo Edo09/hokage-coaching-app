@@ -13,7 +13,6 @@ import RNAnimated, {
   LinearTransition,
   SlideInLeft,
   SlideInRight,
-  ZoomIn,
   useAnimatedStyle,
   useReducedMotion,
   useSharedValue,
@@ -69,10 +68,6 @@ export const enter = () =>
 
 export const enterFade = () => FadeIn.duration(DUR.base).easing(EASE_OUT);
 export const exit = () => FadeOut.duration(DUR.fast).easing(EASE_IN);
-export const pop = () =>
-  IS_WEB
-    ? FadeIn.duration(DUR.fast).easing(EASE_OUT)
-    : ZoomIn.duration(DUR.fast).easing(EASE_OUT);
 export const slideEnter = (direction: 1 | -1) =>
   IS_WEB
     ? FadeIn.duration(DUR.base).easing(EASE_OUT)

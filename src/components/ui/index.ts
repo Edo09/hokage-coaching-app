@@ -10,7 +10,6 @@ export { TabHeader } from "./tab-header";
 export { ConfirmDialog } from "./dialog";
 export { ErrorState } from "./error-state";
 export { ExpandChevron } from "./expand-chevron";
-export { FAB } from "./fab";
 export { Input } from "./input";
 export { Screen } from "./screen";
 export { ScreentoneBackdrop } from "./screentone";

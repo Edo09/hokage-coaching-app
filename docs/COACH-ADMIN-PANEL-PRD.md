@@ -1,5 +1,12 @@
 # Coach Web Admin Panel — Product Requirements Document
 
+> **Superseded in part (2026-11-05).** Clients no longer keep a diary: they register each of
+> today's plan meals (an option, «Comí otra cosa» or «No la comí»), and the AI estimates them on
+> the server. The Diario pane (P0-7), the diary write-back (P0-8) and the related stories,
+> including coach-assigned meals showing in the client's diary, are replaced by
+> [`superpowers/specs/2026-11-05-nutrition-meal-registration-design.md`](./superpowers/specs/2026-11-05-nutrition-meal-registration-design.md).
+> The plan model and supplements described here still stand.
+
 **Project:** Hokage Coaching — Coach Admin Panel
 **Status:** Draft for review · **Date:** 2026-07-17
 **Companion docs:** [`ADMIN_WEB_DB_CONNECTION.md`](./ADMIN_WEB_DB_CONNECTION.md) (data-layer source of truth), [`COACH-PROGRAMS-SPEC.md`](./COACH-PROGRAMS-SPEC.md) (the Programs feature this panel authors), [`PRD_Plataforma_Fitness.md`](./PRD_Plataforma_Fitness.md) (business vision).

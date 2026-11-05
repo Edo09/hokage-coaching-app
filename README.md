@@ -3,7 +3,7 @@
 Private, coach-branded mobile app (iOS + Android, Expo) for the clients of one
 coach. The coach runs everything from the companion web panel
 ([`hokage-web-panel`](https://github.com/Edo09/hokage-web-panel)); clients see
-their program, nutrition and supplement plans, log sets and meals, and follow
+their program, nutrition and supplement plans, log sets, register the plan's meals, and follow
 their progress here. UI in Spanish (English available).
 
 See `CLAUDE.md` for the product context (white-label, single coach) and
