@@ -3,7 +3,9 @@
 // the row is still the version the call was sent for. Every way out either
 // finishes the estimate or hands it back to the database's retry schedule
 // (fail_meal_estimate / defer_meal_estimate); a call that dies before either
-// is re-sent by the cron once its lease runs out.
+// is re-sent by the cron once its lease runs out. A failure also records why
+// in meal_estimate_errors, where a query can read it (these logs only show in
+// the dashboard).
 
 import type { SupabaseClient } from 'jsr:@supabase/supabase-js@2';
 import { encodeBase64 } from 'jsr:@std/encoding@1/base64';
@@ -12,6 +14,7 @@ import {
   acceptCorrection,
   buildEstimatePrompt,
   type EstimateKind,
+  failureText,
   parseEstimate,
   photoPathAllowed,
 } from '../_shared/meal-estimate.ts';
@@ -33,6 +36,12 @@ type Registration = {
 async function rpcLogged(db: SupabaseClient, fn: string, args: Record<string, unknown>): Promise<void> {
   const { error } = await db.rpc(fn, args);
   if (error) console.warn(`${fn} failed:`, error.message);
+}
+
+/** Why this call failed, in meal_estimate_errors (migration
+ *  20261106120000_meal_estimate_errors.sql). */
+async function recordFailure(db: SupabaseClient, id: string, version: number, e: unknown): Promise<void> {
+  await rpcLogged(db, 'log_meal_estimate_error', { p_id: id, p_version: version, p_error: failureText(e) });
 }
 
 /** The photo, when it is the client's own, an image and not too big; anything
@@ -59,7 +68,10 @@ export async function estimateRegistration(db: SupabaseClient, id: string, versi
     .eq('id', id)
     .maybeSingle<Registration>();
   // Nothing taken yet: the lease runs out and the cron sends it again.
-  if (error) throw error;
+  if (error) {
+    await recordFailure(db, id, version, error);
+    throw error;
+  }
   if (!row || row.estimate_status !== 'pending' || row.estimate_version !== version) return;
   if (row.kind !== 'plan' && row.kind !== 'other') return;
   const kind = row.kind as EstimateKind;
@@ -67,6 +79,7 @@ export async function estimateRegistration(db: SupabaseClient, id: string, versi
   const { data: allowed, error: quotaError } = await db.rpc('take_ai_quota_for', { p_user_id: row.user_id });
   if (quotaError) {
     console.error('take_ai_quota_for failed (migration applied?):', quotaError.message);
+    await recordFailure(db, id, version, quotaError);
     await rpcLogged(db, 'fail_meal_estimate', { p_id: id, p_version: version });
     return;
   }
@@ -98,6 +111,7 @@ export async function estimateRegistration(db: SupabaseClient, id: string, versi
     if (finishError) throw finishError;
   } catch (e) {
     console.warn(`estimate ${id} failed:`, e);
+    await recordFailure(db, id, version, e);
     await rpcLogged(db, 'refund_ai_quota_for', { p_user_id: row.user_id });
     await rpcLogged(db, 'fail_meal_estimate', { p_id: id, p_version: version });
   }

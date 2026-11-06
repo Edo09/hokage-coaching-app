@@ -53,7 +53,8 @@ What this means when working here:
   through `pg_net` to the `estimate-meal` Edge Function (deployed with
   `--no-verify-jwt`; it checks `ESTIMATE_MEAL_SECRET`, which Vault also holds
   as `estimate_meal_secret`, with the URL as `estimate_meal_url`). `pg_cron`
-  re-sends lost calls and retries failures. See
+  re-sends lost calls and retries failures, and each failure's reason goes to
+  `meal_estimate_errors` (server-only: read it with SQL). See
   `docs/ADMIN_WEB_DB_CONNECTION.md` §6.6.
 - Schema source of truth: `supabase/migrations`. Migrations here do not reach
   Zyron's database (and vice versa).

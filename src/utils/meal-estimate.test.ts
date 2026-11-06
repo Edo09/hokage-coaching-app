@@ -8,6 +8,8 @@ import { describe, it } from "node:test";
 import {
   acceptCorrection,
   buildEstimatePrompt,
+  failureText,
+  MAX_FAILURE_CHARS,
   parseEstimate,
   photoPathAllowed,
 } from "@/supabase/functions/_shared/meal-estimate";
@@ -73,6 +75,33 @@ describe("photoPathAllowed", () => {
     assert.equal(photoPathAllowed("u1", "u2/abc.jpg"), false);
     assert.equal(photoPathAllowed("u1", "u1abc/x.jpg"), false);
     assert.equal(photoPathAllowed("u1", "u1/../u2/x.jpg"), false);
+  });
+});
+
+describe("failureText", () => {
+  it("is an error's message", () => {
+    assert.equal(
+      failureText(new Error("gemini: timeout — signal timed out | groq: openai/gpt-oss-120b 429: rate limited")),
+      "gemini: timeout — signal timed out | groq: openai/gpt-oss-120b 429: rate limited",
+    );
+  });
+  it("names an error that has no message", () => {
+    assert.equal(failureText(new TypeError()), "TypeError");
+  });
+  it("puts a database error's code first and its details after", () => {
+    assert.equal(
+      failureText({ code: "PGRST202", message: "Could not find the function", details: "no matches", hint: null }),
+      "PGRST202: Could not find the function (no matches)",
+    );
+    const denied = Object.assign(new Error("permission denied for function finish_meal_estimate"), { code: "42501" });
+    assert.equal(failureText(denied), "42501: permission denied for function finish_meal_estimate");
+  });
+  it("turns anything else into text", () => {
+    assert.equal(failureText("boom"), "boom");
+    assert.equal(failureText(undefined), "undefined");
+  });
+  it("keeps at most MAX_FAILURE_CHARS characters", () => {
+    assert.equal(failureText(new Error("x".repeat(5000))).length, MAX_FAILURE_CHARS);
   });
 });
 

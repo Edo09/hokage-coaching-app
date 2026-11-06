@@ -1,7 +1,8 @@
 -- ==========================================================================
--- Smoke test for supabase/migrations/20261105120000_meal_registrations.sql.
+-- Smoke test for supabase/migrations/20261105120000_meal_registrations.sql
+-- and 20261106120000_meal_estimate_errors.sql.
 --
--- Run it in the Supabase SQL editor after the migration. It acts as a client
+-- Run it in the Supabase SQL editor after the migrations. It acts as a client
 -- and as the server, checks each rule with assert, and ends with
 --
 --   ERROR:  SMOKE OK: meal registrations; nothing was saved
@@ -21,6 +22,7 @@ declare
   v_pmeal  uuid := gen_random_uuid();
   v_opt    uuid := gen_random_uuid();
   v_row4   uuid := gen_random_uuid();   -- undone, then registered again
+  v_gone   uuid := gen_random_uuid();   -- a failure logged for a row that no longer exists
   v_ver    bigint;
   v_v1     bigint;
   v_v2     bigint;
@@ -195,6 +197,37 @@ begin
   assert exists (select 1 from pg_publication_tables
                   where pubname = 'supabase_realtime' and schemaname = 'public'
                     and tablename = 'meal_items'), '15: meal_items is on supabase_realtime';
+
+  -- ---- part 3: failure reasons (migration 20261106120000) ----------------
+
+  -- 16. A failure's reason is kept with the row's owner, version and attempt.
+  perform public.log_meal_estimate_error(v_row2, v_ver, 'gemini: timeout | groq: 429');
+  assert exists (select 1 from public.meal_estimate_errors e
+                  where e.meal_item_id = v_row2 and e.version = v_ver and e.user_id = v_uid
+                    and e.attempt = (select estimate_attempts from public.meal_items where id = v_row2)
+                    and e.error = 'gemini: timeout | groq: 429'), '16: the reason is kept with its row';
+
+  -- 17. A reason outlives its row, is cut to 1000 characters and is never empty.
+  perform public.log_meal_estimate_error(v_gone, 1, repeat('x', 5000));
+  assert (select length(error) from public.meal_estimate_errors where meal_item_id = v_gone) = 1000, '17: long text is cut';
+  assert (select user_id is null from public.meal_estimate_errors where meal_item_id = v_gone), '17: a gone row is still logged';
+  perform public.log_meal_estimate_error(v_row2, v_ver, '  ');
+  assert (select error from public.meal_estimate_errors
+           where meal_item_id = v_row2 order by id desc limit 1) = 'unknown', '17: an empty reason reads unknown';
+
+  -- 18. Reasons older than 30 days go when a new one arrives.
+  insert into public.meal_estimate_errors (meal_item_id, error, created_at)
+  values (v_gone, 'smoke: old', now() - interval '31 days');
+  perform public.log_meal_estimate_error(v_row2, v_ver, 'smoke: new');
+  assert not exists (select 1 from public.meal_estimate_errors
+                      where meal_item_id = v_gone and error = 'smoke: old'), '18: old reasons are dropped';
+
+  -- 19. Only the server writes and reads them.
+  assert not has_function_privilege('authenticated', 'public.log_meal_estimate_error(uuid,bigint,text)', 'execute'), '19: logging is server-only';
+  assert not has_function_privilege('anon', 'public.log_meal_estimate_error(uuid,bigint,text)', 'execute'), '19: anon can''t log';
+  assert has_function_privilege('service_role', 'public.log_meal_estimate_error(uuid,bigint,text)', 'execute'), '19: the function can log';
+  assert not has_table_privilege('authenticated', 'public.meal_estimate_errors', 'select'), '19: clients can''t read reasons';
+  assert not has_table_privilege('anon', 'public.meal_estimate_errors', 'select'), '19: anon can''t read reasons';
 
   raise exception 'SMOKE OK: meal registrations; nothing was saved';
 end $$;

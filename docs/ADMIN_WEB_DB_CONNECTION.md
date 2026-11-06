@@ -386,7 +386,7 @@ The client registers each of today's plan meals in the app: the plan option, «o
 | `{ id, version }`, header `x-estimate-secret` | `202 { accepted: true }` at once; the estimate is written back later |
 
 - **Auth:** deployed with `--no-verify-jwt`, because the database carries no user JWT. The only way in is the shared secret, set in two places (below). A call without it gets `401`; with the secret unset, every call gets `503`.
-- **Flow:** the function reads the row, takes the client's quota (`take_ai_quota_for`, the same 30/hour and 100/day allowance as `ai-complete`), calls the model with the option's foods or the typed text plus the photo when there is one, and writes back through `finish_meal_estimate` only while the row is still the version it was sent for. A quota wait (`defer_meal_estimate`) looks again in 15 minutes and isn't an attempt. A failure (`fail_meal_estimate`) is refunded and retried.
+- **Flow:** the function reads the row, takes the client's quota (`take_ai_quota_for`, the same 30/hour and 100/day allowance as `ai-complete`), calls the model with the option's foods or the typed text plus the photo when there is one, and writes back through `finish_meal_estimate` only while the row is still the version it was sent for. A quota wait (`defer_meal_estimate`) looks again in 15 minutes and isn't an attempt. A failure (`fail_meal_estimate`) is refunded and retried, and its reason goes to `meal_estimate_errors` (`log_meal_estimate_error`, migration `20261106120000_meal_estimate_errors.sql`): server-only, kept 30 days, read with SQL (Checks below).
 - **Retries:** each send moves the row's next try one 3-minute lease ahead and counts an attempt. Failures back off 1, 5, 15, then 60 minutes; after 5 attempts the row is `failed`, which the app and the panel show as «Sin estimar». The `meal-estimates-resend` job (every 2 minutes) re-sends lost calls, and `meal-estimates-daily-retry` (11:00 UTC) gives each failure from the last 7 days one more try. A client can also retry from the app.
 - **Test switch:** with the optional function secret `ESTIMATE_FAIL_USER_ID` set to a client's uuid, that client's estimates fail as a provider failure would, without calling the model. Remove it after testing.
 
@@ -403,7 +403,8 @@ supabase secrets set ESTIMATE_MEAL_SECRET=<secret> --project-ref rzgwkwxskrovxnn
 -- 3. SQL editor: the URL and the same secret in Vault (vault.update_secret changes them later).
 select vault.create_secret('https://rzgwkwxskrovxnnymxqo.supabase.co/functions/v1/estimate-meal', 'estimate_meal_url');
 select vault.create_secret('<secret>', 'estimate_meal_secret');
--- 4. Run supabase/migrations/20261105120000_meal_registrations.sql and its Verify block, then
+-- 4. Run supabase/migrations/20261105120000_meal_registrations.sql and
+--    20261106120000_meal_estimate_errors.sql with their Verify blocks, then
 --    supabase/scripts/smoke_meal_registrations.sql (expects «SMOKE OK») and
 --    supabase/scripts/e2e_meal_estimate.sql with a test client.
 -- 5. Only then let an app build with meal registration talk to the project.
@@ -414,6 +415,8 @@ Checks:
 ```sql
 select estimate_status, count(*) from public.meal_items where kind is not null group by 1;  -- pending / done / failed
 select id, status_code, content from net._http_response order by id desc limit 5;         -- recent posts
+select created_at, meal_item_id, attempt, error
+  from public.meal_estimate_errors order by id desc limit 10;                              -- why estimates failed
 select j.jobname, d.status, d.return_message
   from cron.job_run_details d join cron.job j using (jobid)
  where j.jobname like 'meal-estimates-%' order by d.start_time desc limit 5;

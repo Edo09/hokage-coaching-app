@@ -29,7 +29,10 @@ select estimate_status, name, original_text, calories, protein_g, carbs_g, fat_g
        estimate_attempts, estimate_next_at
   from public.meal_items
  where id = '00000000-0000-4000-8000-0000000e2e02';
--- Still pending? The call and its answer:
+-- Still pending? Why it failed:
+--   select created_at, attempt, error from public.meal_estimate_errors
+--    where meal_item_id = '00000000-0000-4000-8000-0000000e2e02' order by id desc;
+-- the call and its answer:
 --   select id, status_code, content from net._http_response order by id desc limit 3;
 -- and estimate-meal's logs in the dashboard (Edge Functions → estimate-meal → Logs).
 

@@ -1,7 +1,8 @@
 // Pure logic for the estimate-meal Edge Function: the prompt, reading the
-// model's answer, and the guard that keeps a spelling "correction" from
-// changing what the client wrote. It has no imports, so both Deno and the
-// app's `npm test` (src/utils/meal-estimate.test.ts) can load it.
+// model's answer, the guard that keeps a spelling "correction" from changing
+// what the client wrote, and a failure's text for meal_estimate_errors. It has
+// no imports, so both Deno and the app's `npm test`
+// (src/utils/meal-estimate.test.ts) can load it.
 
 export type EstimateKind = 'plan' | 'other';
 export type EstimateResult = { calories: number; protein_g: number; carbs_g: number; fat_g: number; corrected: string | null };
@@ -121,6 +122,24 @@ export function acceptCorrection(original: string, corrected: string): boolean {
     if (/\p{N}/u.test(x) || /\p{N}/u.test(y)) return x === y;
     return levenshtein(x, y) <= allowedDistance(Math.max(x.length, y.length));
   });
+}
+
+/** The most of a failure's text kept in meal_estimate_errors. */
+export const MAX_FAILURE_CHARS = 1000;
+
+/** A failure as one line for meal_estimate_errors: the message (or the name,
+ *  when there is none), with a database error's code before it and its
+ *  details after; anything else as text. */
+export function failureText(e: unknown): string {
+  let text = String(e);
+  if (typeof e === 'object' && e !== null) {
+    const o = e as { name?: unknown; message?: unknown; code?: unknown; details?: unknown };
+    const message = typeof o.message === 'string' && o.message !== '' ? o.message : typeof o.name === 'string' ? o.name : text;
+    const code = typeof o.code === 'string' && o.code !== '' ? `${o.code}: ` : '';
+    const details = typeof o.details === 'string' && o.details !== '' ? ` (${o.details})` : '';
+    text = code + message + details;
+  }
+  return text.slice(0, MAX_FAILURE_CHARS);
 }
 
 /** Photos live under "<user_id>/…" in the meal-photos bucket; the function
