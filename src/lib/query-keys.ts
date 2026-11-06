@@ -8,6 +8,8 @@ export const qk = {
   // Read-only coaching data. The coach is shared across clients, so its key
   // carries no userId; membership is per-client.
   coach: () => ["coach"] as const,
+  // The coach's «Sonidos de la app», one row for every client.
+  appSounds: () => ["app-sounds"] as const,
   membership: (userId: string | undefined) => ["membership", userId] as const,
   // Shared exercise catalog, coach-managed via the Admin Web Panel.
   exercises: () => ["exercises"] as const,

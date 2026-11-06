@@ -99,7 +99,10 @@
           "sounds": [
             "./assets/sounds/rest_done.wav",
             "./assets/sounds/rest_start.wav",
-            "./assets/sounds/rest_silent.wav"
+            "./assets/sounds/rest_silent.wav",
+            "./assets/sounds/bells_done.wav",
+            "./assets/sounds/ring_done.wav",
+            "./assets/sounds/arcade_done.wav"
           ]
         }
       ],

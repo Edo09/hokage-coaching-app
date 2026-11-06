@@ -53,6 +53,12 @@ What this means when working here:
   for 4/7 days and blocks ending or ended. The panel reads them over Realtime.
   The coach's time zone is in `coach_local_date()`. See
   `supabase/migrations/20261024130000_coach_notifications.sql`.
+- Workout sounds: the coach picks one sound set per moment (rest start,
+  10 s left, rest over, new record, day complete) in the panel's
+  Configuración («Sonidos de la app»); the choice is the one row of
+  `app_sound_settings`, which the app reads on open and keeps offline. The
+  sets are built into the app (`assets/sounds`, `src/utils/sound-sets.ts`)
+  and copied in the panel's `public/sounds`: a new set takes a new build.
 - Meal estimates: triggers on `meal_items` post new or changed registrations
   through `pg_net` to the `estimate-meal` Edge Function (deployed with
   `--no-verify-jwt`; it checks `ESTIMATE_MEAL_SECRET`, which Vault also holds

@@ -10,7 +10,15 @@ import { AppState, Platform, Vibration } from "react-native";
 import i18n from "@/src/i18n";
 import { alertSounds, alertVibrates, type AlertMode, getAlertMode } from "@/src/lib/alert-mode";
 import { isReminderData } from "@/src/lib/reminders";
+import { getSoundChoice } from "@/src/lib/sound-choice";
 import { isCoachPushData } from "@/src/utils/push";
+import {
+  type Cue,
+  restChannelId,
+  type SoundSet,
+  soundFileName,
+  staleRestChannelIds,
+} from "@/src/utils/sound-sets";
 
 /**
  * How the client learns their rest is over.
@@ -29,22 +37,11 @@ import { isCoachPushData } from "@/src/utils/push";
  * scheduled. Starting a rest gets a short cue in the same mode, and so does
  * the «10 seconds left» heads-up. The same choice decides whether a new
  * record and a finished day get their sound (`playCelebration`).
+ *
+ * Which sound plays at each moment is the coach's pick (the panel's «Sonidos
+ * de la app», `@/src/lib/sound-choice`), also read when it plays.
  */
 
-/**
- * Android channel per alert mode. Android takes sound and vibration from the
- * channel, and a channel is immutable once created, so each mode is its own
- * channel and a scheduled notification asks for the one matching the mode.
- */
-const CHANNELS: Record<AlertMode, string> = {
-  both: "rest-sound-vibrate",
-  vibrate: "rest-vibrate",
-  sound: "rest-sound",
-};
-
-/** Bundled by the expo-notifications plugin (app.json). Android resource
-    names allow only a-z, 0-9 and "_", hence the underscores. */
-const DONE_SOUND = "rest_done.wav";
 /** iOS only buzzes for a notification that has a sound, so "vibrate only"
     plays silence. */
 const SILENT_SOUND = "rest_silent.wav";
@@ -64,37 +61,67 @@ const WARNING_VIBRATION_PATTERN = [0, 60, 110, 60];
 
 const isWeb = Platform.OS === "web";
 
-/** warn, record and day play only inside the app, never from a
-    notification, so app.json's notification sounds leave them out. */
-const SOUNDS = {
-  done: require("@/assets/sounds/rest_done.wav"),
-  start: require("@/assets/sounds/rest_start.wav"),
-  warn: require("@/assets/sounds/rest_warn.wav"),
-  record: require("@/assets/sounds/record.wav"),
-  day: require("@/assets/sounds/day_done.wav"),
+/**
+ * Every set's files, by moment, named by `soundFileName` (Metro needs each
+ * require spelled out). Only the «done» ones are also notification sounds,
+ * so only they are in app.json's notification sounds.
+ */
+const SOUNDS: Record<SoundSet, Record<Cue, number>> = {
+  classic: {
+    start: require("@/assets/sounds/rest_start.wav"),
+    warn: require("@/assets/sounds/rest_warn.wav"),
+    done: require("@/assets/sounds/rest_done.wav"),
+    record: require("@/assets/sounds/record.wav"),
+    day: require("@/assets/sounds/day_done.wav"),
+  },
+  bells: {
+    start: require("@/assets/sounds/bells_start.wav"),
+    warn: require("@/assets/sounds/bells_warn.wav"),
+    done: require("@/assets/sounds/bells_done.wav"),
+    record: require("@/assets/sounds/bells_record.wav"),
+    day: require("@/assets/sounds/bells_day.wav"),
+  },
+  ring: {
+    start: require("@/assets/sounds/ring_start.wav"),
+    warn: require("@/assets/sounds/ring_warn.wav"),
+    done: require("@/assets/sounds/ring_done.wav"),
+    record: require("@/assets/sounds/ring_record.wav"),
+    day: require("@/assets/sounds/ring_day.wav"),
+  },
+  arcade: {
+    start: require("@/assets/sounds/arcade_start.wav"),
+    warn: require("@/assets/sounds/arcade_warn.wav"),
+    done: require("@/assets/sounds/arcade_done.wav"),
+    record: require("@/assets/sounds/arcade_record.wav"),
+    day: require("@/assets/sounds/arcade_day.wav"),
+  },
 };
-const players: Partial<Record<keyof typeof SOUNDS, AudioPlayer>> = {};
+/** One player per file, keyed "set/cue". */
+const players = new Map<string, AudioPlayer>();
 
 /**
- * Built on demand, not at import: constructing a player allocates a decoder (and
- * on web fetches the asset), and most sessions — nutrition, progress — never
- * start a rest timer. `primeRestAlert` is what keeps that cost off the moment
- * the chime has to sound.
+ * The player for a moment's sound in the coach's set. Built on demand, not
+ * at import: constructing a player allocates a decoder (and on web fetches
+ * the asset), and most sessions — nutrition, progress — never start a rest
+ * timer. `primeRestAlert` is what keeps that cost off the moment the chime
+ * has to sound.
  */
-function getPlayer(sound: keyof typeof SOUNDS): AudioPlayer | null {
-  const existing = players[sound];
+function getPlayer(cue: Cue): AudioPlayer | null {
+  const set = getSoundChoice()[cue];
+  const key = `${set}/${cue}`;
+  const existing = players.get(key);
   if (existing != null) return existing;
   try {
-    const created = createAudioPlayer(SOUNDS[sound]);
-    players[sound] = created;
+    const created = createAudioPlayer(SOUNDS[set][cue]);
+    players.set(key, created);
     return created;
   } catch {
     return null;
   }
 }
 
-function play(sound: keyof typeof SOUNDS) {
-  const p = getPlayer(sound);
+function play(cue: Cue) {
+  const p = getPlayer(cue);
   if (p == null) return;
   try {
     // Rewind first: the player holds its position from the previous rest, and
@@ -107,17 +134,23 @@ function play(sound: keyof typeof SOUNDS) {
 }
 
 /** Channels already created this session (creating is idempotent, but async). */
-const createdChannels = new Set<AlertMode>();
+const createdChannels = new Set<string>();
 
-/** Create the Android channel for this mode if this session hasn't yet. */
-async function ensureChannel(mode: AlertMode): Promise<void> {
-  if (Platform.OS !== "android" || createdChannels.has(mode)) return;
+/**
+ * Create the Android channel for this mode and «rest over» set if this
+ * session hasn't yet, and return its id. Android takes sound and vibration
+ * from the channel, and a channel is immutable once created, so each mode,
+ * and each set's sound, is its own channel (`restChannelId`).
+ */
+async function ensureChannel(mode: AlertMode, set: SoundSet): Promise<string> {
+  const id = restChannelId(mode, set);
+  if (Platform.OS !== "android" || createdChannels.has(id)) return id;
   try {
-    await Notifications.setNotificationChannelAsync(CHANNELS[mode], {
+    await Notifications.setNotificationChannelAsync(id, {
       name: i18n.t(`settings.restAlertChannel_${mode}`),
       importance: Notifications.AndroidImportance.HIGH,
       // null = no sound (vibrate only).
-      sound: alertSounds(mode) ? DONE_SOUND : null,
+      sound: alertSounds(mode) ? soundFileName(set, "done") : null,
       enableVibrate: alertVibrates(mode),
       vibrationPattern: alertVibrates(mode) ? VIBRATION_PATTERN : null,
       lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
@@ -129,8 +162,28 @@ async function ensureChannel(mode: AlertMode): Promise<void> {
         contentType: Notifications.AndroidAudioContentType.SONIFICATION,
       },
     });
-    createdChannels.add(mode);
+    createdChannels.add(id);
   } catch {}
+  return id;
+}
+
+/** The «rest over» set whose channels this session has already tidied. */
+let tidiedFor: SoundSet | null = null;
+
+/**
+ * Drop the other sets' sound channels once the coach has moved to another
+ * «rest over» sound, so the phone's notification settings list one, not
+ * one per set ever used. Run when a rest is scheduled, right after the
+ * previous rest's notification was cancelled, so none is pending on them.
+ */
+async function dropStaleChannels(set: SoundSet): Promise<void> {
+  if (Platform.OS !== "android" || tidiedFor === set) return;
+  tidiedFor = set;
+  const stale = staleRestChannelIds(set);
+  stale.forEach((id) => createdChannels.delete(id));
+  await Promise.all(
+    stale.map((id) => Notifications.deleteNotificationChannelAsync(id).catch(() => {})),
+  );
 }
 
 /**
@@ -174,7 +227,7 @@ export function setupRestAlerts() {
   // The channel for the default mode, so Android 13+ has one to attach the
   // notification-permission prompt to. Other modes' channels are created when
   // first used (scheduleRestDoneNotification).
-  void ensureChannel(getAlertMode());
+  void ensureChannel(getAlertMode(), getSoundChoice().done);
 }
 
 /**
@@ -313,9 +366,11 @@ export function scheduleRestDoneNotification(seconds: number, label?: string | n
   cancelRestDoneNotification();
   const mine = token;
   const mode = getAlertMode();
+  const set = getSoundChoice().done;
 
   void (async () => {
-    await ensureChannel(mode);
+    const channelId = await ensureChannel(mode, set);
+    await dropStaleChannels(set);
     if (!(await ensurePermission())) return;
     try {
       const id = await Notifications.scheduleNotificationAsync({
@@ -327,13 +382,13 @@ export function scheduleRestDoneNotification(seconds: number, label?: string | n
           // iOS reads the sound off the notification (and only buzzes when
           // there is one, hence silence for "vibrate only"); Android ignores
           // this and uses the channel's.
-          sound: alertSounds(mode) ? DONE_SOUND : SILENT_SOUND,
+          sound: alertSounds(mode) ? soundFileName(set, "done") : SILENT_SOUND,
         },
         trigger: {
           type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
           seconds,
           repeats: false,
-          channelId: CHANNELS[mode],
+          channelId,
         },
       });
       if (token !== mine) {

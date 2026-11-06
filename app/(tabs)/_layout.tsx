@@ -15,6 +15,7 @@ import { useReminderSync } from "@/src/hooks/use-reminder-sync";
 import { useMealEstimateSync } from "@/src/hooks/use-meal-estimate-sync";
 import { usePushToken } from "@/src/hooks/use-push-token";
 import { useReminderTaps } from "@/src/hooks/use-reminder-taps";
+import { useSoundChoiceSync } from "@/src/hooks/use-sound-choice-sync";
 import { DUR, EASE_OUT } from "@/src/lib/motion";
 import { useColors } from "@/src/theme/colors";
 import { Pressable } from "@/src/tw";
@@ -73,6 +74,8 @@ function Reminders() {
   usePushToken();
   // Meal estimates landing while the app is open (src/hooks/use-meal-estimate-sync.ts).
   useMealEstimateSync();
+  // The workout sounds the coach picked (src/hooks/use-sound-choice-sync.ts).
+  useSoundChoiceSync();
   return null;
 }
 
