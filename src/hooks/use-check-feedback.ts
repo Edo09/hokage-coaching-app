@@ -20,7 +20,7 @@ function findDay(program: ProgramWithDetails | null, exerciseId: string): Progra
  */
 export function useCheckFeedback(program: ProgramWithDetails | null): {
   toggleFromRow(exerciseId: string, week: number): void;
-  afterFinish(exerciseId: string, week: number, seconds: number, finishesDay: boolean): void;
+  afterFinish(exerciseId: string, week: number, seconds: number, finishesDay: boolean, restStarted: boolean): void;
 } {
   const logging = useProgramLogging(program);
   // The fresh day (src/lib/today), as on the Programa tab: an earlier week is
@@ -35,6 +35,7 @@ export function useCheckFeedback(program: ProgramWithDetails | null): {
     seconds: number | null,
     finishesDay: boolean,
     fromRow: boolean,
+    restStarted: boolean,
   ) => {
     const day = findDay(program, exerciseId);
     // Every check-off is noted: one right after it joins the burst, and from
@@ -56,7 +57,15 @@ export function useCheckFeedback(program: ProgramWithDetails | null): {
     } else if (shown.kind === "dayAgain") {
       checkCard.show({ kind: "dayAgain", dayId: day.id, week, exerciseId });
     } else if (!shown.collapse) {
-      checkCard.show({ kind: "single", exerciseId, dayId: day.id, week, seconds, undoOnly: shown.undoOnly });
+      checkCard.show({
+        kind: "single",
+        exerciseId,
+        dayId: day.id,
+        week,
+        seconds,
+        undoOnly: shown.undoOnly,
+        restStarted,
+      });
     }
     void logging.setCompletion(exerciseId, week, true);
   };
@@ -72,11 +81,11 @@ export function useCheckFeedback(program: ProgramWithDetails | null): {
         void logging.setCompletion(exerciseId, week, false);
         return;
       }
-      check(exerciseId, week, null, logging.completesDay(exerciseId, week), true);
+      check(exerciseId, week, null, logging.completesDay(exerciseId, week), true, false);
     },
-    afterFinish(exerciseId, week, seconds, finishesDay) {
+    afterFinish(exerciseId, week, seconds, finishesDay, restStarted) {
       if (logging.lockOf(week) != null) return;
-      check(exerciseId, week, seconds > 0 ? seconds : null, finishesDay, false);
+      check(exerciseId, week, seconds > 0 ? seconds : null, finishesDay, false, restStarted);
     },
   };
 }

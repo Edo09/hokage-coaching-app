@@ -169,7 +169,7 @@ Shared library. Coach-writable (`is_coach()`), readable by everyone. Editing a r
 | `notes` | text | |
 | `sort_order` | int | |
 
-> **Display precedence** (mirror the mobile app): the row shows its own `%1RM` when set, else its qualitative tag; the **week's** global RIR/%load is shown once in the week summary, not per row. See `effectivePrescription` in `src/utils/program.ts`.
+> **Display precedence** (mirror the mobile app): the row shows its own `%1RM` when set, else its qualitative tag; the **week's** global %load is shown once in the week summary, not per row. RIR is per row: the exercise's own, else the week's. Tempo is per row too: the exercise's own, else the program's `tempo_default`, written as four phases in seconds (`3-1-2-0`: lowering, pause at the bottom, lifting, pause at the top; `X` = explosive), which the app spells out during the workout. See `effectivePrescription` and `parseTempo` in `src/utils/program.ts`.
 
 ### 4.6 Program weeks (global periodization table) — `program_weeks`
 

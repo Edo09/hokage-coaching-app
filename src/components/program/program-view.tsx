@@ -237,6 +237,7 @@ export function ProgramView({
             headerRef={day.id === focus?.dayId ? focusedHeader : undefined}
             week={week}
             selectedWeek={selectedWeek}
+            tempoDefault={program.tempo_default}
             onOpenExercise={openExercise}
             onToggleExercise={toggleExercise}
             onPlayVideo={setVideoUri}
@@ -278,6 +279,7 @@ function DayCard({
   headerRef,
   week,
   selectedWeek,
+  tempoDefault,
   onOpenExercise,
   onToggleExercise,
   onPlayVideo,
@@ -291,6 +293,8 @@ function DayCard({
   headerRef?: React.Ref<RNView>;
   week: ProgramWeek | null;
   selectedWeek: number;
+  /** The program's tempo, for exercises that set none. */
+  tempoDefault: string | null;
   onOpenExercise: (exercise: ProgramExercise) => void;
   /** A row's circle: check it off, or uncheck it (useCheckFeedback). */
   onToggleExercise: (exercise: ProgramExercise) => void;
@@ -403,6 +407,7 @@ function DayCard({
               exercise={ex}
               week={week}
               weekNumber={selectedWeek}
+              tempoDefault={tempoDefault}
               done={logging.isDone(ex.id, selectedWeek)}
               onToggleDone={() => onToggleExercise(ex)}
               locked={locked}

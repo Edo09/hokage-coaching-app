@@ -20,7 +20,7 @@ import { formatClock, useRestTimer } from "@/src/providers/rest-timer-provider";
 import { useColors } from "@/src/theme/colors";
 import { Pressable, Text, View } from "@/src/tw";
 import type { ProgramDayWithExercises, ProgramExercise, ProgramWithDetails } from "@/src/types/database";
-import { nextExercise } from "@/src/utils/check-card";
+import { isPartnerNext, nextExercise, restAfterFinish } from "@/src/utils/check-card";
 import { effectivePrescription, weekByNumber } from "@/src/utils/program";
 
 /** The floating rest bar's footprint (card ~73 + its 8px bottom margin). */
@@ -97,16 +97,6 @@ export function ExerciseSessionHost({ tabBarHeight }: { tabBarHeight: number }) 
     if (activeLock == null) exerciseSession.togglePause();
   };
 
-  // «Terminar»: the clock stops and keeps its time (closing the sheet), then
-  // the check-off shows its card with that time («en 3:12»), or only the
-  // day-complete stamp when it was the day's last (read before the write).
-  const finish = () => {
-    if (sheet == null || sheetExercise == null || sheetLock != null) return;
-    const finishesDay = logging.completesDay(sheet.exerciseId, sheet.week);
-    const seconds = exerciseSession.finish(sheet.exerciseId, sheet.week);
-    feedback.afterFinish(sheet.exerciseId, sheet.week, seconds, finishesDay);
-  };
-
   // The done sheet's «Siguiente →»: the day's next exercise to do, the same
   // one the check card offers.
   const sheetDay = sheet != null ? findDay(program, sheet.exerciseId) : null;
@@ -115,12 +105,33 @@ export function ExerciseSessionHost({ tabBarHeight }: { tabBarHeight: number }) 
       ? nextExercise(sheetDay, sheet.exerciseId, (id) => isDone(id, sheet.week))
       : null;
 
+  // «Terminar»: the clock stops and keeps its time (closing the sheet), then
+  // the check-off shows its card with that time («en 3:12»), or only the
+  // day-complete stamp when it was the day's last (read before the write).
+  // The rest starts right away: the client goes from the last set straight
+  // into it (src/utils/check-card.ts restAfterFinish says when it doesn't).
+  const finish = () => {
+    if (program == null || sheet == null || sheetExercise == null || sheetLock != null) return;
+    const finishesDay = logging.completesDay(sheet.exerciseId, sheet.week);
+    const p = effectivePrescription(sheetExercise, weekByNumber(program, sheet.week), sheet.week);
+    const restSeconds = restAfterFinish({
+      restSeconds: p.restSeconds,
+      finishesDay,
+      partnerNext: isPartnerNext(sheetExercise, sheetNext),
+      restRunning: rest.running,
+    });
+    const seconds = exerciseSession.finish(sheet.exerciseId, sheet.week);
+    feedback.afterFinish(sheet.exerciseId, sheet.week, seconds, finishesDay, restSeconds != null);
+    if (restSeconds != null) rest.start(restSeconds, p.name);
+  };
+
   return (
     <>
       <ProgramExerciseModal
         exercise={sheetExercise}
         week={program != null && sheet != null ? weekByNumber(program, sheet.week) : null}
         weekNumber={sheet?.week ?? 1}
+        tempoDefault={program?.tempo_default ?? null}
         lock={sheetLock}
         logging={logging}
         timed={sheetTimed}

@@ -263,6 +263,13 @@ export default {
     load_moderate: "moderate",
     load_heavy: "heavy",
     tempoLabel: "Tempo {{tempo}}",
+    // The four phases of a 3-1-2-0 tempo (seconds; X = explosive).
+    tempoPhase_down: "lowering",
+    tempoPhase_bottom: "bottom",
+    tempoPhase_up: "lifting",
+    tempoPhase_top: "top",
+    tempoSeconds: "{{n}} s",
+    tempoExplosive: "explosive",
     restLabel: "{{seconds}}s rest",
     weeksCount: "{{count}}-week block",
     startsOn: "Starts {{date}}",

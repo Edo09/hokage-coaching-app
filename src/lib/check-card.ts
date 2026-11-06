@@ -24,6 +24,8 @@ export type CheckCardState =
       seconds: number | null;
       /** Nothing but «Deshacer»: a past week, or another exercise's clock is running. */
       undoOnly: boolean;
+      /** «Terminar» started the exercise's rest: «Deshacer» stops it too. */
+      restStarted?: boolean;
     }
   | { kind: "batch"; items: { exerciseId: string; week: number }[] }
   | { kind: "dayAgain"; dayId: string; week: number; exerciseId: string };

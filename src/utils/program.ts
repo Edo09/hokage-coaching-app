@@ -110,15 +110,19 @@ export function effectivePrescription(
   // Week being viewed. Needed on its own because a program may have no
   // program_weeks row for it while the exercise still overrides that week.
   weekNumber: number | null = week?.week_number ?? null,
+  /** The program's tempo_default, for an exercise that sets no tempo. */
+  tempoDefault: string | null = null,
 ): EffectivePrescription {
-  // The week's global RIR/%load is shown ONCE in the week summary — don't
-  // repeat it on every row. A row shows only the exercise's OWN specifics
-  // (its pinned %1RM or qualitative load, and RIR if it pins one), matching
-  // how the PDFs annotate individual lifts ("60% 1RM", "moderado", "ligero").
-  // The week modulates the set count (deload); an exercise's own override for
-  // that week (week_overrides) wins over both.
+  // The week's global %load is shown ONCE in the week summary, not on every
+  // row: a row shows only the exercise's OWN load (its pinned %1RM or
+  // qualitative tag), matching how the PDFs annotate individual lifts ("60%
+  // 1RM", "moderado"). RIR is different: the client follows it set by set, so
+  // every exercise carries one, its own or else the week's. The week
+  // modulates the set count (deload); an exercise's own override for that
+  // week (week_overrides) wins over all of it.
   const o = weekNumber != null ? (ex.week_overrides?.[String(weekNumber)] ?? null) : null;
   const pick = <T,>(v: T | undefined, base: T): T => (v !== undefined && v !== null ? v : base);
+  const ownRir = ex.rir_min != null || ex.rir_max != null;
 
   return {
     name: ex.exercise?.name ?? ex.custom_name ?? "—",
@@ -127,13 +131,13 @@ export function effectivePrescription(
     repMin: pick(o?.rep_min, ex.rep_min),
     repMax: pick(o?.rep_max, ex.rep_max),
     isUnilateral: ex.is_unilateral,
-    rirMin: pick(o?.rir_min, ex.rir_min),
-    rirMax: pick(o?.rir_max, ex.rir_max),
+    rirMin: pick(o?.rir_min, ownRir ? ex.rir_min : (week?.rir_min ?? null)),
+    rirMax: pick(o?.rir_max, ownRir ? ex.rir_max : (week?.rir_max ?? null)),
     loadPct: pick(o?.load_pct_1rm, ex.load_pct_1rm),
     loadPctIsRange: false,
     loadPctMax: null,
     loadQualitative: ex.load_qualitative,
-    tempo: ex.tempo ?? null,
+    tempo: ex.tempo?.trim() || tempoDefault?.trim() || null,
     restSeconds: ex.rest_seconds,
     notes: ex.notes,
     weekAdjusted: o != null && Object.keys(o).length > 0,
@@ -154,6 +158,21 @@ export function formatLoadPct(p: EffectivePrescription): string | null {
   if (p.loadPct == null) return null;
   if (p.loadPctIsRange && p.loadPctMax != null) return `${p.loadPct}–${p.loadPctMax}%`;
   return `${p.loadPct}%`;
+}
+
+/** A tempo's four phases in seconds (lowering, pause at the bottom, lifting,
+ *  pause at the top), each a number or "X" for explosive. */
+export type TempoPhases = [string, string, string, string];
+
+const TEMPO_PHASE = /^(\d{1,2}|X)$/;
+
+/** "3-1-2-0" as its four phases. Also reads "3120", "3 1 2 0", "3/1/2/0" and
+ *  a lowercase x; null for a tempo written any other way (old free text),
+ *  which is then shown as written. */
+export function parseTempo(text: string | null): TempoPhases | null {
+  const flat = (text ?? "").trim().toUpperCase();
+  const parts = /^[\dX]{4}$/.test(flat) ? flat.split("") : flat.split(/[\s\-–—/.,]+/);
+  return parts.length === 4 && parts.every((x) => TEMPO_PHASE.test(x)) ? (parts as TempoPhases) : null;
 }
 
 /** "RIR 2", "RIR 2–3", or null. */

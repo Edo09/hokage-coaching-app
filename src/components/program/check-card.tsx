@@ -34,7 +34,7 @@ import type {
   ProgramExercise,
   ProgramWithDetails,
 } from "@/src/types/database";
-import { checkHighlight, type CheckHighlight, nextExercise } from "@/src/utils/check-card";
+import { checkHighlight, type CheckHighlight, isPartnerNext, nextExercise } from "@/src/utils/check-card";
 import { effectivePrescription, weekByNumber } from "@/src/utils/program";
 import { dayRecordLogs, exerciseNames, exerciseRecord } from "@/src/utils/records";
 
@@ -253,16 +253,15 @@ function SingleCard({
         ? t("checkCard.nextSuperset", { slot: next.slot, name: nextName })
         : t("checkCard.next", { name: nextName });
   // Mid-superset the partner comes first; the rest is after the round.
-  const partnerNext =
-    next != null &&
-    next.slot != null &&
-    exercise.superset_group != null &&
-    next.exercise.superset_group === exercise.superset_group;
+  const partnerNext = isPartnerNext(exercise, next);
   const restSeconds = p.restSeconds ?? 0;
-  const showRest = !undoOnly && restSeconds > 0 && !rest.running && !partnerNext;
+  // After «Terminar» the rest is already counting (or done): nothing to offer.
+  const showRest = !undoOnly && !card.restStarted && restSeconds > 0 && !rest.running && !partnerNext;
 
   const undo = () => {
     checkCard.dismiss();
+    // Taking back «Terminar» takes back the rest it started.
+    if (card.restStarted && rest.running && rest.label === p.name) rest.stop();
     void logging.setCompletion(exercise.id, week, false);
   };
   // Opens the next exercise and starts nothing (no clock, no rest).

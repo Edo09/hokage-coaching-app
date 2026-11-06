@@ -10,7 +10,7 @@ import type {
   ProgramWithDetails,
   WorkoutSetLog,
 } from "@/src/types/database";
-import { checkHighlight, nextDay, nextExercise } from "@/src/utils/check-card";
+import { checkHighlight, isPartnerNext, nextDay, nextExercise, restAfterFinish } from "@/src/utils/check-card";
 
 /** A program exercise; `group` is its superset letter. */
 function ex(id: string, group: string | null = null): ProgramExercise {
@@ -51,6 +51,46 @@ function day(id: string, exercises: ProgramExercise[], dayIndex = 1): ProgramDay
 
 /** Done for the listed exercise ids (nextExercise ignores the week). */
 const doneIds = (...ids: string[]) => (id: string) => ids.includes(id);
+
+describe("restAfterFinish", () => {
+  const base = { restSeconds: 120, finishesDay: false, partnerNext: false, restRunning: false };
+
+  it("starts the exercise's rest", () => {
+    assert.equal(restAfterFinish(base), 120);
+  });
+
+  it("starts none on the day's last exercise", () => {
+    assert.equal(restAfterFinish({ ...base, finishesDay: true }), null);
+  });
+
+  it("starts none when a superset partner is next: the rest comes after the round", () => {
+    assert.equal(restAfterFinish({ ...base, partnerNext: true }), null);
+  });
+
+  it("leaves a rest that is already running alone", () => {
+    assert.equal(restAfterFinish({ ...base, restRunning: true }), null);
+  });
+
+  it("starts none when the coach set no rest", () => {
+    assert.equal(restAfterFinish({ ...base, restSeconds: null }), null);
+    assert.equal(restAfterFinish({ ...base, restSeconds: 0 }), null);
+  });
+});
+
+describe("isPartnerNext", () => {
+  const ss = day("s", [ex("a1", "A"), ex("a2", "A"), ex("b")]);
+  const [a1, a2, b] = ss.program_exercises;
+
+  it("is true when the next one is a partner in the same superset", () => {
+    assert.equal(isPartnerNext(a1, nextExercise(ss, "a1", doneIds())), true);
+  });
+
+  it("is false once the round is done, for straight sets and with nothing next", () => {
+    assert.equal(isPartnerNext(a2, nextExercise(ss, "a2", doneIds("a1"))), false);
+    assert.equal(isPartnerNext(b, nextExercise(ss, "b", doneIds())), false);
+    assert.equal(isPartnerNext(a1, null), false);
+  });
+});
 
 describe("nextExercise", () => {
   const plain = day("d", [ex("a"), ex("b"), ex("c"), ex("d")]);

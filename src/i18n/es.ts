@@ -263,6 +263,13 @@ export default {
     load_moderate: "moderado",
     load_heavy: "pesado",
     tempoLabel: "Tempo {{tempo}}",
+    // Las cuatro fases del tempo 3-1-2-0 (segundos; X = explosiva).
+    tempoPhase_down: "bajada",
+    tempoPhase_bottom: "abajo",
+    tempoPhase_up: "subida",
+    tempoPhase_top: "arriba",
+    tempoSeconds: "{{n}} s",
+    tempoExplosive: "explosiva",
     restLabel: "{{seconds}}s descanso",
     weeksCount: "Bloque de {{count}} semanas",
     startsOn: "Inicia {{date}}",

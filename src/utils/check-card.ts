@@ -65,6 +65,32 @@ export function nextExercise(
   return null;
 }
 
+/** Mid-superset: `next` is a partner of `exercise` in the same round, which
+    comes before any rest. */
+export function isPartnerNext(exercise: ProgramExercise, next: NextExercise | null): boolean {
+  return (
+    next != null &&
+    next.slot != null &&
+    exercise.superset_group != null &&
+    next.exercise.superset_group === exercise.superset_group
+  );
+}
+
+/** The rest «Terminar» starts, in seconds, or null: none on the day's last
+    exercise, none mid-superset (it comes after the round), none without a
+    prescribed rest, and a rest already running keeps going rather than
+    starting over. */
+export function restAfterFinish(input: {
+  restSeconds: number | null;
+  finishesDay: boolean;
+  partnerNext: boolean;
+  restRunning: boolean;
+}): number | null {
+  const { restSeconds, finishesDay, partnerNext, restRunning } = input;
+  if (restSeconds == null || restSeconds <= 0 || finishesDay || partnerNext || restRunning) return null;
+  return restSeconds;
+}
+
 /** The card's one highlight (weights in kg). */
 export type CheckHighlight =
   | { kind: "record"; weight: number; reps: number }

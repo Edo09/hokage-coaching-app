@@ -15,14 +15,13 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { DemoMedia } from "@/src/components/program/demo-media";
 import { LockNote } from "@/src/components/program/lock-note";
-import { RestButton } from "@/src/components/program/program-exercise-row";
 import { ProgramSetLogger } from "@/src/components/program/program-set-logger";
 import { RestTimerBar } from "@/src/components/program/rest-timer-bar";
 import { Burst, CapsLabel, ExpandChevron, PosterText } from "@/src/components/ui";
 import { useKeyboardHeight } from "@/src/hooks/use-keyboard-height";
 import type { useProgramLogging } from "@/src/hooks/use-program-logging";
 import { PressableScale, Reveal, usePop } from "@/src/lib/motion";
-import { formatClock } from "@/src/providers/rest-timer-provider";
+import { formatClock, useRestTimer } from "@/src/providers/rest-timer-provider";
 import { useColors } from "@/src/theme/colors";
 import { Pressable, ScrollView, Text, View } from "@/src/tw";
 import { AnimatedView } from "@/src/tw/animated";
@@ -33,6 +32,8 @@ import {
   formatLoadPct,
   formatReps,
   formatRir,
+  parseTempo,
+  type TempoPhases,
   type WeekLock,
 } from "@/src/utils/program";
 
@@ -60,6 +61,8 @@ type Props = {
   exercise: ProgramExercise | null;
   week: ProgramWeek | null;
   weekNumber: number;
+  /** The program's tempo, for an exercise that sets none. */
+  tempoDefault: string | null;
   /** "Solo semana actual": set while the week isn't open yet, and the sheet
       is view only. Always null for free programs. */
   lock: WeekLock | null;
@@ -88,12 +91,12 @@ type Props = {
 };
 
 /**
- * An exercise's sheet: the demo playing, how to do it, the rest timer and the
- * set logger. Three states:
+ * An exercise's sheet: the demo playing, how to do it, its RIR and tempo, the
+ * rest timer and the set logger. Three states:
  *  - not started: "Empezar" (or "Continuar", with time already on it) starts
  *    its clock; "Marcar hecho" checks it off without one;
- *  - in progress: its clock, and the controls to pause, hide (to the bar),
- *    finish or quit it;
+ *  - in progress: its clock, the rest between sets, and the controls to
+ *    pause, hide (to the bar), finish or quit it;
  *  - done: review, with the done toggle and «Siguiente →» to the day's
  *    next exercise.
  * On a locked week ("Solo semana actual") it is view only: a note says when
@@ -105,6 +108,7 @@ export function ProgramExerciseModal({
   exercise,
   week,
   weekNumber,
+  tempoDefault,
   lock,
   logging,
   timed,
@@ -150,8 +154,14 @@ export function ProgramExerciseModal({
     if (keyboard > 0) revealFocused();
   }, [keyboard, revealFocused]);
 
-  const p = exercise != null ? effectivePrescription(exercise, week, weekNumber) : null;
+  const p = exercise != null ? effectivePrescription(exercise, week, weekNumber, tempoDefault) : null;
   const done = exercise != null && logging.isDone(exercise.id, weekNumber);
+  // A tempo written as 3-1-2-0 is spelled out; older free text shows as written.
+  const tempo = p != null ? parseTempo(p.tempo) : null;
+  const tempoText = p != null && tempo == null ? p.tempo : null;
+  const hasNotes = p?.notes != null && p.notes !== "";
+  // Rest is between sets: only once the exercise is under way.
+  const showRest = p?.restSeconds != null && timed;
   const videoUrl = exercise?.exercise?.video_url ?? null;
   const hasVideo = videoUrl != null && videoUrl !== "";
   // The demo is as wide as the sheet (a catalog GIF, square, as tall), up to
@@ -310,14 +320,19 @@ export function ProgramExerciseModal({
                 </View>
               )}
 
-              {(p.tempo != null || p.restSeconds != null || p.notes != null) && (
-                <View className="flex-row flex-wrap items-center gap-x-4 gap-y-1.5 px-5 pb-1">
-                  {p.tempo != null && (
-                    <Meta icon="time-outline">{t("program.tempoLabel", { tempo: p.tempo })}</Meta>
-                  )}
-                  {p.restSeconds != null && <RestButton seconds={p.restSeconds} name={p.name} />}
-                  {p.notes != null && p.notes !== "" && (
-                    <Text className="text-xs text-content-tertiary">{p.notes}</Text>
+              {/* Above the scrolling part, so the tempo stays in view while
+                  the sets are logged. */}
+              {(tempo != null || tempoText != null || showRest || hasNotes) && (
+                <View className="gap-2 px-5 pb-1">
+                  {tempo != null && <TempoStrip phases={tempo} />}
+                  {(tempoText != null || showRest || hasNotes) && (
+                    <View className="flex-row flex-wrap items-center gap-x-4 gap-y-1.5">
+                      {tempoText != null && (
+                        <Meta icon="time-outline">{t("program.tempoLabel", { tempo: tempoText })}</Meta>
+                      )}
+                      {showRest && <RestButton seconds={p.restSeconds!} name={p.name} />}
+                      {hasNotes && <Text className="text-xs text-content-tertiary">{p.notes}</Text>}
+                    </View>
                   )}
                 </View>
               )}
@@ -597,5 +612,88 @@ function Meta({
       <Ionicons name={icon} size={12} color={colors.contentMuted} />
       <Text className="text-xs text-content-tertiary">{children}</Text>
     </View>
+  );
+}
+
+const TEMPO_PHASES = ["down", "bottom", "up", "top"] as const;
+
+/**
+ * The tempo, phase by phase, so the client doesn't need the notation: the
+ * seconds lowering, at the bottom, lifting and at the top ("X": explosive).
+ * Read out as one line ("Tempo 3-1-2-0: bajada 3 s, abajo 1 s, …").
+ */
+function TempoStrip({ phases }: { phases: TempoPhases }) {
+  const { t } = useTranslation();
+  const spoken = phases
+    .map((v, i) => {
+      const value = v === "X" ? t("program.tempoExplosive") : t("program.tempoSeconds", { n: v });
+      return `${t(`program.tempoPhase_${TEMPO_PHASES[i]}`)} ${value}`;
+    })
+    .join(", ");
+  return (
+    <View
+      accessible
+      accessibilityLabel={`${t("program.tempoLabel", { tempo: phases.join("-") })}: ${spoken}`}
+      className="flex-row items-stretch gap-1.5"
+    >
+      <View className="justify-center pr-1">
+        <CapsLabel size={9.5} em={0.14} className="text-content-tertiary">
+          {t("program.tempo")}
+        </CapsLabel>
+      </View>
+      {phases.map((v, i) => (
+        <View key={TEMPO_PHASES[i]} className="flex-1 items-center rounded-lg bg-brand-dark py-1.5">
+          <Text className="text-[17px] font-extrabold text-content-primary" style={TABULAR}>
+            {v}
+          </Text>
+          <Text className="text-[10px] text-content-tertiary">{t(`program.tempoPhase_${TEMPO_PHASES[i]}`)}</Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+/**
+ * The coach's prescribed rest between sets, one tap from running. Only while
+ * the exercise is under way: the cards on the list have none, since a rest
+ * comes after training, and «Terminar» starts the one after the last set.
+ */
+function RestButton({ seconds, name }: { seconds: number; name: string }) {
+  const { t } = useTranslation();
+  const colors = useColors();
+  const { start, running, label } = useRestTimer();
+  // Highlight only the exercise whose timer is actually counting.
+  const isMine = running && label === name;
+
+  return (
+    <Pressable
+      onPress={() => start(seconds, name)}
+      accessibilityRole="button"
+      accessibilityLabel={t("program.restStart", { seconds, name })}
+      hitSlop={10}
+      // Sized as a real control, not a caption: this gets tapped mid-set with
+      // sweaty hands, so it carries its own border and a ~36px tall target.
+      className={
+        isMine
+          ? "flex-row items-center gap-1.5 rounded-lg border bg-brand-primary-soft px-3 py-2"
+          : "flex-row items-center gap-1.5 rounded-lg border px-3 py-2"
+      }
+      // Border colour inline: the /opacity modifier doesn't compile under
+      // react-native-css.
+      style={{ borderColor: isMine ? colors.brandPrimary : colors.border }}
+    >
+      <Ionicons
+        name={isMine ? "hourglass-outline" : "play-circle"}
+        size={17}
+        color={isMine ? colors.brandPrimary : colors.brandSecondary}
+      />
+      <Text
+        className={
+          isMine ? "text-[13px] font-bold text-brand-primary" : "text-[13px] font-bold text-brand-secondary"
+        }
+      >
+        {t("program.restLabel", { seconds })}
+      </Text>
+    </Pressable>
   );
 }

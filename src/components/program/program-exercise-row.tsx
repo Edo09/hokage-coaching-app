@@ -7,7 +7,6 @@ import { useWindowDimensions } from "react-native";
 
 import { Burst } from "@/src/components/ui";
 import { usePop } from "@/src/lib/motion";
-import { useRestTimer } from "@/src/providers/rest-timer-provider";
 import { useColors } from "@/src/theme/colors";
 import { Pressable, Text, View } from "@/src/tw";
 import { AnimatedView } from "@/src/tw/animated";
@@ -18,6 +17,7 @@ import {
   formatLoadPct,
   formatReps,
   formatRir,
+  parseTempo,
 } from "@/src/utils/program";
 
 type Props = {
@@ -25,6 +25,8 @@ type Props = {
   week: ProgramWeek | null;
   /** The week being viewed (week_overrides apply even with no week row). */
   weekNumber?: number;
+  /** The program's tempo, for an exercise that sets none. */
+  tempoDefault?: string | null;
   /** Opens the demo video for a catalog exercise that has a video_url. */
   onPlay?: (uri: string) => void;
   /** Phase 3 completion checkbox. */
@@ -49,12 +51,15 @@ const THUMB_MAX = 120;
 
 // One prescription line, resolved for the selected week. Load shows %1RM when
 // present, else the qualitative tag (ligero/moderado/pesado) — the decided
-// display precedence. The checkbox marks the exercise done; tapping the row
-// body opens the detail + set-logging sheet (Phase 3).
+// display precedence — then the RIR and the tempo («Tempo 3-1-2-0») the
+// client follows. The checkbox marks the exercise done; tapping anywhere else
+// opens the detail + set-logging sheet (Phase 3). No rest timer here: a rest
+// comes after training, inside the sheet.
 export function ProgramExerciseRow({
   exercise,
   week,
   weekNumber,
+  tempoDefault = null,
   onPlay,
   done = false,
   onToggleDone,
@@ -66,8 +71,11 @@ export function ProgramExerciseRow({
   const colors = useColors();
   const { width: screenWidth } = useWindowDimensions();
   const thumb = Math.round(Math.min(THUMB_MAX, Math.max(THUMB_MIN, screenWidth * THUMB_RATIO)));
-  const p = effectivePrescription(exercise, week, weekNumber ?? week?.week_number ?? null);
+  const p = effectivePrescription(exercise, week, weekNumber ?? week?.week_number ?? null, tempoDefault);
   const videoUrl = exercise.exercise?.video_url ?? null;
+  // A tempo written as 3-1-2-0 is a chip; older free text stays a note line.
+  const tempo = parseTempo(p.tempo);
+  const tempoText = tempo == null ? p.tempo : null;
 
   const setsReps = p.isUnilateral
     ? t("program.setsRepsPerSide", {
@@ -120,7 +128,7 @@ export function ProgramExerciseRow({
 
   return (
     <View className="flex-row items-start gap-3 py-2.5">
-      {/* Backdrop so the row's empty space (beside the rest timer, under the
+      {/* Backdrop so the row's empty space (beside the notes, under the
           checkbox) opens the sheet too. It sits BEHIND the controls as a
           sibling rather than wrapping them — wrapping would nest buttons on
           RN Web. Non-interactive content above it uses pointerEvents so taps
@@ -171,10 +179,8 @@ export function ProgramExerciseRow({
         </View>
       )}
 
-      {/* Row body. The tappable area stops ABOVE the meta line so the rest
-          timer can be its own button — nesting it inside this Pressable made
-          RN Web emit a <button> inside a <button>, which is invalid HTML and
-          fails hydration. */}
+      {/* Row body. The tappable area stops above the meta line, which is
+          display-only: its taps fall through to the backdrop. */}
       <View pointerEvents="box-none" className="flex-1 gap-1">
       <Pressable
         onPress={onOpen}
@@ -227,21 +233,24 @@ export function ProgramExerciseRow({
               {rir}
             </Chip>
           )}
+          {tempo != null && (
+            <Chip tone="muted" style={TABULAR}>
+              {t("program.tempoLabel", { tempo: tempo.join("-") })}
+            </Chip>
+          )}
         </View>
 
       </Pressable>
 
-      {/* Meta line — sibling of the body, never a child, so RestButton is a
-          top-level button. */}
-      {(p.tempo != null || p.restSeconds != null || p.notes != null) && (
+      {/* Meta line: display-only, a sibling of the body. */}
+      {(tempoText != null || (p.notes != null && p.notes !== "")) && (
         <View
           pointerEvents="box-none"
           className="mt-0.5 flex-row flex-wrap items-center gap-x-3 gap-y-1.5"
         >
-          {p.tempo != null && (
-            <Meta icon="time-outline">{t("program.tempoLabel", { tempo: p.tempo })}</Meta>
+          {tempoText != null && (
+            <Meta icon="time-outline">{t("program.tempoLabel", { tempo: tempoText })}</Meta>
           )}
-          {p.restSeconds != null && <RestButton seconds={p.restSeconds} name={p.name} />}
           {p.notes != null && p.notes !== "" && (
             // Text has no pointerEvents prop; the wrapper lets taps reach the
             // backdrop.
@@ -361,59 +370,6 @@ function Chip({
         {children}
       </Text>
     </View>
-  );
-}
-
-/**
- * The coach's prescribed rest, made actionable. It reads as a normal meta line
- * until you notice the play affordance — same information, now one tap from
- * running.
- *
- * Lives OUTSIDE the row's Pressable. RN Web renders Pressable as <button>, and
- * a button inside a button is invalid HTML that breaks hydration — so the
- * tappable row body ends above this line rather than wrapping it.
- */
-export function RestButton({ seconds, name }: { seconds: number; name: string }) {
-  const { t } = useTranslation();
-  const colors = useColors();
-  const { start, running, label } = useRestTimer();
-  // Highlight only the row whose timer is actually counting.
-  const isMine = running && label === name;
-
-  return (
-    <Pressable
-      onPress={() => start(seconds, name)}
-      accessibilityRole="button"
-      accessibilityLabel={t("program.restStart", { seconds, name })}
-      hitSlop={10}
-      // Sized as a real control, not a caption: this gets tapped mid-set with
-      // sweaty hands, so it carries its own border and a ~36px tall target
-      // rather than sitting flush with the tempo/notes text beside it.
-      className={
-        isMine
-          ? "flex-row items-center gap-1.5 rounded-lg border bg-brand-primary-soft px-3 py-2"
-          : "flex-row items-center gap-1.5 rounded-lg border px-3 py-2"
-      }
-      // Border colour inline, not `border-brand-secondary/40`: the /opacity
-      // modifier doesn't compile under react-native-css (same reason the
-      // thumbnail overlay above uses inline rgba).
-      style={{ borderColor: isMine ? colors.brandPrimary : colors.border }}
-    >
-      <Ionicons
-        name={isMine ? "hourglass-outline" : "play-circle"}
-        size={17}
-        color={isMine ? colors.brandPrimary : colors.brandSecondary}
-      />
-      <Text
-        className={
-          isMine
-            ? "text-[13px] font-bold text-brand-primary"
-            : "text-[13px] font-bold text-brand-secondary"
-        }
-      >
-        {t("program.restLabel", { seconds })}
-      </Text>
-    </Pressable>
   );
 }
 
