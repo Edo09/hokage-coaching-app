@@ -403,8 +403,9 @@ supabase secrets set ESTIMATE_MEAL_SECRET=<secret> --project-ref rzgwkwxskrovxnn
 -- 3. SQL editor: the URL and the same secret in Vault (vault.update_secret changes them later).
 select vault.create_secret('https://rzgwkwxskrovxnnymxqo.supabase.co/functions/v1/estimate-meal', 'estimate_meal_url');
 select vault.create_secret('<secret>', 'estimate_meal_secret');
--- 4. Run supabase/migrations/20261105120000_meal_registrations.sql and
---    20261106120000_meal_estimate_errors.sql with their Verify blocks, then
+-- 4. Run supabase/migrations/20261105120000_meal_registrations.sql,
+--    20261106120000_meal_estimate_errors.sql and
+--    20261106130000_meal_items_service_role_read.sql with their Verify blocks, then
 --    supabase/scripts/smoke_meal_registrations.sql (expects «SMOKE OK») and
 --    supabase/scripts/e2e_meal_estimate.sql with a test client.
 -- 5. Only then let an app build with meal registration talk to the project.

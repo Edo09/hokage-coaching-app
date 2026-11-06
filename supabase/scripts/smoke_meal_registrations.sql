@@ -1,6 +1,7 @@
 -- ==========================================================================
--- Smoke test for supabase/migrations/20261105120000_meal_registrations.sql
--- and 20261106120000_meal_estimate_errors.sql.
+-- Smoke test for supabase/migrations/20261105120000_meal_registrations.sql,
+-- 20261106120000_meal_estimate_errors.sql and
+-- 20261106130000_meal_items_service_role_read.sql.
 --
 -- Run it in the Supabase SQL editor after the migrations. It acts as a client
 -- and as the server, checks each rule with assert, and ends with
@@ -228,6 +229,11 @@ begin
   assert has_function_privilege('service_role', 'public.log_meal_estimate_error(uuid,bigint,text)', 'execute'), '19: the function can log';
   assert not has_table_privilege('authenticated', 'public.meal_estimate_errors', 'select'), '19: clients can''t read reasons';
   assert not has_table_privilege('anon', 'public.meal_estimate_errors', 'select'), '19: anon can''t read reasons';
+
+  -- ---- part 4: the function's read (migration 20261106130000) ------------
+
+  -- 20. estimate-meal reads the row it estimates with the service role.
+  assert has_table_privilege('service_role', 'public.meal_items', 'select'), '20: the function can read registrations';
 
   raise exception 'SMOKE OK: meal registrations; nothing was saved';
 end $$;
