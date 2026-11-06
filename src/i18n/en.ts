@@ -243,7 +243,7 @@ export default {
     restAlert_both: "Sound and vibration",
     restAlert_vibrate: "Vibration only",
     restAlert_sound: "Sound only",
-    restAlertHint: "Used when each rest starts, 10 seconds before it ends, and when it ends. The sound also celebrates your records and each finished day. With the app in the background, the end arrives as a notification.",
+    restAlertHint: "Used when each rest starts, 10 seconds before it ends and when it ends, and also for your records, each finished day and supersets. With the app in the background, the end arrives as a notification.",
     // Android: without "Alarms & reminders" the notification can arrive late
     exactAlarmsHint: "With the screen off, the end-of-rest alert can arrive late. Allow \"Alarms & reminders\" so it arrives on time.",
     exactAlarmsAction: "Allow",

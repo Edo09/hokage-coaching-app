@@ -1,5 +1,6 @@
 -- ==========================================================================
--- Smoke test for supabase/migrations/20261106150000_app_sound_settings.sql.
+-- Smoke test for supabase/migrations/20261106150000_app_sound_settings.sql
+-- and 20261106160000_app_sound_uploads.sql.
 --
 -- Run it after the migration. It acts as a client and as the coach (as the
 -- `authenticated` role, so RLS applies), checks each rule with assert, and
@@ -73,6 +74,55 @@ begin
   exception when check_violation then
     null;
   end;
+
+  -- ---- the coach's own sounds (20261106160000) ------------------------------
+
+  -- 6. «Propio» needs its file.
+  begin
+    update public.app_sound_settings set rest_done = 'custom', rest_done_file = null where id;
+    assert false, '6: custom without a file is refused';
+  exception when check_violation then
+    null;
+  end;
+
+  -- 7. A file is a WAV in custom/, nothing else.
+  begin
+    update public.app_sound_settings set rest_warn_file = '../meal-photos/x.wav' where id;
+    assert false, '7: a path outside custom/ is refused';
+  exception when check_violation then
+    null;
+  end;
+  begin
+    update public.app_sound_settings set rest_warn_file = 'custom/x.mp3' where id;
+    assert false, '7: a file that is not a WAV is refused';
+  exception when check_violation then
+    null;
+  end;
+
+  -- 8. The coach picks an upload; the file stays when a built-in set comes back.
+  perform set_config('request.jwt.claims', v_as_coach, true);
+  execute 'set local role authenticated';
+  update public.app_sound_settings
+     set day_complete = 'custom', day_complete_file = 'custom/day_complete-1.wav' where id;
+  get diagnostics v_n = row_count;
+  assert v_n = 1, '8: the coach picks an uploaded sound';
+  update public.app_sound_settings set day_complete = 'bells' where id;
+  execute 'reset role';
+  select * into r from public.app_sound_settings;
+  assert r.day_complete = 'bells' and r.day_complete_file = 'custom/day_complete-1.wav',
+    '8: the uploaded file stays for later';
+
+  -- 9. The bucket: public WAVs of 1 MB at most, written by the coach alone.
+  assert exists (select 1 from storage.buckets
+                  where id = 'app-sounds' and public and file_size_limit = 1048576
+                    and allowed_mime_types = array['audio/wav']), '9: the bucket is set up';
+  assert (select count(*) from pg_policies
+           where schemaname = 'storage' and tablename = 'objects'
+             and policyname like 'app sounds:%') = 4, '9: the bucket has its four policies';
+  assert (select bool_and(coalesce(qual, '') || coalesce(with_check, '') like '%is_coach()%')
+            from pg_policies
+           where schemaname = 'storage' and tablename = 'objects'
+             and policyname like 'app sounds: the coach%'), '9: only the coach writes';
 
   raise exception 'SMOKE OK: app sounds; nothing was saved';
 end $$;

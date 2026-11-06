@@ -132,21 +132,25 @@ one rolled-back run (it ends with «SMOKE OK: plan pushes; nothing was saved»).
 
 ## On the phone, without a push
 
-The app's own alerts, for comparison. Sounds and the rest's vibrations follow
-the client's choice in Ajustes (sonido y vibración, solo vibración, solo
-sonido); the haptics that belong to a screen (a record's and a finished
-day's success haptic, the superset taps) always play. Which sound plays at
+The app's own alerts, for comparison. Sounds and vibrations follow the
+client's choice in Ajustes (sonido y vibración, solo vibración, solo
+sonido). Every buzz lasts at least 150 ms, the end of a rest the longest
+(`src/utils/vibration.ts`); the Android channels that vibrate carry the
+pattern's version in their name («-v2»), since a channel keeps its first
+vibration. Which sound plays at
 each moment is the coach's pick in the panel (Ajustes → «Sonidos de la
-app», `app_sound_settings`); «Rest over» is also the notification's sound,
-on an Android channel per sound set (`src/utils/sound-sets.ts`).
+app», `app_sound_settings`): a built-in set or an upload of their own. «Rest
+over» is also the notification's sound, on an Android channel per built-in
+set (`src/utils/sound-sets.ts`); with an upload the notification plays the
+classic sound, since notifications only take sounds built into the app.
 
 | When                                         | What                                                 | Where in the code                     |
 |----------------------------------------------|------------------------------------------------------|---------------------------------------|
-| A rest starts                                | Short buzz and/or cue                                | `src/lib/rest-alert.ts`               |
-| 10 seconds of rest left (app open)           | Two light taps and/or a soft ping                    | `src/providers/rest-timer-provider.tsx` |
-| A rest ends                                  | Buzz and/or chime; a notification if the app is away | `src/lib/rest-alert.ts`               |
-| A logged set beats the client's best         | Success haptic and a short fanfare                   | `src/components/program/exercise-session-host.tsx` |
-| A day is completed                           | Success haptic and a celebration chord               | `src/components/program/day-complete-modal.tsx` |
-| «Superserie: sin descanso» on the card       | Two light taps                                       | `src/components/program/check-card.tsx` |
+| A rest starts                                | A buzz and/or a cue                                  | `src/lib/rest-alert.ts`               |
+| 10 seconds of rest left (app open)           | Two buzzes and/or a ping                             | `src/providers/rest-timer-provider.tsx` |
+| A rest ends                                  | Three long buzzes and/or a chime; a notification if the app is away | `src/lib/rest-alert.ts`               |
+| A logged set beats the client's best         | A buzz and/or a short fanfare                        | `src/components/program/exercise-session-host.tsx` |
+| A day is completed                           | A buzz and/or a celebration chord                    | `src/components/program/day-complete-modal.tsx` |
+| «Superserie: sin descanso» on the card       | Two buzzes                                           | `src/components/program/check-card.tsx` |
 | An exercise clock has run 30 minutes         | Notification «¿Sigues con …?» (pause/finish cancels) | `src/lib/clock-reminder.ts`           |
 | Training day, inactivity, week opened        | Local reminders                                      | `src/lib/reminders.ts`                |

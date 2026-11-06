@@ -243,7 +243,7 @@ export default {
     restAlert_both: "Sonido y vibración",
     restAlert_vibrate: "Solo vibración",
     restAlert_sound: "Solo sonido",
-    restAlertHint: "Se usa al empezar cada descanso, 10 segundos antes del final y al terminar. El sonido también celebra tus récords y cada día completado. Con la app en segundo plano, el final llega como notificación.",
+    restAlertHint: "Se usa al empezar cada descanso, 10 segundos antes del final y al terminar, y también en tus récords, en cada día completado y en las superseries. Con la app en segundo plano, el final llega como notificación.",
     // Android: sin «Alarmas y recordatorios» la notificación puede llegar tarde
     exactAlarmsHint: "Con la pantalla apagada, el aviso de fin del descanso puede llegar tarde. Permite «Alarmas y recordatorios» para que llegue a tiempo.",
     exactAlarmsAction: "Permitir",

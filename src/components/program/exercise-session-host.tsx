@@ -1,5 +1,4 @@
 import { Ionicons } from "@expo/vector-icons";
-import * as Haptics from "expo-haptics";
 import React, { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -18,7 +17,7 @@ import {
   useClock,
   useExerciseSession,
 } from "@/src/lib/exercise-session";
-import { playCelebration, primeWorkoutCues } from "@/src/lib/rest-alert";
+import { playCelebration, playWorkoutBuzz, primeWorkoutCues } from "@/src/lib/rest-alert";
 import { formatClock, useRestTimer } from "@/src/providers/rest-timer-provider";
 import { useColors } from "@/src/theme/colors";
 import { Pressable, Text, View } from "@/src/tw";
@@ -150,7 +149,7 @@ export function ExerciseSessionHost({ tabBarHeight }: { tabBarHeight: number }) 
       });
     void logging.logSet(sheet.exerciseId, sheet.week, setIndex, input);
     if (record) {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+      playWorkoutBuzz("record");
       playCelebration("record");
     }
   };

@@ -1,5 +1,4 @@
 import { Ionicons } from "@expo/vector-icons";
-import * as Haptics from "expo-haptics";
 import React, { useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { BackHandler, PanResponder, StyleSheet } from "react-native";
@@ -26,6 +25,7 @@ import {
   PressableScale,
   Swap,
 } from "@/src/lib/motion";
+import { playWorkoutBuzz } from "@/src/lib/rest-alert";
 import { kgToUnit1, useWeightUnit } from "@/src/lib/weight-unit";
 import { formatClock, useRestTimer } from "@/src/providers/rest-timer-provider";
 import { useColors } from "@/src/theme/colors";
@@ -347,28 +347,22 @@ function SingleCard({
   );
 }
 
-/** Before the double tap: clear of the check's own tap and the card's entrance. */
-const SUPERSET_TAP_DELAY_MS = 200;
-const SUPERSET_TAP_GAP_MS = 130;
+/** Before the double buzz: clear of the check's own tap and the card's entrance. */
+const SUPERSET_BUZZ_DELAY_MS = 200;
 
 /**
  * Mid-superset no rest starts, by design: say so, or the missing countdown
- * reads as a fault. In the superset's violet, as on the list. Two light taps
- * as it shows say it without looking, where a rest would have started with
- * its buzz.
+ * reads as a fault. In the superset's violet, as on the list. A double buzz
+ * as it shows says it without looking, where a rest would have started with
+ * its own.
  */
 function SupersetNoRest({ slot }: { slot: string }) {
   const { t } = useTranslation();
   const colors = useColors();
 
   useEffect(() => {
-    const tap = () => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
-    const first = setTimeout(tap, SUPERSET_TAP_DELAY_MS);
-    const second = setTimeout(tap, SUPERSET_TAP_DELAY_MS + SUPERSET_TAP_GAP_MS);
-    return () => {
-      clearTimeout(first);
-      clearTimeout(second);
-    };
+    const id = setTimeout(() => playWorkoutBuzz("superset"), SUPERSET_BUZZ_DELAY_MS);
+    return () => clearTimeout(id);
   }, []);
 
   return (

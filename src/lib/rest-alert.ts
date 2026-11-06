@@ -10,7 +10,8 @@ import { AppState, Platform, Vibration } from "react-native";
 import i18n from "@/src/i18n";
 import { alertSounds, alertVibrates, type AlertMode, getAlertMode } from "@/src/lib/alert-mode";
 import { isReminderData } from "@/src/lib/reminders";
-import { getSoundChoice } from "@/src/lib/sound-choice";
+import { customSoundUri } from "@/src/lib/custom-sounds";
+import { getCustomSoundFiles, getSoundChoice } from "@/src/lib/sound-choice";
 import { isCoachPushData } from "@/src/utils/push";
 import {
   type Cue,
@@ -19,6 +20,7 @@ import {
   soundFileName,
   staleRestChannelIds,
 } from "@/src/utils/sound-sets";
+import { type BuzzKind, VIBRATIONS } from "@/src/utils/vibration";
 
 /**
  * How the client learns their rest is over.
@@ -39,7 +41,9 @@ import {
  * record and a finished day get their sound (`playCelebration`).
  *
  * Which sound plays at each moment is the coach's pick (the panel's «Sonidos
- * de la app», `@/src/lib/sound-choice`), also read when it plays.
+ * de la app», `@/src/lib/sound-choice`), also read when it plays: a built-in
+ * set, or the coach's own file. The «rest over» notification can only use
+ * sounds built into the app, so with the coach's own file it plays classic.
  */
 
 /** iOS only buzzes for a notification that has a sound, so "vibrate only"
@@ -47,17 +51,12 @@ import {
 const SILENT_SOUND = "rest_silent.wav";
 
 /**
- * [wait, buzz, wait, buzz]. Two pulses reads as "done" where one reads as an
- * incidental notification. Android honours the durations; iOS ignores them and
- * fires its fixed-length vibration at each offset, which is the intent anyway.
+ * Android vibration patterns, [wait, buzz, wait, buzz…], from
+ * `@/src/utils/vibration` (each buzz long enough to be felt on a bench). iOS
+ * ignores the lengths and fires its fixed-length vibration at each offset,
+ * which suits the end of a rest; its other cues use haptics (see below).
  */
-const VIBRATION_PATTERN = [0, 400, 180, 400];
-
-/** A single short buzz for a rest starting: acknowledged, not an alarm. */
-const START_VIBRATION_MS = 70;
-
-/** Two short taps for «10 seconds left»: a heads-up, lighter than the end. */
-const WARNING_VIBRATION_PATTERN = [0, 60, 110, 60];
+const pattern = (vibration: BuzzKind) => [...VIBRATIONS[vibration]];
 
 const isWeb = Platform.OS === "web";
 
@@ -100,19 +99,22 @@ const SOUNDS: Record<SoundSet, Record<Cue, number>> = {
 const players = new Map<string, AudioPlayer>();
 
 /**
- * The player for a moment's sound in the coach's set. Built on demand, not
- * at import: constructing a player allocates a decoder (and on web fetches
- * the asset), and most sessions — nutrition, progress — never start a rest
- * timer. `primeRestAlert` is what keeps that cost off the moment the chime
- * has to sound.
+ * The player for a moment's sound: the coach's own file once it is on the
+ * phone (`@/src/lib/custom-sounds`), else the coach's built-in set. Built on
+ * demand, not at import: constructing a player allocates a decoder (and on
+ * web fetches the asset), and most sessions — nutrition, progress — never
+ * start a rest timer. `primeRestAlert` is what keeps that cost off the moment
+ * the chime has to sound.
  */
 function getPlayer(cue: Cue): AudioPlayer | null {
+  const path = getCustomSoundFiles()[cue];
+  const custom = path != null ? customSoundUri(path) : null;
   const set = getSoundChoice()[cue];
-  const key = `${set}/${cue}`;
+  const key = custom ?? `${set}/${cue}`;
   const existing = players.get(key);
   if (existing != null) return existing;
   try {
-    const created = createAudioPlayer(SOUNDS[set][cue]);
+    const created = createAudioPlayer(custom != null ? { uri: custom } : SOUNDS[set][cue]);
     players.set(key, created);
     return created;
   } catch {
@@ -152,7 +154,7 @@ async function ensureChannel(mode: AlertMode, set: SoundSet): Promise<string> {
       // null = no sound (vibrate only).
       sound: alertSounds(mode) ? soundFileName(set, "done") : null,
       enableVibrate: alertVibrates(mode),
-      vibrationPattern: alertVibrates(mode) ? VIBRATION_PATTERN : null,
+      vibrationPattern: alertVibrates(mode) ? pattern("done") : null,
       lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
       // ALARM usage, not NOTIFICATION: it plays on the alarm stream, so a phone
       // silenced for the gym still ends the set audibly. Same call as
@@ -259,58 +261,71 @@ export function primeWorkoutCues() {
 export function playRestDoneAlert(mode: AlertMode = getAlertMode()) {
   if (!isWeb && alertVibrates(mode)) {
     try {
-      Vibration.vibrate(VIBRATION_PATTERN);
+      Vibration.vibrate(pattern("done"));
     } catch {}
   }
   if (alertSounds(mode)) play("done");
 }
 
+/** Android: the pattern; iOS, whose vibrations are all one length: `ios`. */
+function buzz(vibration: BuzzKind, ios: () => void) {
+  if (Platform.OS === "ios") {
+    ios();
+    return;
+  }
+  try {
+    Vibration.vibrate(pattern(vibration));
+  } catch {}
+}
+
+const heavyTap = () => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy).catch(() => {});
+
 /**
- * A rest just started: a short buzz and/or a quick two-note cue, per the
+ * A rest just started: a firm buzz and/or a quick two-note cue, per the
  * alert mode, so the client knows the tap landed without looking.
  */
 export function playRestStartAlert(mode: AlertMode = getAlertMode()) {
-  if (!isWeb && alertVibrates(mode)) {
-    // iOS ignores vibration durations (every buzz is ~0.4 s, too much for an
-    // acknowledgement); a heavy haptic tap is its short buzz.
-    if (Platform.OS === "ios") {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy).catch(() => {});
-    } else {
-      try {
-        Vibration.vibrate(START_VIBRATION_MS);
-      } catch {}
-    }
-  }
+  if (!isWeb && alertVibrates(mode)) buzz("start", heavyTap);
   if (alertSounds(mode)) play("start");
 }
 
 /**
- * Ten seconds of rest left: a soft ping and/or two light taps, per the alert
- * mode, so the client can get set before the end. Only while the app is open
- * (the rest timer checks); there is no notification for it.
+ * Ten seconds of rest left: a ping and/or two buzzes, per the alert mode, so
+ * the client can get set before the end. Only while the app is open (the
+ * rest timer checks); there is no notification for it.
  */
 export function playRestWarningAlert(mode: AlertMode = getAlertMode()) {
   if (!isWeb && alertVibrates(mode)) {
-    // iOS ignores vibration durations; its warning haptic is the short
-    // double tap.
-    if (Platform.OS === "ios") {
+    buzz("warn", () => {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {});
-    } else {
-      try {
-        Vibration.vibrate(WARNING_VIBRATION_PATTERN);
-      } catch {}
-    }
+    });
   }
   if (alertSounds(mode)) play("warn");
 }
 
 /**
  * The sound for a new record ("record") or a finished day ("day"), when the
- * alert mode has sound. Sound only: the screen that celebrates plays its own
- * haptic.
+ * alert mode has sound. The buzz is `playWorkoutBuzz`, timed by the screen.
  */
 export function playCelebration(kind: "record" | "day", mode: AlertMode = getAlertMode()) {
   if (alertSounds(mode)) play(kind);
+}
+
+/**
+ * The buzz for a new record, a finished day, or «Superserie: sin descanso»,
+ * when the alert mode vibrates: on Android its pattern; on iPhone the
+ * success haptic, or two heavy taps for the superset.
+ */
+export function playWorkoutBuzz(kind: "record" | "day" | "superset", mode: AlertMode = getAlertMode()) {
+  if (isWeb || !alertVibrates(mode)) return;
+  buzz(kind, () => {
+    if (kind === "superset") {
+      void heavyTap();
+      setTimeout(() => void heavyTap(), 150);
+    } else {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+    }
+  });
 }
 
 /**

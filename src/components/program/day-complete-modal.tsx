@@ -1,5 +1,4 @@
 import { Ionicons } from "@expo/vector-icons";
-import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
 import React, { useEffect } from "react";
 import { useTranslation } from "react-i18next";
@@ -23,7 +22,7 @@ import { useProgramLogging } from "@/src/hooks/use-program-logging";
 import { exerciseSession } from "@/src/lib/exercise-session";
 import { DUR, EASE_IN, EASE_OUT } from "@/src/lib/motion";
 import { programFocus } from "@/src/lib/program-focus";
-import { playCelebration } from "@/src/lib/rest-alert";
+import { playCelebration, playWorkoutBuzz } from "@/src/lib/rest-alert";
 import { useToday } from "@/src/lib/today";
 import { kgToUnit, kgToUnit1, useWeightUnit } from "@/src/lib/weight-unit";
 import type { DayCelebration } from "@/src/providers/celebration-context";
@@ -60,7 +59,7 @@ type Props = {
 /**
  * "Sellado": the client finished every exercise of a program day, and the
  * day gets stamped. One orchestrated moment (the card rises, a red seal
- * slams onto it, impact lines fly off, a success haptic), then a quiet
+ * slams onto it, impact lines fly off, a buzz and a chord), then a quiet
  * summary of what they did and what comes next.
  */
 export function DayCompleteModal({ day: celebration, openId, visible, onClose }: Props) {
@@ -106,10 +105,8 @@ export function DayCompleteModal({ day: celebration, openId, visible, onClose }:
     // The celebration sound (when the alert mode has sound) starts with the
     // card: its run-up ends in the chord about when the seal lands.
     playCelebration("day");
-    const haptic = setTimeout(
-      () => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {}),
-      reduced ? 0 : IMPACT_MS,
-    );
+    // The buzz lands with the seal (and follows the client's alert mode).
+    const haptic = setTimeout(() => playWorkoutBuzz("day"), reduced ? 0 : IMPACT_MS);
     return () => clearTimeout(haptic);
   }, [visible, reduced, enter, stamp, thud]);
 
