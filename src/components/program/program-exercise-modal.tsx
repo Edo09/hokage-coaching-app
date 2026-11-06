@@ -708,11 +708,11 @@ function QuitAsk({
 }
 
 /**
- * «Empezar» / «Continuar», unless a rest is counting: a rest is no time to
- * start the next exercise, so the button is then a disabled blue «En
- * descanso · 1:23» counting down, back to «Empezar» once the rest ends or is
- * skipped (the ✕ on the rest bar just above). Its own component, so only it
- * redraws every second of the rest, not the whole sheet.
+ * «Empezar» / «Continuar». While a rest is counting it stays in the rest's
+ * blue as «Empezar ya» over the rest left («Descanso · 1:23»): one tap cuts
+ * the rest short and starts the exercise (the host's onStart stops the rest
+ * first). Its own component, so only it redraws every second of the rest,
+ * not the whole sheet.
  */
 function StartButton({ label, onStart }: { label: string; onStart: () => void }) {
   const { t } = useTranslation();
@@ -720,20 +720,25 @@ function StartButton({ label, onStart }: { label: string; onStart: () => void })
   const { running, remaining } = useRestTimer();
 
   if (running) {
+    const left = formatClock(remaining);
     return (
-      <View
-        accessible
+      <PressableScale
+        scaleTo={0.98}
+        haptic
+        onPress={onStart}
         accessibilityRole="button"
-        accessibilityState={{ disabled: true }}
-        accessibilityLabel={t("program.sessionRestingA11y")}
-        className="flex-[2] flex-row items-center justify-center gap-2 rounded-2xl border bg-info-soft px-4 py-3.5"
+        accessibilityLabel={t("program.sessionStartNowA11y", { time: left })}
+        className="flex-[2] flex-row items-center justify-center gap-2.5 rounded-2xl border bg-info-soft px-4 py-2"
         style={{ borderColor: colors.brandSecondary }}
       >
-        <Ionicons name="hourglass-outline" size={18} color={colors.brandSecondary} />
-        <Text className="text-base font-bold text-brand-secondary" style={TABULAR}>
-          {t("program.sessionResting", { time: formatClock(remaining) })}
-        </Text>
-      </View>
+        <Ionicons name="play" size={18} color={colors.brandSecondary} />
+        <View className="items-start">
+          <Text className="text-base font-bold text-brand-secondary">{t("program.sessionStartNow")}</Text>
+          <Text className="text-[11px] font-semibold text-brand-secondary" style={TABULAR}>
+            {t("program.sessionResting", { time: left })}
+          </Text>
+        </View>
+      </PressableScale>
     );
   }
 

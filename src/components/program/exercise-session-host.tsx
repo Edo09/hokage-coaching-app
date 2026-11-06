@@ -137,13 +137,13 @@ export function ExerciseSessionHost({ tabBarHeight }: { tabBarHeight: number }) 
         timed={sheetTimed}
         elapsedMs={sheet != null ? elapsedMs(session, sheet.exerciseId, sheet.week, now) : 0}
         running={sheetTimed && running}
-        // Nothing starts during a rest (the sheet shows «En descanso» then).
-        onStart={() =>
-          sheet != null &&
-          sheetLock == null &&
-          !rest.running &&
-          exerciseSession.start(sheet.exerciseId, sheet.week)
-        }
+        // Starting ends a running rest: during one the sheet's button is
+        // «Empezar ya», which cuts the rest short and starts the exercise.
+        onStart={() => {
+          if (sheet == null || sheetLock != null) return;
+          if (rest.running) rest.stop();
+          exerciseSession.start(sheet.exerciseId, sheet.week);
+        }}
         onHide={exerciseSession.hide}
         onTogglePause={togglePause}
         onFinish={finish}
