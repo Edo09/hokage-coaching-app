@@ -346,6 +346,9 @@ export default {
     sessionRunning: "En curso",
     sessionStart: "Empezar",
     sessionContinue: "Continuar ({{time}})",
+    // En lugar de «Empezar» mientras corre un descanso.
+    sessionResting: "En descanso · {{time}}",
+    sessionRestingA11y: "En descanso. Salta el descanso para empezar.",
     markDoneShort: "Marcar hecho",
     sessionPaused: "En pausa",
     sessionPause: "Pausar",

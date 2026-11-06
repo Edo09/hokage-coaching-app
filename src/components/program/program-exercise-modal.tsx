@@ -479,20 +479,14 @@ export function ProgramExerciseModal({
                         onPress={() => void logging.setCompletion(exercise.id, weekNumber, true)}
                         className="flex-1"
                       />
-                      <PressableScale
-                        scaleTo={0.98}
-                        haptic
-                        onPress={onStart}
-                        accessibilityRole="button"
-                        className="flex-[2] flex-row items-center justify-center gap-2 rounded-2xl bg-brand-primary px-4 py-3.5"
-                      >
-                        <Ionicons name="play" size={18} color={colors.white} />
-                        <Text className="text-base font-bold text-white" style={TABULAR}>
-                          {elapsedMs >= 1000
+                      <StartButton
+                        label={
+                          elapsedMs >= 1000
                             ? t("program.sessionContinue", { time: clock })
-                            : t("program.sessionStart")}
-                        </Text>
-                      </PressableScale>
+                            : t("program.sessionStart")
+                        }
+                        onStart={onStart}
+                      />
                     </>
                   )}
                 </View>
@@ -651,6 +645,52 @@ function TempoStrip({ phases }: { phases: TempoPhases }) {
         </View>
       ))}
     </View>
+  );
+}
+
+/**
+ * «Empezar» / «Continuar», unless a rest is counting: a rest is no time to
+ * start the next exercise, so the button is then a disabled blue «En
+ * descanso · 1:23» counting down, back to «Empezar» once the rest ends or is
+ * skipped (the ✕ on the rest bar just above). Its own component, so only it
+ * redraws every second of the rest, not the whole sheet.
+ */
+function StartButton({ label, onStart }: { label: string; onStart: () => void }) {
+  const { t } = useTranslation();
+  const colors = useColors();
+  const { running, remaining } = useRestTimer();
+
+  if (running) {
+    return (
+      <View
+        accessible
+        accessibilityRole="button"
+        accessibilityState={{ disabled: true }}
+        accessibilityLabel={t("program.sessionRestingA11y")}
+        className="flex-[2] flex-row items-center justify-center gap-2 rounded-2xl border bg-info-soft px-4 py-3.5"
+        style={{ borderColor: colors.brandSecondary }}
+      >
+        <Ionicons name="hourglass-outline" size={18} color={colors.brandSecondary} />
+        <Text className="text-base font-bold text-brand-secondary" style={TABULAR}>
+          {t("program.sessionResting", { time: formatClock(remaining) })}
+        </Text>
+      </View>
+    );
+  }
+
+  return (
+    <PressableScale
+      scaleTo={0.98}
+      haptic
+      onPress={onStart}
+      accessibilityRole="button"
+      className="flex-[2] flex-row items-center justify-center gap-2 rounded-2xl bg-brand-primary px-4 py-3.5"
+    >
+      <Ionicons name="play" size={18} color={colors.white} />
+      <Text className="text-base font-bold text-white" style={TABULAR}>
+        {label}
+      </Text>
+    </PressableScale>
   );
 }
 

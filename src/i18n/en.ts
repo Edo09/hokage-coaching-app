@@ -346,6 +346,9 @@ export default {
     sessionRunning: "In progress",
     sessionStart: "Start",
     sessionContinue: "Continue ({{time}})",
+    // In place of «Start» while a rest is counting.
+    sessionResting: "Resting · {{time}}",
+    sessionRestingA11y: "Resting. Skip the rest to start.",
     markDoneShort: "Mark done",
     sessionPaused: "Paused",
     sessionPause: "Pause",
