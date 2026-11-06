@@ -36,10 +36,11 @@ iPhone testing without a paid Apple account: `docs/IOS-LOCAL-TESTING.md`.
   `generate-nutrition-plan` (AI nutrition-plan drafts), called by the panel.
   Deploy and configure them as in `docs/ADMIN_WEB_DB_CONNECTION.md` §6.1, §6.3
   and §6.5 (they need the `ALLOWED_ORIGINS` secret; the two AI functions also
-  need `GEMINI_API_KEY` and/or `GROQ_API_KEY`). All five functions deploy from
+  need `GEMINI_API_KEY` and/or `GROQ_API_KEY`). All six functions deploy from
   GitHub (`.github/workflows/deploy-functions.yml`): automatically when
-  `supabase/functions` changes on `main`, or via Actions → Deploy Edge Functions
-  → Run workflow. It needs the `SUPABASE_ACCESS_TOKEN` repository secret.
+  `supabase/functions` or that workflow changes on `main`, or via Actions →
+  Deploy Edge Functions → Run workflow. It needs the `SUPABASE_ACCESS_TOKEN`
+  repository secret.
 - **App AI**: registered meals are estimated by the `estimate-meal` Edge
   Function, which the database calls on the client's quota; the weekly progress
   insight goes through `ai-complete`. Both hold the same `GEMINI_API_KEY` /

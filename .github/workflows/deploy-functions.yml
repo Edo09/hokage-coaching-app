@@ -1,6 +1,6 @@
 # Deploys the Supabase Edge Functions (supabase/functions) to the Hokage
-# project. Runs on its own when function code changes on main, or by hand:
-# Actions → Deploy Edge Functions → Run workflow.
+# project. Runs on its own when function code or this file changes on main,
+# or by hand: Actions → Deploy Edge Functions → Run workflow.
 #
 # One-time setup: a Supabase access token (dashboard → avatar → Account
 # preferences → Access Tokens) saved as the repository secret
@@ -20,6 +20,7 @@ on:
     branches: [main]
     paths:
       - 'supabase/functions/**'
+      - '.github/workflows/deploy-functions.yml'
 
 concurrency:
   group: deploy-functions
@@ -34,9 +35,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Pinned to the last v2: v3 (Nov 2026) fails unattended deploys that
+      # don't pass --yes, which broke this job under `latest`. Before raising
+      # it, add --yes to each deploy below.
       - uses: supabase/setup-cli@v1
         with:
-          version: latest
+          version: 2.122.1
 
       - name: Check the access token is set
         run: |
