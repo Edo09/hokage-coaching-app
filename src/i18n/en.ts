@@ -375,6 +375,7 @@ export default {
     next: "Next: {{name}}",
     nextSuperset: "Now {{slot}}: {{name}}",
     rest: "Rest {{time}}",
+    supersetNoRest: "Superset: no rest, go on to {{slot}}",
     undo: "Undo",
     batch: "{{count}} done",
     dayAgain: "Day {{n}} complete",

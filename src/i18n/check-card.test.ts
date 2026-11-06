@@ -20,6 +20,8 @@ const COPY: [string, string, string][] = [
   ["next", "Siguiente: {{name}}", "Next: {{name}}"],
   ["nextSuperset", "Ahora {{slot}}: {{name}}", "Now {{slot}}: {{name}}"],
   ["rest", "Descanso {{time}}", "Rest {{time}}"],
+  // Mid-superset no rest starts: the card says why (added 2026-11-06).
+  ["supersetNoRest", "Superserie: sin descanso, sigue con {{slot}}", "Superset: no rest, go on to {{slot}}"],
   ["undo", "Deshacer", "Undo"],
   ["batch", "{{count}} hechos", "{{count}} done"],
   ["dayAgain", "Día {{n}} completo", "Day {{n}} complete"],

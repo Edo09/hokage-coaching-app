@@ -375,6 +375,7 @@ export default {
     next: "Siguiente: {{name}}",
     nextSuperset: "Ahora {{slot}}: {{name}}",
     rest: "Descanso {{time}}",
+    supersetNoRest: "Superserie: sin descanso, sigue con {{slot}}",
     undo: "Deshacer",
     batch: "{{count}} hechos",
     dayAgain: "Día {{n}} completo",

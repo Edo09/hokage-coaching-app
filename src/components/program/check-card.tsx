@@ -305,6 +305,17 @@ function SingleCard({
 
       {resting && <RestNow />}
 
+      {/* Mid-superset no rest starts, by design: say so, or the missing
+          countdown reads as a fault. Blue, like the rest it explains. */}
+      {partnerNext && next?.slot != null && (
+        <View className="flex-row items-center gap-2 pl-[34px]">
+          <Ionicons name="flash" size={14} color={colors.brandSecondary} />
+          <Text className="flex-1 text-[13px] font-semibold text-brand-secondary">
+            {t("checkCard.supersetNoRest", { slot: next.slot })}
+          </Text>
+        </View>
+      )}
+
       {highlight != null && <HighlightLine highlight={highlight} />}
 
       {/* Its own row, so the next exercise's name reads in full. Above the
