@@ -16,6 +16,7 @@ import {
   dayRecords,
   exerciseNames,
   exerciseRecord,
+  isNewRecordSet,
   isWeighted,
 } from "@/src/utils/records";
 
@@ -212,6 +213,53 @@ describe("exerciseRecord", () => {
       weight: 62.5,
       reps: 8,
     });
+  });
+});
+
+describe("isNewRecordSet (the record cue as a set is logged)", () => {
+  // "bench" this week is week 2; "bench-b" is the same lift on another day.
+  const names: Record<string, string> = { bench: "Press de banca", "bench-b": "press de banca ", squat: "Sentadilla" };
+  const nameOf = (id: string) => names[id] ?? null;
+  const check = (logs: WorkoutSetLog[], set: { weight_kg: number | null; reps: number | null }, setIndex = 1) =>
+    isNewRecordSet({ exerciseId: "bench", week: 2, setIndex, set, logs, nameOf });
+
+  it("is a record when the set beats last week's best", () => {
+    assert.equal(check([log("bench", 1, 80, 8)], { weight_kg: 85, reps: 8 }), true);
+  });
+
+  it("counts the same lift logged on another day as history", () => {
+    assert.equal(check([log("bench-b", 1, 80, 8)], { weight_kg: 85, reps: 8 }), true);
+  });
+
+  it("is no record in the first week: it only sets a baseline", () => {
+    assert.equal(check([], { weight_kg: 100, reps: 8 }), false);
+    assert.equal(check([log("squat", 1, 200, 5)], { weight_kg: 100, reps: 8 }), false);
+  });
+
+  it("is no record when it only ties the best", () => {
+    assert.equal(check([log("bench", 1, 80, 8)], { weight_kg: 80, reps: 8 }), false);
+  });
+
+  it("has to beat this week's earlier sets too", () => {
+    const logs = [log("bench", 1, 80, 8), log("bench", 2, 85, 8, 1)];
+    assert.equal(check(logs, { weight_kg: 85, reps: 8 }, 2), false);
+    assert.equal(check(logs, { weight_kg: 87.5, reps: 8 }, 2), true);
+  });
+
+  it("is not a new moment when the same numbers are saved again", () => {
+    const logs = [log("bench", 1, 80, 8), log("bench", 2, 85, 8, 1)];
+    assert.equal(check(logs, { weight_kg: 85, reps: 8 }, 1), false);
+  });
+
+  it("weighs an edited set against the others, not against its old numbers", () => {
+    const logs = [log("bench", 1, 80, 8), log("bench", 2, 82.5, 8, 1)];
+    assert.equal(check(logs, { weight_kg: 85, reps: 8 }, 1), true);
+  });
+
+  it("needs both a weight and reps", () => {
+    const logs = [log("bench", 1, 80, 8)];
+    assert.equal(check(logs, { weight_kg: 100, reps: null }), false);
+    assert.equal(check(logs, { weight_kg: null, reps: 12 }), false);
   });
 });
 

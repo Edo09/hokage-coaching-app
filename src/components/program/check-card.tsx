@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
+import * as Haptics from "expo-haptics";
 import React, { useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { BackHandler, PanResponder, StyleSheet } from "react-native";
@@ -305,16 +306,7 @@ function SingleCard({
 
       {resting && <RestNow />}
 
-      {/* Mid-superset no rest starts, by design: say so, or the missing
-          countdown reads as a fault. In the superset's violet, as on the list. */}
-      {partnerNext && next?.slot != null && (
-        <View className="flex-row items-center gap-2 pl-[34px]">
-          <Ionicons name="flash" size={14} color={colors.superset} />
-          <Text className="flex-1 text-[13px] font-semibold text-superset">
-            {t("checkCard.supersetNoRest", { slot: next.slot })}
-          </Text>
-        </View>
-      )}
+      {partnerNext && next?.slot != null && <SupersetNoRest slot={next.slot} />}
 
       {highlight != null && <HighlightLine highlight={highlight} />}
 
@@ -351,6 +343,40 @@ function SingleCard({
         )}
         <UndoButton onPress={undo} />
       </View>
+    </View>
+  );
+}
+
+/** Before the double tap: clear of the check's own tap and the card's entrance. */
+const SUPERSET_TAP_DELAY_MS = 200;
+const SUPERSET_TAP_GAP_MS = 130;
+
+/**
+ * Mid-superset no rest starts, by design: say so, or the missing countdown
+ * reads as a fault. In the superset's violet, as on the list. Two light taps
+ * as it shows say it without looking, where a rest would have started with
+ * its buzz.
+ */
+function SupersetNoRest({ slot }: { slot: string }) {
+  const { t } = useTranslation();
+  const colors = useColors();
+
+  useEffect(() => {
+    const tap = () => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    const first = setTimeout(tap, SUPERSET_TAP_DELAY_MS);
+    const second = setTimeout(tap, SUPERSET_TAP_DELAY_MS + SUPERSET_TAP_GAP_MS);
+    return () => {
+      clearTimeout(first);
+      clearTimeout(second);
+    };
+  }, []);
+
+  return (
+    <View className="flex-row items-center gap-2 pl-[34px]">
+      <Ionicons name="flash" size={14} color={colors.superset} />
+      <Text className="flex-1 text-[13px] font-semibold text-superset">
+        {t("checkCard.supersetNoRest", { slot })}
+      </Text>
     </View>
   );
 }

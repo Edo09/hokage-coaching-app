@@ -243,7 +243,7 @@ export default {
     restAlert_both: "Sonido y vibración",
     restAlert_vibrate: "Solo vibración",
     restAlert_sound: "Solo sonido",
-    restAlertHint: "Se usa al empezar y al terminar cada descanso. Con la app en segundo plano, el final llega como notificación.",
+    restAlertHint: "Se usa al empezar cada descanso, 10 segundos antes del final y al terminar. El sonido también celebra tus récords y cada día completado. Con la app en segundo plano, el final llega como notificación.",
     // Android: sin «Alarmas y recordatorios» la notificación puede llegar tarde
     exactAlarmsHint: "Con la pantalla apagada, el aviso de fin del descanso puede llegar tarde. Permite «Alarmas y recordatorios» para que llegue a tiempo.",
     exactAlarmsAction: "Permitir",
@@ -737,6 +737,9 @@ export default {
     daysLabel: "Tus días de entreno",
     // Nombre del canal de notificaciones en los ajustes de Android
     channelName: "Recordatorios",
+    // El reloj de un ejercicio que lleva 30 min corriendo (¿olvidado?)
+    clockTitle: "¿Sigues con {{name}}?",
+    clockBody: "El reloj lleva {{minutes}} min. Páusalo o termínalo si ya acabaste.",
   },
   // Notificaciones push del coach («Tienes un nuevo programa», «… plan de
   // nutrición», «… plan de suplementos»). El texto lo pone la base de datos

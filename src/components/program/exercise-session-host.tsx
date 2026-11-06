@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
+import * as Haptics from "expo-haptics";
 import React, { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -8,6 +9,7 @@ import { useAuth } from "@/src/hooks/use-auth";
 import { useCheckFeedback } from "@/src/hooks/use-check-feedback";
 import { useProgram } from "@/src/hooks/use-program";
 import { useProgramLogging } from "@/src/hooks/use-program-logging";
+import { cancelClockReminder, scheduleClockReminder } from "@/src/lib/clock-reminder";
 import {
   elapsedMs,
   exerciseSession,
@@ -16,12 +18,16 @@ import {
   useClock,
   useExerciseSession,
 } from "@/src/lib/exercise-session";
+import { playCelebration, primeWorkoutCues } from "@/src/lib/rest-alert";
 import { formatClock, useRestTimer } from "@/src/providers/rest-timer-provider";
 import { useColors } from "@/src/theme/colors";
 import { Pressable, Text, View } from "@/src/tw";
 import type { ProgramDayWithExercises, ProgramExercise, ProgramWithDetails } from "@/src/types/database";
 import { isPartnerNext, nextExercise, restAfterFinish } from "@/src/utils/check-card";
 import { effectivePrescription, weekByNumber } from "@/src/utils/program";
+import { dayRecordLogs, exerciseNames, isNewRecordSet } from "@/src/utils/records";
+import type { SetInput } from "@/src/utils/set-log";
+import { clockReminderDelay } from "@/src/utils/workout-cues";
 
 /** The floating rest bar's footprint (card ~73 + its 8px bottom margin). */
 const REST_BAR_H = 81;
@@ -125,6 +131,48 @@ export function ExerciseSessionHost({ tabBarHeight }: { tabBarHeight: number }) 
     if (restSeconds != null) rest.start(restSeconds, p.name);
   };
 
+  // A set that beats the client's best as it is logged (src/utils/records.ts
+  // isNewRecordSet) gets a success buzz and the record fanfare. Weighed
+  // before the write on the logs logSet reads, so the same numbers saved
+  // again from the next field's blur stay quiet.
+  const logSet = (setIndex: number, input: SetInput) => {
+    if (program == null || sheet == null) return;
+    const record =
+      sheetDay != null &&
+      sheetLock == null &&
+      isNewRecordSet({
+        exerciseId: sheet.exerciseId,
+        week: sheet.week,
+        setIndex,
+        set: { weight_kg: input.weight_kg ?? null, reps: input.reps ?? null },
+        logs: dayRecordLogs(sheetDay, sheet.exerciseId, sheet.week, logging.freshSetLogs()),
+        nameOf: exerciseNames(program),
+      });
+    void logging.logSet(sheet.exerciseId, sheet.week, setIndex, input);
+    if (record) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+      playCelebration("record");
+    }
+  };
+
+  // «¿Sigues con …?» once the running clock reaches 30 minutes
+  // (src/lib/clock-reminder.ts). Re-aimed by every start, pause and resume;
+  // a pause, finish or quit cancels it.
+  const runningSince = active?.runningSince ?? null;
+  const activeBankedMs = active != null ? (session.banked[sessionKey(active.exerciseId, active.week)] ?? 0) : 0;
+  useEffect(() => {
+    const delay = clockReminderDelay({ runningSince, bankedMs: activeBankedMs, now: Date.now() });
+    if (delay == null || activeName == null) cancelClockReminder();
+    else scheduleClockReminder(delay, activeName);
+  }, [runningSince, activeBankedMs, activeName]);
+
+  // Ready the record and day sounds while the sheet is open, so neither
+  // waits on loading when its moment comes.
+  const sheetOpen = sheet != null;
+  useEffect(() => {
+    if (sheetOpen) primeWorkoutCues();
+  }, [sheetOpen]);
+
   return (
     <>
       <ProgramExerciseModal
@@ -134,6 +182,7 @@ export function ExerciseSessionHost({ tabBarHeight }: { tabBarHeight: number }) 
         tempoDefault={program?.tempo_default ?? null}
         lock={sheetLock}
         logging={logging}
+        onLogSet={logSet}
         timed={sheetTimed}
         elapsedMs={sheet != null ? elapsedMs(session, sheet.exerciseId, sheet.week, now) : 0}
         running={sheetTimed && running}

@@ -35,6 +35,7 @@ import {
   type TempoPhases,
   type WeekLock,
 } from "@/src/utils/program";
+import type { SetInput } from "@/src/utils/set-log";
 
 const TABULAR = { fontVariant: ["tabular-nums" as const] };
 
@@ -66,6 +67,8 @@ type Props = {
       is view only. Always null for free programs. */
   lock: WeekLock | null;
   logging: ReturnType<typeof useProgramLogging>;
+  /** Save one set's actuals (the host also cues a new record). */
+  onLogSet: (setIndex: number, input: SetInput) => void;
   /** In progress (timed). False: not started yet, or done (review). */
   timed: boolean;
   /** Time on its clock: running, or banked from an earlier stretch. */
@@ -110,6 +113,7 @@ export function ProgramExerciseModal({
   tempoDefault,
   lock,
   logging,
+  onLogSet,
   timed,
   elapsedMs,
   running,
@@ -401,9 +405,7 @@ export function ProgramExerciseModal({
                   rirMax={p.rirMax}
                   logged={logging.setsFor(exercise.id, weekNumber)}
                   previous={logging.previousSetsFor(exercise.id, weekNumber)}
-                  onLogSet={(setIndex, input) =>
-                    logging.logSet(exercise.id, weekNumber, setIndex, input)
-                  }
+                  onLogSet={onLogSet}
                   onInputFocus={revealFocused}
                   readOnly={lock != null}
                 />

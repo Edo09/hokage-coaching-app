@@ -1,3 +1,4 @@
+import { cancelClockReminder } from "@/src/lib/clock-reminder";
 import { clearOutbox } from "@/src/lib/outbox";
 import { clearPhotoQueue } from "@/src/lib/photo-queue";
 import { persister, queryClient } from "@/src/lib/query-client";
@@ -97,6 +98,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         void clearOutbox();
         void clearPhotoQueue();
         void cancelReminders();
+        cancelClockReminder();
         queryClient.clear();
         void persister.removeClient();
       }

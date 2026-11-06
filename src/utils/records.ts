@@ -71,6 +71,47 @@ export function exerciseRecord(input: {
   return { weight: best.weight_kg, reps: best.reps };
 }
 
+/**
+ * Whether a set, as it is logged (set `setIndex` of `exerciseId` in `week`),
+ * is a new record that very moment: the record cue. Weighed like
+ * exerciseRecord, by estimated 1RM against the same lift's history from this
+ * week or earlier (this exercise's own week aside, so the first week only
+ * sets a baseline), and it must also beat this exercise's other sets this
+ * week, so each improvement counts once. Its own row is being replaced and
+ * doesn't count, and saving the same numbers again (each field saves on
+ * blur) is no new moment.
+ */
+export function isNewRecordSet(input: {
+  exerciseId: string;
+  week: number;
+  setIndex: number;
+  set: { weight_kg: number | null; reps: number | null };
+  logs: WorkoutSetLog[];
+  nameOf: (programExerciseId: string) => string | null;
+}): boolean {
+  const { exerciseId, week, setIndex, set, logs, nameOf } = input;
+  if (set.weight_kg == null || set.reps == null || set.weight_kg <= 0 || set.reps <= 0) return false;
+  const name = norm(nameOf(exerciseId) ?? "");
+  if (name === "") return false;
+
+  const thisWeek = (s: WorkoutSetLog) => s.program_exercise_id === exerciseId && s.week_number === week;
+  const own = logs.find((s) => thisWeek(s) && s.set_index === setIndex);
+  if (own != null && own.weight_kg === set.weight_kg && own.reps === set.reps) return false;
+
+  const before = bestSet(
+    logs.filter(
+      (s) =>
+        s.program_exercise_id != null &&
+        s.week_number <= week &&
+        !thisWeek(s) &&
+        norm(nameOf(s.program_exercise_id) ?? "") === name,
+    ),
+  );
+  if (before == null) return false;
+  const top = bestSet([before, ...logs.filter((s) => thisWeek(s) && s.set_index !== setIndex)]);
+  return top == null || e1rm(set.weight_kg, set.reps) > e1rm(top.weight_kg, top.reps);
+}
+
 /** Program exercise names by id, for exerciseRecord's `nameOf`: the catalog
     name, else the exercise's own ("" with neither); null for an id the
     program doesn't have. */

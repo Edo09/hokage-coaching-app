@@ -48,12 +48,19 @@ const COPY: [string, string, string][] = [
   ],
   ["daysLabel", "Tus días de entreno", "Your training days"],
   ["channelName", "Recordatorios", "Reminders"],
+  // The exercise clock left running (src/lib/clock-reminder.ts).
+  ["clockTitle", "¿Sigues con {{name}}?", "Still on {{name}}?"],
+  [
+    "clockBody",
+    "El reloj lleva {{minutes}} min. Páusalo o termínalo si ya acabaste.",
+    "The clock has been running for {{minutes}} min. Pause or finish it if you're done.",
+  ],
 ];
 
 describe("reminders copy", () => {
-  it("has the Copy table's 25 keys", () => {
-    assert.equal(COPY.length, 25);
-    assert.equal(new Set(COPY.map(([key]) => key)).size, 25);
+  it("has the Copy table's 27 keys", () => {
+    assert.equal(COPY.length, 27);
+    assert.equal(new Set(COPY.map(([key]) => key)).size, 27);
   });
 
   it("es has exactly the Copy table's keys and texts", () => {
@@ -81,6 +88,17 @@ before(async () => {
 });
 
 describe("reminders copy, rendered", () => {
+  it("the clock reminder names the exercise and the minutes", () => {
+    assert.equal(
+      i18n.getFixedT("es")("reminders.clockTitle", { name: "Jalones" }),
+      "¿Sigues con Jalones?",
+    );
+    assert.equal(
+      i18n.getFixedT("es")("reminders.clockBody", { minutes: 30 }),
+      "El reloj lleva 30 min. Páusalo o termínalo si ya acabaste.",
+    );
+  });
+
   it("es: singular for one exercise, plural for more", () => {
     const t = i18n.getFixedT("es");
     assert.equal(t("reminders.trainingBody", { count: 1, w: 2 }), "1 ejercicio · Semana 2");

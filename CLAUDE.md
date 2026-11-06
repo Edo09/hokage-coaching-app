@@ -41,8 +41,12 @@ What this means when working here:
   function secret.
 - Push notifications: database triggers on `programs`, `nutrition_plans` and
   `supplement_plans` send «Tienes un nuevo programa / plan de nutrición /
-  plan de suplementos» through `pg_net` to Expo's push API for the tokens in
-  `push_tokens` (no Edge Function). See `docs/PUSH-NOTIFICATIONS.md`.
+  plan de suplementos» when one is assigned, and «Tu coach actualizó tu …»
+  when the coach edits an active one (at most one per plan every 30 min); a
+  daily `pg_cron` job (`send_block_ending_pushes`) sends «Tu bloque termina
+  el …» 3 days before a block's last day. All go through `pg_net` to Expo's
+  push API for the tokens in `push_tokens` (no Edge Function). See
+  `docs/PUSH-NOTIFICATIONS.md`.
 - Coach notices (the bell in the panel): the database writes rows in
   `coach_notifications`: a trigger when a client completes a training day,
   and a daily `pg_cron` job (`create_coach_daily_notices`) for clients idle

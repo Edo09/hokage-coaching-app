@@ -14,9 +14,11 @@ import {
   cancelRestDoneNotification,
   playRestDoneAlert,
   playRestStartAlert,
+  playRestWarningAlert,
   primeRestAlert,
   scheduleRestDoneNotification,
 } from "@/src/lib/rest-alert";
+import { REST_WARNING_S, restWarningDelay } from "@/src/utils/workout-cues";
 
 /**
  * The rest timer between sets.
@@ -34,10 +36,10 @@ import {
  *
  * Completion is signalled three ways — vibration, chime, local notification —
  * all of which live in `@/src/lib/rest-alert`; the client picks sound,
- * vibration or both in Ajustes (`@/src/lib/alert-mode`), and a start gets a
- * short cue in the same mode. Only the notification survives a
- * backgrounded app, so it is scheduled up front from the end timestamp rather
- * than fired at 0:00, when JS may not be running at all.
+ * vibration or both in Ajustes (`@/src/lib/alert-mode`), and a start and
+ * the last 10 seconds get a short cue in the same mode. Only the notification
+ * survives a backgrounded app, so it is scheduled up front from the end
+ * timestamp rather than fired at 0:00, when JS may not be running at all.
  */
 
 type RestTimer = {
@@ -135,6 +137,23 @@ export function RestTimerProvider({ children }: { children: React.ReactNode }) {
       },
       Math.max(0, endsAt - Date.now()),
     );
+    return () => clearTimeout(id);
+  }, [endsAt]);
+
+  // «10 seconds left», on its own one-shot timer for the same reasons, so a
+  // move of the end re-aims it and a skip or pause drops it. Only with the app
+  // open and on time: there is no notification for it, and a heads-up that
+  // arrives late (or behind the client's back) is noise.
+  useEffect(() => {
+    if (endsAt == null) return;
+    const delay = restWarningDelay(endsAt, Date.now());
+    if (delay == null) return;
+    const warnAt = endsAt - REST_WARNING_S * 1000;
+    const id = setTimeout(() => {
+      if (Date.now() - warnAt <= LATE_MS && AppState.currentState === "active") {
+        playRestWarningAlert();
+      }
+    }, delay);
     return () => clearTimeout(id);
   }, [endsAt]);
 

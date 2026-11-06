@@ -26,7 +26,9 @@ import { isCoachPushData } from "@/src/utils/push";
  *
  * Which of sound and vibration play is the client's choice (Ajustes, see
  * `@/src/lib/alert-mode`), read at the moment each alert fires or is
- * scheduled. Starting a rest gets a short cue in the same mode.
+ * scheduled. Starting a rest gets a short cue in the same mode, and so does
+ * the «10 seconds left» heads-up. The same choice decides whether a new
+ * record and a finished day get their sound (`playCelebration`).
  */
 
 /**
@@ -57,11 +59,19 @@ const VIBRATION_PATTERN = [0, 400, 180, 400];
 /** A single short buzz for a rest starting: acknowledged, not an alarm. */
 const START_VIBRATION_MS = 70;
 
+/** Two short taps for «10 seconds left»: a heads-up, lighter than the end. */
+const WARNING_VIBRATION_PATTERN = [0, 60, 110, 60];
+
 const isWeb = Platform.OS === "web";
 
+/** warn, record and day play only inside the app, never from a
+    notification, so app.json's notification sounds leave them out. */
 const SOUNDS = {
   done: require("@/assets/sounds/rest_done.wav"),
   start: require("@/assets/sounds/rest_start.wav"),
+  warn: require("@/assets/sounds/rest_warn.wav"),
+  record: require("@/assets/sounds/record.wav"),
+  day: require("@/assets/sounds/day_done.wav"),
 };
 const players: Partial<Record<keyof typeof SOUNDS, AudioPlayer>> = {};
 
@@ -173,7 +183,17 @@ export function setupRestAlerts() {
  * a 90s rest is exactly the beat the client is listening for.
  */
 export function primeRestAlert() {
-  if (alertSounds(getAlertMode())) getPlayer("done");
+  if (!alertSounds(getAlertMode())) return;
+  getPlayer("warn");
+  getPlayer("done");
+}
+
+/** Same for the celebration sounds: called when an exercise sheet opens, so
+    a record or the day's last set doesn't wait on loading its sound. */
+export function primeWorkoutCues() {
+  if (!alertSounds(getAlertMode())) return;
+  getPlayer("record");
+  getPlayer("day");
 }
 
 /**
@@ -209,6 +229,35 @@ export function playRestStartAlert(mode: AlertMode = getAlertMode()) {
     }
   }
   if (alertSounds(mode)) play("start");
+}
+
+/**
+ * Ten seconds of rest left: a soft ping and/or two light taps, per the alert
+ * mode, so the client can get set before the end. Only while the app is open
+ * (the rest timer checks); there is no notification for it.
+ */
+export function playRestWarningAlert(mode: AlertMode = getAlertMode()) {
+  if (!isWeb && alertVibrates(mode)) {
+    // iOS ignores vibration durations; its warning haptic is the short
+    // double tap.
+    if (Platform.OS === "ios") {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {});
+    } else {
+      try {
+        Vibration.vibrate(WARNING_VIBRATION_PATTERN);
+      } catch {}
+    }
+  }
+  if (alertSounds(mode)) play("warn");
+}
+
+/**
+ * The sound for a new record ("record") or a finished day ("day"), when the
+ * alert mode has sound. Sound only: the screen that celebrates plays its own
+ * haptic.
+ */
+export function playCelebration(kind: "record" | "day", mode: AlertMode = getAlertMode()) {
+  if (alertSounds(mode)) play(kind);
 }
 
 /**

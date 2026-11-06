@@ -31,6 +31,25 @@ describe("isCoachPushData", () => {
     assert.equal(SUPPLEMENT_PUSH_KIND, "supplement-plan-assigned");
   });
 
+  it("true for the coach's update pushes and the block-ending push", () => {
+    assert.equal(
+      isCoachPushData({ kind: "program-updated", url: "/(tabs)/routines", program_id: "p1" }),
+      true,
+    );
+    assert.equal(
+      isCoachPushData({ kind: "nutrition-plan-updated", url: "/(tabs)/nutrition", plan_id: "n1" }),
+      true,
+    );
+    assert.equal(
+      isCoachPushData({ kind: "supplement-plan-updated", url: "/(tabs)/nutrition", plan_id: "s1" }),
+      true,
+    );
+    assert.equal(
+      isCoachPushData({ kind: "block-ending", url: "/(tabs)/routines", program_id: "p1", end_date: "2026-11-13" }),
+      true,
+    );
+  });
+
   it("false for reminders, the rest alert and anything without data", () => {
     assert.equal(isCoachPushData({ kind: "reminder", url: "/(tabs)/routines" }), false);
     assert.equal(isCoachPushData({}), false);

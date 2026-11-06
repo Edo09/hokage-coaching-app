@@ -1,15 +1,22 @@
 # Push notifications
 
-When the coach assigns something, the client's phones get a push with its
-name, and tapping it opens the tab where it is:
+The client's phones get a push when the coach assigns or changes something,
+and before a block ends. Tapping one opens the tab where it is:
 
-| Assigned            | Push                                     | Opens     |
-|---------------------|------------------------------------------|-----------|
-| Program             | **«Tienes un nuevo programa»**           | Programa  |
-| Nutrition plan      | **«Tienes un nuevo plan de nutrición»**  | Nutrición |
-| Supplement plan     | **«Tienes un nuevo plan de suplementos»**| Nutrición |
+| When                                        | Push                                            | Opens     |
+|---------------------------------------------|-------------------------------------------------|-----------|
+| A program is assigned                       | **«Tienes un nuevo programa»**                  | Programa  |
+| A nutrition plan is assigned                | **«Tienes un nuevo plan de nutrición»**         | Nutrición |
+| A supplement plan is assigned               | **«Tienes un nuevo plan de suplementos»**       | Nutrición |
+| The coach edits the active program          | **«Tu coach actualizó tu programa»**            | Programa  |
+| The coach edits the active nutrition plan   | **«Tu coach actualizó tu plan de nutrición»**   | Nutrición |
+| The coach edits the active supplement plan  | **«Tu coach actualizó tu plan de suplementos»** | Nutrición |
+| 3 days before a block's last day            | **«Tu bloque termina el viernes»**              | Programa  |
 
-The body is «*name* ya está en tu pestaña Programa / Nutrición.»
+The bodies: «*name* ya está en tu pestaña Programa / Nutrición.» (assigned),
+«*name* tiene cambios. Míralos en tu pestaña Programa / Nutrición.» (edited),
+«*name* termina el viernes 13. Aprovecha estos días para completar lo que te
+falte.» (block ending).
 
 ## How it works
 
@@ -26,6 +33,23 @@ The body is «*name* ya está en tu pestaña Programa / Nutrición.»
   remember what was handled, so edits and re-activations never notify again.
   A client with no phone registered is recorded and nothing is sent. A push
   that fails never blocks the save.
+- **Edits** (`20261106140000_plan_update_and_block_end_pushes.sql`):
+  `trg_notify_program_updated`, `trg_notify_nutrition_plan_updated` and
+  `trg_notify_supplement_plan_updated` fire when the coach writes a plan
+  that is active before and after; the panel's save functions rewrite the
+  plan's row on every save. At most one push per plan every 30 minutes
+  (`plan_update_pushes` keeps the last), and none in the 30 minutes after
+  its «Tienes un nuevo …». Nothing for an activation (the «nuevo» push says
+  it), an archive, the template claim of «Guardar como plantilla», a write
+  that changes nothing, or one with no coach signed in (a script, a
+  migration, a cron job).
+- **Block ending** (same migration): the `pg_cron` job
+  `client-block-ending-push` runs `send_block_ending_pushes()` daily at
+  13:00 UTC, 09:00 for the coach (`coach_local_date()`). It announces the
+  active programs of 2 weeks or more whose last day is 3 days away; a day
+  the job missed is made up until the eve. `program_ending_pushes` keeps it
+  to once per block and end date, so a block the coach moves or extends is
+  announced again before its new end.
 - **App**: `usePushToken` (`src/hooks/use-push-token.ts`) registers the
   phone's Expo push token through `register_push_token` once notifications
   are allowed, and sign-out deletes it (`src/lib/push.ts`). The foreground
@@ -96,3 +120,30 @@ project settings): the trigger sends without an Expo access token.
    `{"status":"ok"}` per phone is a delivered ticket. `DeviceNotRegistered`
    means the token is stale (the app was uninstalled). pg_net keeps responses
    for 6 hours.
+4. Edit that client's active program in the panel and save: «Tu coach
+   actualizó tu programa» (a second save within 30 minutes sends nothing).
+   `select * from public.plan_update_pushes order by sent_at desc limit 5;`
+5. The block pass, now instead of at 09:00:
+   `select public.send_block_ending_pushes();` then
+   `select * from public.program_ending_pushes order by created_at desc limit 5;`
+
+`supabase/scripts/smoke_plan_pushes.sql` checks the edit and block rules in
+one rolled-back run (it ends with «SMOKE OK: plan pushes; nothing was saved»).
+
+## On the phone, without a push
+
+The app's own alerts, for comparison. Sounds and the rest's vibrations follow
+the client's choice in Ajustes (sonido y vibración, solo vibración, solo
+sonido); the haptics that belong to a screen (a record's and a finished
+day's success haptic, the superset taps) always play.
+
+| When                                         | What                                                 | Where in the code                     |
+|----------------------------------------------|------------------------------------------------------|---------------------------------------|
+| A rest starts                                | Short buzz and/or cue                                | `src/lib/rest-alert.ts`               |
+| 10 seconds of rest left (app open)           | Two light taps and/or a soft ping                    | `src/providers/rest-timer-provider.tsx` |
+| A rest ends                                  | Buzz and/or chime; a notification if the app is away | `src/lib/rest-alert.ts`               |
+| A logged set beats the client's best         | Success haptic and a short fanfare                   | `src/components/program/exercise-session-host.tsx` |
+| A day is completed                           | Success haptic and a celebration chord               | `src/components/program/day-complete-modal.tsx` |
+| «Superserie: sin descanso» on the card       | Two light taps                                       | `src/components/program/check-card.tsx` |
+| An exercise clock has run 30 minutes         | Notification «¿Sigues con …?» (pause/finish cancels) | `src/lib/clock-reminder.ts`           |
+| Training day, inactivity, week opened        | Local reminders                                      | `src/lib/reminders.ts`                |

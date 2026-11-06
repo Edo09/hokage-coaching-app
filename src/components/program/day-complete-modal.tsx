@@ -23,6 +23,7 @@ import { useProgramLogging } from "@/src/hooks/use-program-logging";
 import { exerciseSession } from "@/src/lib/exercise-session";
 import { DUR, EASE_IN, EASE_OUT } from "@/src/lib/motion";
 import { programFocus } from "@/src/lib/program-focus";
+import { playCelebration } from "@/src/lib/rest-alert";
 import { useToday } from "@/src/lib/today";
 import { kgToUnit, kgToUnit1, useWeightUnit } from "@/src/lib/weight-unit";
 import type { DayCelebration } from "@/src/providers/celebration-context";
@@ -102,6 +103,9 @@ export function DayCompleteModal({ day: celebration, openId, visible, onClose }:
         ),
       );
     }
+    // The celebration sound (when the alert mode has sound) starts with the
+    // card: its run-up ends in the chord about when the seal lands.
+    playCelebration("day");
     const haptic = setTimeout(
       () => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {}),
       reduced ? 0 : IMPACT_MS,

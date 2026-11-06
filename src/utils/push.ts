@@ -1,13 +1,18 @@
 /**
  * The coach's push notifications, pure half (the device side is
- * `@/src/lib/push`). The database sends them when the coach assigns
- * something, each with a `data.kind` and the tab it opens (`data.url`):
+ * `@/src/lib/push`). The database sends them, each with a `data.kind` and the
+ * tab it opens (`data.url`):
  *
  *   «Tienes un nuevo programa»            program-assigned          Programa
  *     (supabase/migrations/20261023150000_program_assigned_push.sql)
  *   «Tienes un nuevo plan de nutrición»   nutrition-plan-assigned   Nutrición
  *   «Tienes un nuevo plan de suplementos» supplement-plan-assigned  Nutrición
  *     (supabase/migrations/20261024120000_plan_assigned_push.sql)
+ *   «Tu coach actualizó tu programa»      program-updated           Programa
+ *   «… tu plan de nutrición»              nutrition-plan-updated    Nutrición
+ *   «… tu plan de suplementos»            supplement-plan-updated   Nutrición
+ *   «Tu bloque termina el viernes»        block-ending              Programa
+ *     (supabase/migrations/20261106140000_plan_update_and_block_end_pushes.sql)
  *
  * The migrations spell the same kinds, urls and channel.
  */
@@ -20,6 +25,10 @@ const COACH_PUSH_KINDS: ReadonlySet<unknown> = new Set([
   PROGRAM_PUSH_KIND,
   NUTRITION_PUSH_KIND,
   SUPPLEMENT_PUSH_KIND,
+  "program-updated",
+  "nutrition-plan-updated",
+  "supplement-plan-updated",
+  "block-ending",
 ]);
 
 /** True for a notification's `content.data` when it is one of the coach's

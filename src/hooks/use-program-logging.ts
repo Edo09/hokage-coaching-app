@@ -286,6 +286,13 @@ export function useProgramLogging(program: ProgramWithDetails | null) {
     [queryClient, key, setCache, user, program],
   );
 
+  /** The set logs as of now, writes this render hasn't seen included (what
+      logSet reads), for a rule that has to agree with it: the record cue. */
+  const freshSetLogs = useCallback(
+    () => queryClient.getQueryData<LogData>(key)?.setLogs ?? EMPTY.setLogs,
+    [queryClient, key],
+  );
+
   const deleteSet = useCallback(
     async (id: string) => {
       setCache((prev) => ({
@@ -314,6 +321,7 @@ export function useProgramLogging(program: ProgramWithDetails | null) {
     setsFor,
     previousSetsFor,
     logSet,
+    freshSetLogs,
     deleteSet,
   };
 }
