@@ -383,23 +383,27 @@ function DayCard({
 
       <Reveal open={!collapsed}>
         {day.program_exercises.map((ex, i) => {
-          // Consecutive rows sharing a letter are one superset: a red bar
-          // runs down the group and its first row carries the label.
+          // Consecutive rows sharing a letter are one superset: one violet
+          // block (a tint and a bar down its side) whose first row carries
+          // the label, so the pair reads as done together.
           const group = ex.superset_group ?? null;
           const prevGroup = i > 0 ? (day.program_exercises[i - 1].superset_group ?? null) : null;
           const nextGroup = day.program_exercises[i + 1]?.superset_group ?? null;
           const inGroup = group != null && (group === prevGroup || group === nextGroup);
           const startsGroup = inGroup && group !== prevGroup;
+          const endsGroup = inGroup && group !== nextGroup;
           return (
           <View
             key={ex.id}
             className={[
-              i === 0 || (inGroup && !startsGroup) ? "" : "border-t border-border",
-              inGroup ? "border-l-[3px] border-l-brand-primary pl-2.5" : "",
+              i === 0 || inGroup ? "" : "border-t border-border",
+              inGroup ? "border-l-[3px] border-l-superset bg-superset-soft pl-2.5 pr-2" : "",
+              startsGroup ? "mt-1 rounded-tr-xl" : "",
+              endsGroup ? "mb-1 rounded-br-xl" : "",
             ].join(" ")}
           >
             {startsGroup && (
-              <Text className="pt-2 text-[10px] font-bold uppercase text-brand-primary" style={{ letterSpacing: 1.2 }}>
+              <Text className="pt-2 text-[10px] font-bold uppercase text-superset" style={{ letterSpacing: 1.2 }}>
                 {t("program.superset", { letter: group })}
               </Text>
             )}

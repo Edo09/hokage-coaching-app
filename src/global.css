@@ -66,6 +66,9 @@
     --hb-warning-soft: rgba(217, 119, 6, 0.12);
     --hb-info: #2563eb;
     --hb-info-soft: rgba(37, 99, 235, 0.1);
+    /* Supersets: their own colour (red trains, blue rests, green is done) */
+    --hb-superset: #7c3aed;
+    --hb-superset-soft: rgba(124, 58, 237, 0.08);
 
     /* Meal-type badges */
     --hb-badge-breakfast: #d97706;
@@ -136,6 +139,8 @@
     --hb-warning-soft: rgba(245, 158, 11, 0.15);
     --hb-info: #3b82f6;
     --hb-info-soft: rgba(59, 130, 246, 0.16);
+    --hb-superset: #a78bfa;
+    --hb-superset-soft: rgba(167, 139, 250, 0.12);
 
     --hb-badge-breakfast: #f59e0b;
     --hb-badge-breakfast-soft: rgba(245, 158, 11, 0.15);
@@ -196,6 +201,8 @@
   --color-warning-soft: var(--hb-warning-soft);
   --color-info: var(--hb-info);
   --color-info-soft: var(--hb-info-soft);
+  --color-superset: var(--hb-superset);
+  --color-superset-soft: var(--hb-superset-soft);
   --color-badge-breakfast: var(--hb-badge-breakfast);
   --color-badge-breakfast-soft: var(--hb-badge-breakfast-soft);
   --color-badge-lunch: var(--hb-badge-lunch);
