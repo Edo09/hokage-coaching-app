@@ -282,6 +282,8 @@ export default {
     restEyebrow: "Rest day",
     restStart: "Start {{seconds}} second rest after {{name}}",
     restDone: "Rest complete!",
+    // The running timer (restEyebrow is the rest day).
+    restTimer: "Rest",
     restNotifBody: "Back to it — next set is up.",
     restNotifNext: "Back to it — {{name}}",
     restPause: "Pause rest",

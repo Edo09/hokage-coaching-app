@@ -142,10 +142,13 @@ export function RestTimerBar({ bottom = 0, inline = false }: { bottom?: number; 
             >
               {formatClock(remaining)}
             </Text>
+            {/* Says what is counting: «Descanso · Press de banca». */}
             <Text className="text-[11px] text-content-tertiary" numberOfLines={1}>
               {done
                 ? t("program.restDone")
-                : (label ?? t("program.restEyebrow"))}
+                : label != null
+                  ? `${t("program.restTimer")} · ${label}`
+                  : t("program.restTimer")}
             </Text>
           </View>
 

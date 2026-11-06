@@ -282,6 +282,8 @@ export default {
     restEyebrow: "Descanso",
     restStart: "Iniciar descanso de {{seconds}} segundos tras {{name}}",
     restDone: "¡Descanso terminado!",
+    // El temporizador en marcha (restEyebrow es el día de descanso).
+    restTimer: "Descanso",
     restNotifBody: "A darle — toca la siguiente serie.",
     restNotifNext: "A darle — {{name}}",
     restPause: "Pausar descanso",

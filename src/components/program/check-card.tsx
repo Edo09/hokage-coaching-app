@@ -10,6 +10,7 @@ import {
 } from "react-native-reanimated";
 
 import { DemoMedia } from "@/src/components/program/demo-media";
+import { CapsLabel, PosterText } from "@/src/components/ui";
 import { useProgram } from "@/src/hooks/use-program";
 import { useProgramLogging } from "@/src/hooks/use-program-logging";
 import { checkCard, type CheckCardState, useCheckCard } from "@/src/lib/check-card";
@@ -257,6 +258,9 @@ function SingleCard({
   const restSeconds = p.restSeconds ?? 0;
   // After «Terminar» the rest is already counting (or done): nothing to offer.
   const showRest = !undoOnly && !card.restStarted && restSeconds > 0 && !rest.running && !partnerNext;
+  // This exercise's rest is counting: the card says so, big, since its
+  // backdrop covers the rest bar.
+  const resting = rest.running && rest.label === p.name;
 
   const undo = () => {
     checkCard.dismiss();
@@ -299,6 +303,8 @@ function SingleCard({
         )}
       </View>
 
+      {resting && <RestNow />}
+
       {highlight != null && <HighlightLine highlight={highlight} />}
 
       {/* Its own row, so the next exercise's name reads in full. Above the
@@ -333,6 +339,69 @@ function SingleCard({
           </Pressable>
         )}
         <UndoButton onPress={undo} />
+      </View>
+    </View>
+  );
+}
+
+/**
+ * The client is resting now: «DESCANSO» and the countdown, big, with a bar
+ * that drains as it runs down, then «¡Descanso terminado!» for the moment the
+ * timer holds at 0:00. Pause and skip are here too, since the card's backdrop
+ * covers the rest bar and its buttons.
+ */
+function RestNow() {
+  const { t } = useTranslation();
+  const colors = useColors();
+  const { remaining, total, paused, togglePause, stop } = useRestTimer();
+  const done = remaining === 0;
+  const pct = total > 0 ? Math.max(0, Math.min(1, remaining / total)) : 0;
+  const tone = done ? colors.success : colors.brandPrimary;
+
+  return (
+    <View className="overflow-hidden rounded-xl bg-brand-dark">
+      {/* Drains left to right as the rest runs down, like the rest bar. */}
+      <View className="h-1 w-full bg-surface-elevated">
+        <View style={{ height: "100%", width: `${pct * 100}%`, backgroundColor: tone }} />
+      </View>
+      <View className="flex-row items-center gap-3 px-3.5 py-2.5">
+        {/* One reading for screen readers, not one per second. */}
+        <View
+          accessible
+          accessibilityLabel={t(done ? "program.restDone" : "program.restTimer")}
+          className="min-w-0 flex-1"
+        >
+          <CapsLabel size={9.5} em={0.16} className="font-extrabold" style={{ color: tone }}>
+            {t(done ? "program.restDone" : "program.restTimer")}
+          </CapsLabel>
+          <PosterText size={34} tabular>
+            {formatClock(remaining)}
+          </PosterText>
+        </View>
+        {!done && (
+          <Pressable
+            onPress={togglePause}
+            accessibilityRole="button"
+            accessibilityLabel={t(paused ? "program.restResume" : "program.restPause")}
+            hitSlop={6}
+            className="h-10 w-10 items-center justify-center rounded-full border"
+            style={{ borderColor: colors.contentSecondary }}
+          >
+            <Ionicons name={paused ? "play" : "pause"} size={17} color={colors.contentSecondary} />
+          </Pressable>
+        )}
+        {!done && (
+          <Pressable
+            onPress={stop}
+            accessibilityRole="button"
+            accessibilityLabel={t("program.restSkip")}
+            hitSlop={6}
+            className="h-10 w-10 items-center justify-center rounded-full border"
+            style={{ borderColor: colors.brandPrimary }}
+          >
+            <Ionicons name="close" size={18} color={colors.brandPrimary} />
+          </Pressable>
+        )}
       </View>
     </View>
   );
