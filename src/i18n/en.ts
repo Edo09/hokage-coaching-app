@@ -358,6 +358,8 @@ export default {
     sessionQuit: "Quit",
     sessionQuitTitle: "Quit {{name}}?",
     sessionQuitBody: "The time ({{time}}) is discarded and it won't be marked as done.",
+    sessionQuitKeep: "Keep going",
+    sessionQuitConfirm: "Quit and discard",
     sessionOpen: "Back to {{name}}",
     demoFullScreen: "View full screen",
     // Current week only (weeks not open yet)

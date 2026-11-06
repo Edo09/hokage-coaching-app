@@ -358,6 +358,8 @@ export default {
     sessionQuit: "Salir",
     sessionQuitTitle: "¿Salir de {{name}}?",
     sessionQuitBody: "Se descarta el tiempo ({{time}}) y no se marca como hecho.",
+    sessionQuitKeep: "Seguir",
+    sessionQuitConfirm: "Salir y descartar",
     sessionOpen: "Volver a {{name}}",
     demoFullScreen: "Ver en pantalla completa",
     // Solo semana actual (semanas que aún no abren)

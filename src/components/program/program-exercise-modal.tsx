@@ -3,7 +3,6 @@ import * as Haptics from "expo-haptics";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
-  Alert,
   Modal,
   Platform,
   type ScrollView as RNScrollView,
@@ -209,23 +208,25 @@ export function ProgramExerciseModal({
     onNext();
   };
 
+  // «Salir» drops the clock's time, so past a few seconds it asks first: in
+  // the sheet itself, in place of its buttons (QuitAsk). A browser pop-up
+  // didn't show in every web view, so the tap seemed to do nothing; this
+  // reads the same on the phone and on web. Kept per exercise, and cleared
+  // when the sheet is hidden.
+  const [quitAskFor, setQuitAskFor] = useState<string | null>(null);
+  const askingQuit = timed && exercise != null && quitAskFor === exercise.id;
   const confirmQuit = () => {
-    if (p == null) return;
-    if (elapsedMs < QUIT_CONFIRM_MS) {
-      onQuit();
-      return;
-    }
-    const title = t("program.sessionQuitTitle", { name: p.name });
-    const body = t("program.sessionQuitBody", { time: clock });
-    // Alert.alert is a no-op on web.
-    if (Platform.OS === "web") {
-      if (typeof globalThis.confirm === "function" && globalThis.confirm(`${title}\n\n${body}`)) onQuit();
-      return;
-    }
-    Alert.alert(title, body, [
-      { text: t("common.cancel"), style: "cancel" },
-      { text: t("program.sessionQuit"), style: "destructive", onPress: onQuit },
-    ]);
+    if (exercise == null) return;
+    if (elapsedMs < QUIT_CONFIRM_MS) onQuit();
+    else setQuitAskFor(exercise.id);
+  };
+  const quitNow = () => {
+    setQuitAskFor(null);
+    onQuit();
+  };
+  const hide = () => {
+    setQuitAskFor(null);
+    onHide();
   };
 
   return (
@@ -238,10 +239,10 @@ export function ProgramExerciseModal({
       statusBarTranslucent
       navigationBarTranslucent
       // Back button / backdrop hide rather than quit: the clock keeps going.
-      onRequestClose={onHide}
+      onRequestClose={hide}
     >
       <Pressable
-        onPress={onHide}
+        onPress={hide}
         accessibilityLabel={t(timed ? "program.sessionHide" : "common.close")}
         className="flex-1"
         style={{ backgroundColor: "rgba(0,0,0,0.5)" }}
@@ -278,7 +279,7 @@ export function ProgramExerciseModal({
                   </View>
                 </View>
                 <Pressable
-                  onPress={onHide}
+                  onPress={hide}
                   accessibilityRole="button"
                   accessibilityLabel={t(timed ? "program.sessionHide" : "common.close")}
                   hitSlop={8}
@@ -416,7 +417,16 @@ export function ProgramExerciseModal({
                   on, or moved the start) keeps only Salir below. */}
               {lock != null && <LockNote lock={lock} className="mx-5 mt-2 py-3" />}
 
-              {(timed || lock == null) && (
+              {askingQuit && (
+                <QuitAsk
+                  name={p.name}
+                  time={clock}
+                  onKeep={() => setQuitAskFor(null)}
+                  onQuit={quitNow}
+                />
+              )}
+
+              {!askingQuit && (timed || lock == null) && (
                 <View className="flex-row gap-3 px-5 pt-2">
                   {timed ? (
                     <>
@@ -644,6 +654,55 @@ function TempoStrip({ phases }: { phases: TempoPhases }) {
           <Text className="text-[10px] text-content-tertiary">{t(`program.tempoPhase_${TEMPO_PHASES[i]}`)}</Text>
         </View>
       ))}
+    </View>
+  );
+}
+
+/**
+ * «Salir», asked in the sheet in place of its buttons: quitting drops the
+ * clock's time and leaves the exercise unchecked. Nothing is lost until
+ * «Salir y descartar»; «Seguir» goes back to the exercise.
+ */
+function QuitAsk({
+  name,
+  time,
+  onKeep,
+  onQuit,
+}: {
+  name: string;
+  time: string;
+  onKeep: () => void;
+  onQuit: () => void;
+}) {
+  const { t } = useTranslation();
+  const colors = useColors();
+  return (
+    <View className="gap-3 px-5 pt-2" accessibilityLiveRegion="polite">
+      <View className="gap-1">
+        <Text className="text-[15px] font-bold text-content-primary">{t("program.sessionQuitTitle", { name })}</Text>
+        <Text className="text-[13px] text-content-secondary">{t("program.sessionQuitBody", { time })}</Text>
+      </View>
+      <View className="flex-row gap-3">
+        <PressableScale
+          scaleTo={0.98}
+          onPress={onKeep}
+          accessibilityRole="button"
+          className="flex-1 items-center justify-center rounded-2xl border border-border bg-surface px-4 py-3.5"
+        >
+          <Text className="text-base font-semibold text-content-primary">{t("program.sessionQuitKeep")}</Text>
+        </PressableScale>
+        <PressableScale
+          scaleTo={0.98}
+          haptic
+          onPress={onQuit}
+          accessibilityRole="button"
+          className="flex-[2] flex-row items-center justify-center gap-2 rounded-2xl border px-4 py-3.5"
+          style={{ borderColor: colors.brandPrimary }}
+        >
+          <Ionicons name="exit-outline" size={19} color={colors.brandPrimary} />
+          <Text className="text-base font-bold text-brand-primary">{t("program.sessionQuitConfirm")}</Text>
+        </PressableScale>
+      </View>
     </View>
   );
 }
