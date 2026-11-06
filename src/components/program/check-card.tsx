@@ -356,7 +356,8 @@ function RestNow() {
   const { remaining, total, paused, togglePause, stop } = useRestTimer();
   const done = remaining === 0;
   const pct = total > 0 ? Math.max(0, Math.min(1, remaining / total)) : 0;
-  const tone = done ? colors.success : colors.brandPrimary;
+  // Blue while resting (red is for training), green once it's over.
+  const tone = done ? colors.success : colors.brandSecondary;
 
   return (
     <View className="overflow-hidden rounded-xl bg-brand-dark">

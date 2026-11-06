@@ -673,25 +673,18 @@ function RestButton({ seconds, name }: { seconds: number; name: string }) {
       hitSlop={10}
       // Sized as a real control, not a caption: this gets tapped mid-set with
       // sweaty hands, so it carries its own border and a ~36px tall target.
+      // Resting is blue, like the rest bar and the check card.
       className={
         isMine
-          ? "flex-row items-center gap-1.5 rounded-lg border bg-brand-primary-soft px-3 py-2"
+          ? "flex-row items-center gap-1.5 rounded-lg border bg-info-soft px-3 py-2"
           : "flex-row items-center gap-1.5 rounded-lg border px-3 py-2"
       }
       // Border colour inline: the /opacity modifier doesn't compile under
       // react-native-css.
-      style={{ borderColor: isMine ? colors.brandPrimary : colors.border }}
+      style={{ borderColor: isMine ? colors.brandSecondary : colors.border }}
     >
-      <Ionicons
-        name={isMine ? "hourglass-outline" : "play-circle"}
-        size={17}
-        color={isMine ? colors.brandPrimary : colors.brandSecondary}
-      />
-      <Text
-        className={
-          isMine ? "text-[13px] font-bold text-brand-primary" : "text-[13px] font-bold text-brand-secondary"
-        }
-      >
+      <Ionicons name={isMine ? "hourglass-outline" : "play-circle"} size={17} color={colors.brandSecondary} />
+      <Text className="text-[13px] font-bold text-brand-secondary">
         {t("program.restLabel", { seconds })}
       </Text>
     </Pressable>

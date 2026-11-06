@@ -119,13 +119,14 @@ export function RestTimerBar({ bottom = 0, inline = false }: { bottom?: number; 
       )}
 
       <View className="mx-3 mb-2 overflow-hidden rounded-2xl border border-border bg-surface">
-        {/* Progress drains left-to-right as the rest burns down. */}
+        {/* Progress drains left-to-right as the rest burns down: blue while
+            resting, as on the check card, green once it's over. */}
         <View className="h-1 w-full bg-surface-elevated">
           <View
             style={{
               height: "100%",
               width: `${pct * 100}%`,
-              backgroundColor: done ? colors.success : colors.brandPrimary,
+              backgroundColor: done ? colors.success : colors.brandSecondary,
             }}
           />
         </View>
