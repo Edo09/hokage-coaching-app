@@ -69,10 +69,16 @@ export const ScrollView = (
     ref?: React.Ref<RNScrollView>;
   }
 ) => {
-  return useCssElement(RNScrollView, props, {
-    className: "style",
-    contentContainerClassName: "contentContainerStyle",
-  });
+  // No scroll indicators anywhere in the app (on web, RN Web hides the
+  // scrollbar for these); a screen can still pass its own.
+  return useCssElement(
+    RNScrollView,
+    { showsVerticalScrollIndicator: false, showsHorizontalScrollIndicator: false, ...props },
+    {
+      className: "style",
+      contentContainerClassName: "contentContainerStyle",
+    },
+  );
 };
 ScrollView.displayName = "CSS(ScrollView)";
 

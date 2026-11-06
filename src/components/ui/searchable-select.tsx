@@ -156,6 +156,7 @@ export function SearchableSelectField({
           <FlatList
             style={{ flex: 1 }}
             data={filtered}
+            showsVerticalScrollIndicator={false}
             keyExtractor={(o) => o.value}
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="on-drag"

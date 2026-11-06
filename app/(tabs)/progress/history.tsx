@@ -43,6 +43,7 @@ export default function HistoryScreen() {
     <View className="flex-1 bg-brand-dark">
       <FlatList
         data={logs}
+        showsVerticalScrollIndicator={false}
         keyExtractor={(item) => item.id}
         contentContainerStyle={{ padding: 16, gap: 12 }}
         renderItem={({ item }) => (

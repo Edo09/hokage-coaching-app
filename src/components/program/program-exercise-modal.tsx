@@ -331,7 +331,7 @@ export function ProgramExerciseModal({
                         <Meta icon="time-outline">{t("program.tempoLabel", { tempo: tempoText })}</Meta>
                       )}
                       {showRest && <RestButton seconds={p.restSeconds!} name={p.name} />}
-                      {hasNotes && <Text className="text-xs text-content-tertiary">{p.notes}</Text>}
+                      {hasNotes && <Text className="shrink text-xs text-content-tertiary">{p.notes}</Text>}
                     </View>
                   )}
                 </View>
@@ -607,10 +607,11 @@ function Meta({
   children: React.ReactNode;
 }) {
   const colors = useColors();
+  // Shrinks, so a long line wraps inside the sheet instead of running off it.
   return (
-    <View className="flex-row items-center gap-1">
-      <Ionicons name={icon} size={12} color={colors.contentMuted} />
-      <Text className="text-xs text-content-tertiary">{children}</Text>
+    <View className="min-w-0 shrink flex-row items-start gap-1">
+      <Ionicons name={icon} size={12} color={colors.contentMuted} style={{ marginTop: 2 }} />
+      <Text className="shrink text-xs text-content-tertiary">{children}</Text>
     </View>
   );
 }

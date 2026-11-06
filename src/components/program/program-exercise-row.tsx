@@ -254,7 +254,7 @@ export function ProgramExerciseRow({
           {p.notes != null && p.notes !== "" && (
             // Text has no pointerEvents prop; the wrapper lets taps reach the
             // backdrop.
-            <View pointerEvents="none">
+            <View pointerEvents="none" className="min-w-0 shrink">
               <Text className="text-[11px] text-content-tertiary">{p.notes}</Text>
             </View>
           )}
@@ -381,11 +381,13 @@ function Meta({
   children: React.ReactNode;
 }) {
   const colors = useColors();
-  // Display-only: taps pass through to the row backdrop.
+  // Display-only: taps pass through to the row backdrop. It shrinks, so a
+  // long line (a tempo written out) wraps inside the column instead of
+  // running past the card; the icon stays with the first line.
   return (
-    <View pointerEvents="none" className="flex-row items-center gap-1">
-      <Ionicons name={icon} size={11} color={colors.contentMuted} />
-      <Text className="text-[11px] text-content-tertiary">{children}</Text>
+    <View pointerEvents="none" className="min-w-0 shrink flex-row items-start gap-1">
+      <Ionicons name={icon} size={11} color={colors.contentMuted} style={{ marginTop: 2 }} />
+      <Text className="shrink text-[11px] text-content-tertiary">{children}</Text>
     </View>
   );
 }

@@ -265,6 +265,18 @@
   }
 }
 
+/* No scrollbars on web, as on the phone: the ScrollView wrapper (src/tw)
+   hides its own, this catches everything else. Native ignores these rules,
+   as it does preflight's browser-only ones. */
+@layer base {
+  * {
+    scrollbar-width: none;
+  }
+  *::-webkit-scrollbar {
+    display: none;
+  }
+}
+
 /* ---- App typography ----
    RN doesn't inherit font-family, so the src/tw Text/TextInput wrappers
    inject `font-app` as every element's default face. It lives in the base
