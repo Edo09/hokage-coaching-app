@@ -58,7 +58,7 @@ begin
 
   -- Three live plans, assigned an hour ago: their «nuevo» push is old news.
   insert into public.programs (id, user_id, assigned_by, name, duration_weeks, start_date, status)
-  values (v_prog, v_client, v_coach, 'smoke: programa', 4, v_today - 7, 'active');
+  values (v_prog, v_client, v_coach, 'smoke: programa', 4, v_today, 'active');
   insert into public.nutrition_plans (id, user_id, assigned_by, name, status)
   values (v_nut, v_client, v_coach, 'smoke: nutrición', 'active');
   insert into public.supplement_plans (id, user_id, assigned_by, name, status)
@@ -135,10 +135,13 @@ begin
 
   -- ---- part 2: «Tu bloque termina el …» ---------------------------------------
 
+  -- From here on as the server: the blocks below started weeks ago, and a
+  -- coach may not start a program in the past (guard_program_start_date).
+  perform set_config('request.jwt.claims', v_as_server, true);
+
   -- 6. A 4-week block whose last day is 3 days away: announced, to the phone.
   insert into public.programs (id, user_id, assigned_by, name, duration_weeks, start_date, status)
   values (v_block, v_client, v_coach, 'smoke: bloque', 4, v_today + 3 - 27, 'active');
-  perform set_config('request.jwt.claims', v_as_server, true);
   v_n := public.send_block_ending_pushes();
   assert v_n >= 1, '6: the daily pass announces a block';
   assert exists (select 1 from public.program_ending_pushes
