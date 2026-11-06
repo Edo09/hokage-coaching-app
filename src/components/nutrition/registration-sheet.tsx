@@ -1,8 +1,8 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Alert, Modal, Platform, useWindowDimensions } from "react-native";
+import { Alert, Modal, Platform, type ScrollView as RNScrollView, useWindowDimensions } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { CapsLabel, PosterText, SkewButton } from "@/src/components/ui";
@@ -179,23 +179,22 @@ function SheetBody({
     onSave({ meal, displayName: name, choice, photo });
   };
 
-  const confirmUndo = () => {
-    if (registration == null) return;
-    const title = t("mealReg.undoTitle");
-    const body = t("mealReg.undoBody", { meal: name });
-    // Alert.alert is a no-op on web.
-    if (Platform.OS === "web") {
-      if (typeof globalThis.confirm === "function" && globalThis.confirm(`${title}\n\n${body}`)) onUndo(registration);
-      return;
-    }
-    Alert.alert(title, body, [
-      { text: t("common.cancel"), style: "cancel" },
-      { text: t("mealReg.undoConfirm"), style: "destructive", onPress: () => onUndo(registration) },
-    ]);
+  // «Deshacer registro» asks in the sheet itself, where the link was: a
+  // browser confirm() doesn't show in every web view (the tap did nothing),
+  // and this reads the same on the phone. The sheet scrolls to show it.
+  const scrollRef = useRef<RNScrollView>(null);
+  const [askingUndo, setAskingUndo] = useState(false);
+  const askUndo = () => {
+    setAskingUndo(true);
+    requestAnimationFrame(() => scrollRef.current?.scrollToEnd({ animated: true }));
   };
 
   return (
-    <ScrollView keyboardShouldPersistTaps="handled" contentContainerClassName="gap-2 px-4 pt-3.5">
+    <ScrollView
+      ref={scrollRef}
+      keyboardShouldPersistTaps="handled"
+      contentContainerClassName="gap-2 px-4 pt-3.5"
+    >
       <View className="flex-row items-baseline justify-between gap-3">
         <PosterText size={26} numberOfLines={1} className="flex-shrink">
           {name}
@@ -316,13 +315,42 @@ function SheetBody({
           {t("common.save")}
         </SkewButton>
       </View>
-      {registration != null && (
-        <Pressable onPress={confirmUndo} accessibilityRole="button" className="items-center py-2.5">
-          <CapsLabel size={9.5} em={0.1} className="font-extrabold text-content-tertiary">
-            {t("mealReg.undoEntry")}
-          </CapsLabel>
-        </Pressable>
-      )}
+      {registration != null &&
+        (askingUndo ? (
+          <View
+            accessibilityLiveRegion="polite"
+            className="mt-1 gap-2.5 rounded-2xl border border-border bg-brand-dark p-3.5"
+          >
+            <View className="gap-0.5">
+              <Text className="text-[15px] font-bold text-content-primary">{t("mealReg.undoTitle")}</Text>
+              <Text className="text-[13px] text-content-secondary">{t("mealReg.undoBody", { meal: name })}</Text>
+            </View>
+            <View className="flex-row gap-2.5">
+              <Pressable
+                onPress={() => setAskingUndo(false)}
+                accessibilityRole="button"
+                className="flex-1 items-center justify-center rounded-xl border border-border bg-surface py-3"
+              >
+                <Text className="text-[14px] font-semibold text-content-primary">{t("common.cancel")}</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => onUndo(registration)}
+                accessibilityRole="button"
+                className="flex-1 flex-row items-center justify-center gap-1.5 rounded-xl border py-3"
+                style={{ borderColor: colors.brandPrimary }}
+              >
+                <Ionicons name="arrow-undo" size={16} color={colors.brandPrimary} />
+                <Text className="text-[14px] font-bold text-brand-primary">{t("mealReg.undoConfirm")}</Text>
+              </Pressable>
+            </View>
+          </View>
+        ) : (
+          <Pressable onPress={askUndo} accessibilityRole="button" className="items-center py-2.5">
+            <CapsLabel size={9.5} em={0.1} className="font-extrabold text-content-tertiary">
+              {t("mealReg.undoEntry")}
+            </CapsLabel>
+          </Pressable>
+        ))}
     </ScrollView>
   );
 }
