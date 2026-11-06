@@ -12,7 +12,7 @@
 --
 --   sets: classic (the app's first sounds) | bells | ring | arcade
 --
--- The coach changes it in the panel (Configuración → Sonidos de la app);
+-- The coach changes it in the panel (Ajustes → Sonidos de la app);
 -- signed-in clients read it, and the app keeps it for use offline. A set an
 -- app build doesn't have plays its classic sound. A new set takes new files
 -- in a new app build, the panel's list, and the check below.

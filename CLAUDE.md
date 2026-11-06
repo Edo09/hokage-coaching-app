@@ -55,7 +55,7 @@ What this means when working here:
   `supabase/migrations/20261024130000_coach_notifications.sql`.
 - Workout sounds: the coach picks one sound set per moment (rest start,
   10 s left, rest over, new record, day complete) in the panel's
-  Configuración («Sonidos de la app»); the choice is the one row of
+  Ajustes («Sonidos de la app»); the choice is the one row of
   `app_sound_settings`, which the app reads on open and keeps offline. The
   sets are built into the app (`assets/sounds`, `src/utils/sound-sets.ts`)
   and copied in the panel's `public/sounds`: a new set takes a new build.

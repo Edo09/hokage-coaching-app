@@ -136,7 +136,7 @@ The app's own alerts, for comparison. Sounds and the rest's vibrations follow
 the client's choice in Ajustes (sonido y vibración, solo vibración, solo
 sonido); the haptics that belong to a screen (a record's and a finished
 day's success haptic, the superset taps) always play. Which sound plays at
-each moment is the coach's pick in the panel (Configuración → «Sonidos de la
+each moment is the coach's pick in the panel (Ajustes → «Sonidos de la
 app», `app_sound_settings`); «Rest over» is also the notification's sound,
 on an Android channel per sound set (`src/utils/sound-sets.ts`).
 

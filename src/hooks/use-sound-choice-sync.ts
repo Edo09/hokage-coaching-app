@@ -7,7 +7,7 @@ import { qk } from "@/src/lib/query-keys";
 import { setSoundRow } from "@/src/lib/sound-choice";
 import { supabase } from "@/src/utils/supabase";
 
-// The coach's «Sonidos de la app» (the panel's Configuración, one row in
+// The coach's «Sonidos de la app» (the panel's Ajustes, one row in
 // public.app_sound_settings): read when the app opens and whenever it comes
 // back to the front, and kept on the device (src/lib/sound-choice.ts). A
 // failed read keeps the last one. Mounted once, in the tabs layout.
