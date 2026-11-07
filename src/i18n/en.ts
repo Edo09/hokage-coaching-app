@@ -35,7 +35,14 @@ export default {
   // Auth
   auth: {
     signIn: "Sign In",
+    signUp: "Create Account",
     signOut: "Sign Out",
+    createAccount: "Create your account",
+    haveAccount: "Already have an account?",
+    namePlaceholder: "Your name",
+    confirmEmailTitle: "Check your email",
+    confirmEmailBody: "We sent a confirmation link to {{email}}. Verify your address, then sign in.",
+    signUpDisabled: "Account registration is unavailable right now. Please ask your coach for help.",
     email: "Email",
     password: "Password",
     emailPlaceholder: "you@example.com",

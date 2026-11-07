@@ -35,7 +35,14 @@ export default {
   // Auth
   auth: {
     signIn: "Iniciar Sesión",
+    signUp: "Crear cuenta",
     signOut: "Cerrar Sesión",
+    createAccount: "Crea tu cuenta",
+    haveAccount: "¿Ya tienes una cuenta?",
+    namePlaceholder: "Tu nombre",
+    confirmEmailTitle: "Revisa tu correo",
+    confirmEmailBody: "Enviamos un enlace de confirmación a {{email}}. Verifica tu dirección y luego inicia sesión.",
+    signUpDisabled: "La creación de cuentas no está disponible ahora. Pídele ayuda a tu coach.",
     email: "Correo electrónico",
     password: "Contraseña",
     emailPlaceholder: "tu@ejemplo.com",

@@ -23,7 +23,9 @@ cp .env.example .env   # fill in the values
 npm start              # Metro for the dev client (npm run android / ios to build one)
 ```
 
-There is no sign-up: sign in with an account created by the coach in the panel.
+Clients can create an account from the sign-in screen or use an account created
+by the coach in the panel. The hosted Supabase Auth sign-up setting must be
+enabled before new registrations will succeed.
 iPhone testing without a paid Apple account: `docs/IOS-LOCAL-TESTING.md`.
 
 ## Backend
@@ -49,7 +51,9 @@ iPhone testing without a paid Apple account: `docs/IOS-LOCAL-TESTING.md`.
   Apply migrations `20260926140000_ai_request_quota.sql` and
   `20260928120000_ai_quota_refund.sql`, then deploy it as in
   `docs/ADMIN_WEB_DB_CONNECTION.md` §6.4.
-- **Auth:** "Allow new users to sign up" stays **off**.
+- **Auth:** “Allow new users to sign up” is currently off. Turn it on in
+  Supabase Auth settings to allow registrations; email confirmation follows
+  the project setting.
 
 ## Builds & stores
 

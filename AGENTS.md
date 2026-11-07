@@ -15,13 +15,13 @@ they are separate products:
 |----------------|--------------------------------------------|--------------------------------------|
 | Owner / brand  | The buying coach's brand (white-label)     | Zyron brand only                     |
 | Coaches        | One coach per deployment                   | Many coaches                         |
-| Accounts       | Created by the coach (`create-client`)     | Users sign up themselves             |
+| Accounts       | Created by the coach or client sign-up     | Users sign up themselves             |
 | Supabase       | Own project `rzgwkwxskrovxnnymxqo`         | Own, separate project                |
 
 What this means when working here:
 
 - Do not add Zyron branding, Zyron-only features (routine templates for many
-  coaches, self-serve sign-up, `profiles.app` scoping) or multi-coach logic.
+  coaches, `profiles.app` scoping) or multi-coach logic.
 - Branding (name, icon, splash, colors, store identifiers, copy) belongs to the
   coach: keep it easy to change in one place rather than hard-coded.
 - Leftover names from earlier projects ("habbito", "zenfit") are not the brand.
@@ -34,11 +34,14 @@ What this means when working here:
   (`is_coach()`). See `docs/ADMIN_WEB_DB_CONNECTION.md`.
 - App env: `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_KEY` (EAS). Panel env:
   `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`.
-- Auth sign-ups are OFF; client accounts are created only by the
-  `create-client` Edge Function, and forgotten passwords are reset only by
-  `reset-client-password` (both hand out `Hkg-` temp passwords; no email is
-  sent). Both only answer browser origins listed in the `ALLOWED_ORIGINS`
-  function secret.
+- The app has email/password self-registration, but the hosted Supabase Auth
+  setting “Allow new users to sign up” is currently off; enable it before
+  registration can succeed. New profiles default to `role = 'user'` and
+  `account_type = 'coached'`; the coach may also create clients through the
+  `create-client` Edge Function. Forgotten passwords are reset by
+  `reset-client-password` (it hands out an `Hkg-` temporary password; no email
+  is sent). Both functions only answer browser origins listed in the
+  `ALLOWED_ORIGINS` function secret.
 - Push notifications: database triggers on `programs`, `nutrition_plans` and
   `supplement_plans` send «Tienes un nuevo programa / plan de nutrición /
   plan de suplementos» when one is assigned, and «Tu coach actualizó tu …»

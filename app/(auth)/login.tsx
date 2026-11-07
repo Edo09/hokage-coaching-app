@@ -135,12 +135,18 @@ export default function Login() {
           {t("auth.signIn")}
         </Button>
 
-        {/* No self-signup or self-service recovery: the coach creates every
-            account from the admin panel and resets forgotten passwords there
-            (reset-client-password Edge Function). */}
         <Text className="text-content-tertiary text-sm text-center mt-2">
           {t("auth.forgotPasswordHint")}
         </Text>
+        <Pressable
+          onPress={() => router.push("/(auth)/register")}
+          accessibilityRole="button"
+          className="border border-border rounded-2xl py-4 items-center active:opacity-70"
+        >
+          <Text className="text-content-primary font-bold text-base">
+            {t("auth.signUp")}
+          </Text>
+        </Pressable>
       </View>
     </Screen>
   );
