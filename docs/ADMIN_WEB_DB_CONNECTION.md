@@ -300,6 +300,8 @@ supabase secrets set ALLOWED_ORIGINS=https://<panel-domain> --project-ref rzgwkw
 
 `SUPABASE_URL`, `SUPABASE_ANON_KEY` and `SUPABASE_SERVICE_ROLE_KEY` are provided to functions automatically (the CLI refuses to set `SUPABASE_*` secrets). Until `ALLOWED_ORIGINS` is set, every browser call is refused with `origin not allowed`.
 
+`reset-client-password` reads the target's `profiles.role` with the service role, which `profiles` was never granted: apply `supabase/migrations/20261107120000_profiles_service_role_read.sql`, or every reset fails with `permission denied for table profiles`.
+
 ### 6.2 Calling them from the SPA
 
 ```ts
