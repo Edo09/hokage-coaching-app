@@ -39,6 +39,8 @@ export default {
     signOut: "Sign Out",
     createAccount: "Create your account",
     haveAccount: "Already have an account?",
+    noAccount: "Don't have an account yet?",
+    signUpLink: "Sign up",
     namePlaceholder: "Your name",
     confirmEmailTitle: "Check your email",
     confirmEmailBody: "We sent a confirmation link to {{email}}. Verify your address, then sign in.",

@@ -135,18 +135,27 @@ export default function Login() {
           {t("auth.signIn")}
         </Button>
 
-        <Text className="text-content-tertiary text-sm text-center mt-2">
-          {t("auth.forgotPasswordHint")}
-        </Text>
-        <Pressable
-          onPress={() => router.push("/(auth)/register")}
-          accessibilityRole="button"
-          className="border border-border rounded-2xl py-4 items-center active:opacity-70"
-        >
-          <Text className="text-content-primary font-bold text-base">
-            {t("auth.signUp")}
+        <View className="items-center mt-2">
+          <Text className="text-content-tertiary text-sm text-center">
+            {t("auth.forgotPasswordHint")}
           </Text>
-        </Pressable>
+          <Pressable
+            onPress={() => router.push("/(auth)/register")}
+            accessibilityRole="link"
+            hitSlop={8}
+            className="py-2 active:opacity-70"
+          >
+            <Text className="text-content-secondary text-sm text-center">
+              {t("auth.noAccount")}{" "}
+              <Text
+                className="text-brand-primary font-bold"
+                style={{ textDecorationLine: "underline" }}
+              >
+                {t("auth.signUpLink")}
+              </Text>
+            </Text>
+          </Pressable>
+        </View>
       </View>
     </Screen>
   );

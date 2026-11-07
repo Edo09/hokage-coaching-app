@@ -150,7 +150,13 @@ export default function Register() {
             className="items-center py-3 active:opacity-70"
           >
             <Text className="text-content-secondary text-sm">
-              {t("auth.haveAccount")} <Text className="text-brand-primary font-bold">{t("auth.signIn")}</Text>
+              {t("auth.haveAccount")}{" "}
+              <Text
+                className="text-brand-primary font-bold"
+                style={{ textDecorationLine: "underline" }}
+              >
+                {t("auth.signIn")}
+              </Text>
             </Text>
           </Pressable>
         </View>

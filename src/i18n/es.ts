@@ -39,6 +39,8 @@ export default {
     signOut: "Cerrar Sesión",
     createAccount: "Crea tu cuenta",
     haveAccount: "¿Ya tienes una cuenta?",
+    noAccount: "¿Aún no tienes una cuenta?",
+    signUpLink: "Regístrate",
     namePlaceholder: "Tu nombre",
     confirmEmailTitle: "Revisa tu correo",
     confirmEmailBody: "Enviamos un enlace de confirmación a {{email}}. Verifica tu dirección y luego inicia sesión.",
