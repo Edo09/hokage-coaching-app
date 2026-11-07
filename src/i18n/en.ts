@@ -45,6 +45,7 @@ export default {
     confirmEmailTitle: "Check your email",
     confirmEmailBody: "We sent a confirmation link to {{email}}. Verify your address, then sign in.",
     signUpDisabled: "Account registration is unavailable right now. Please ask your coach for help.",
+    emailTaken: "That email already has an account. Sign in, or ask your coach for a new password if you forgot it.",
     email: "Email",
     password: "Password",
     emailPlaceholder: "you@example.com",

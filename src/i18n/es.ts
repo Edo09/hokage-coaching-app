@@ -45,6 +45,7 @@ export default {
     confirmEmailTitle: "Revisa tu correo",
     confirmEmailBody: "Enviamos un enlace de confirmación a {{email}}. Verifica tu dirección y luego inicia sesión.",
     signUpDisabled: "La creación de cuentas no está disponible ahora. Pídele ayuda a tu coach.",
+    emailTaken: "Ese correo ya tiene una cuenta. Inicia sesión, o pídele una contraseña nueva a tu coach si la olvidaste.",
     email: "Correo electrónico",
     password: "Contraseña",
     emailPlaceholder: "tu@ejemplo.com",

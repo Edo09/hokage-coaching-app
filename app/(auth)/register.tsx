@@ -8,6 +8,7 @@ import { Button, Input, Screen } from "@/src/components/ui";
 import { useAuth } from "@/src/hooks/use-auth";
 import { useColors } from "@/src/theme/colors";
 import { Pressable, Text, View } from "@/src/tw";
+import { signUpErrorKey } from "@/src/utils/auth-errors";
 
 export default function Register() {
   const { t } = useTranslation();
@@ -47,10 +48,7 @@ export default function Register() {
       }
       router.replace("/(tabs)");
     } catch (error) {
-      const message = error instanceof Error ? error.message : "";
-      setFormError(/sign.?ups? (are )?not allowed|sign.?up.*disabled/i.test(message)
-        ? t("auth.signUpDisabled")
-        : t("common.somethingWentWrong"));
+      setFormError(t(signUpErrorKey(error)));
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => {});
     } finally {
       setLoading(false);
