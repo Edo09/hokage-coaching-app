@@ -34,10 +34,12 @@ What this means when working here:
   (`is_coach()`). See `docs/ADMIN_WEB_DB_CONNECTION.md`.
 - App env: `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_KEY` (EAS). Panel env:
   `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`.
-- The app has email/password self-registration, but the hosted Supabase Auth
-  setting “Allow new users to sign up” is currently off; enable it before
-  registration can succeed. New profiles default to `role = 'user'` and
-  `account_type = 'coached'`; the coach may also create clients through the
+- Clients can register themselves in the app (email/password). On 2026-11-07
+  the hosted Supabase Auth setting “Allow new users to sign up” was switched
+  on, and “Confirm email” is off, so a new account signs in at once, unverified.
+  `handle_new_user` creates its profile (name from the form) with
+  `role = 'user'` and `account_type = 'coached'`, so the new client shows up in
+  the panel's client list. The coach may also create clients through the
   `create-client` Edge Function. Forgotten passwords are reset by
   `reset-client-password` (it hands out an `Hkg-` temporary password; no email
   is sent). Both functions only answer browser origins listed in the
