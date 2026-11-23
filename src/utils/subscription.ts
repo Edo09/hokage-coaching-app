@@ -128,11 +128,53 @@ export function effectiveAccess(
   return OPEN_ACCESS;
 }
 
-/** Access right now: the server says yes and, by the local clock, it has not ended. */
+/** How long past its period end a renewing subscription still counts on the
+    local clock when the app has not heard of the renewal (a late webhook, a
+    phone with no signal). The database gives content the same 72 h
+    (premium_content_access), so a renewal that is a little late does not take
+    the program away. */
+export const RENEWAL_GRACE_MS = 72 * 3_600_000;
+
+/** After a renewing subscription's period end, how long the store's
+    notification and RevenueCat's webhook are given to reach the server before
+    the app looks for the renewal itself. */
+export const RENEWAL_SETTLE_MS = 5 * 60_000;
+
+/** What decides whether a subscription is expected to renew. */
+export type RenewalView = {
+  source?: MyAccess["source"];
+  subscription?: Pick<MyAccessSubscription, "status" | "will_renew"> | null;
+};
+
+/**
+ * Access comes from a store subscription that is active and set to renew: its
+ * period end is a date the store is expected to move, not a point where access
+ * stops. A cancelled subscription, a billing problem, a membership and a
+ * coach-set end are hard ends.
+ */
+export function isRenewing(access: RenewalView): boolean {
+  const subscription = access.subscription;
+  return (
+    access.source === "subscription" &&
+    subscription != null &&
+    subscription.status === "active" &&
+    subscription.will_renew
+  );
+}
+
+/**
+ * Access right now: the server says yes and, by the local clock, it has not
+ * ended. A renewing subscription's period end is not an end: the answer in hand
+ * is stale until the renewal reaches the app, so it counts for RENEWAL_GRACE_MS
+ * more. A fresh answer that says no always wins (`has_access` false).
+ */
 export function hasAccessNow(access: MyAccess, now: Date): boolean {
   if (!access.has_access) return false;
   const ends = timeOf(access.access_ends_at);
-  return ends == null || ends > now.getTime();
+  if (ends == null) return true;
+  const t = now.getTime();
+  if (ends > t) return true;
+  return isRenewing(access) && t < ends + RENEWAL_GRACE_MS;
 }
 
 export function accessState(access: MyAccess | null, now: Date): AccessState {
@@ -156,17 +198,45 @@ export function isSubscribed(access: MyAccess | null, now: Date): boolean {
 }
 
 /**
- * How long to wait before the screen must be read again because access ended,
- * or null when nothing is waiting to end. Just after the end, and never more
- * than setTimeout can hold: the caller re-arms when it fires.
+ * How long to wait before the screen must be worked out again because access
+ * ends, or null when nothing is waiting. For access that does not renew that is
+ * its end; for a renewing subscription it is first the moment the store's
+ * notification has had RENEWAL_SETTLE_MS to arrive (when the app looks for the
+ * renewal, see needsRenewalSync) and then the end of RENEWAL_GRACE_MS. Just
+ * after the boundary, and never more than setTimeout can hold: the caller
+ * re-arms when it fires.
  */
 export function msUntilAccessEnds(access: MyAccess | null, now: Date): number | null {
   if (access == null || !access.enforced || !access.has_access) return null;
   const ends = timeOf(access.access_ends_at);
   if (ends == null) return null;
-  const left = ends - now.getTime();
-  if (left <= 0) return null;
-  return Math.min(left + 1, MAX_TIMEOUT_MS);
+  const t = now.getTime();
+  const boundaries = isRenewing(access)
+    ? [ends + RENEWAL_SETTLE_MS, ends + RENEWAL_GRACE_MS]
+    : [ends];
+  const next = boundaries.find((boundary) => boundary > t);
+  if (next == null) return null;
+  return Math.min(next - t + 1, MAX_TIMEOUT_MS);
+}
+
+/**
+ * A subscription the store should have renewed, and the answer in hand still
+ * holds the old period: the renewal has not reached the app, or the server
+ * never heard of it (a lost webhook). The cue to read the answer again and, if
+ * it is still the old one, to ask sync-subscription to re-read the store.
+ * True once the store's notification has had RENEWAL_SETTLE_MS; false while
+ * the switch is off, and for anything the store will not renew. It does not
+ * look at `has_access`: a paying client the server has already locked out,
+ * because its row never moved, is the one that needs the repair most.
+ */
+export function needsRenewalSync(access: MyAccess | null, now: Date): boolean {
+  if (access == null || !access.enforced) return false;
+  const subscription = access.subscription;
+  if (subscription == null || subscription.status !== "active" || !subscription.will_renew) {
+    return false;
+  }
+  const until = timeOf(subscription.access_until);
+  return until != null && until + RENEWAL_SETTLE_MS <= now.getTime();
 }
 
 /** The three things the coach assigns. Supplements follow the nutrition gate. */

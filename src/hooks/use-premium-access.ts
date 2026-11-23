@@ -41,6 +41,9 @@ export type PremiumAccess = {
   /** A store subscription grants access right now. */
   subscribed: boolean;
   loading: boolean;
+  /** When the answer in use was last read (ms; 0 before the first read). It
+      moves on every read, even one that brought nothing new. */
+  updatedAt: number;
   refresh: () => Promise<unknown>;
 };
 
@@ -65,6 +68,7 @@ export function usePremiumAccess(): PremiumAccess {
     locked: state === "lapsed",
     subscribed: isSubscribed(access, now),
     loading: state === "loading",
+    updatedAt: query.dataUpdatedAt,
     refresh: query.refetch,
   };
 }

@@ -18,13 +18,17 @@ import {
   effectiveAccess,
   gateCopy,
   hasAccessNow,
+  isRenewing,
   isSubscribed,
   MAX_TIMEOUT_MS,
   msUntilAccessEnds,
+  needsRenewalSync,
   nutritionPane,
   OPEN_ACCESS,
   parseMyAccess,
   pendingRequest,
+  RENEWAL_GRACE_MS,
+  RENEWAL_SETTLE_MS,
   requestKindOf,
   subscriptionCard,
   type AccessState,
@@ -191,15 +195,29 @@ describe("accessState and hasAccessNow", () => {
     );
   });
 
-  it("is active while the subscription runs and lapsed at its end", () => {
+  it("is active while access runs and lapsed at its end, for anything that does not renew", () => {
+    const ending = (ends: string) =>
+      access({ access_ends_at: ends, subscription: sub({ status: "cancelled", will_renew: false }) });
     assert.equal(stateOf(access({ access_ends_at: at(H) })), "active");
-    assert.equal(stateOf(access({ access_ends_at: at(0) })), "lapsed");
-    assert.equal(hasAccessNow(access({ access_ends_at: at(1) }), NOW), true);
-    assert.equal(hasAccessNow(access({ access_ends_at: at(0) }), NOW), false);
+    assert.equal(stateOf(ending(at(0))), "lapsed");
+    assert.equal(hasAccessNow(ending(at(1)), NOW), true);
+    assert.equal(hasAccessNow(ending(at(0)), NOW), false);
   });
 
-  it("flips to lapsed by the local clock when a stale answer still says yes", () => {
-    assert.equal(stateOf(access({ has_access: true, access_ends_at: at(-1) })), "lapsed");
+  it("flips to lapsed by the local clock when a stale answer still says yes, for anything that does not renew", () => {
+    const stale = at(-1);
+    const lapsing: MyAccess[] = [
+      access({ access_ends_at: stale, subscription: sub({ status: "cancelled", will_renew: false }) }),
+      access({ access_ends_at: stale, subscription: sub({ status: "billing_issue", will_renew: false }) }),
+      access({ access_ends_at: stale, subscription: sub({ status: "active", will_renew: false }) }),
+      access({
+        access_ends_at: stale,
+        source: "membership",
+        subscription: null,
+        membership: { status: "active", expires_at: stale },
+      }),
+    ];
+    for (const a of lapsing) assert.equal(stateOf(a), "lapsed");
   });
 
   it("is lapsed without has_access, whatever the end date says", () => {
@@ -258,18 +276,174 @@ describe("msUntilAccessEnds", () => {
     assert.equal(msUntilAccessEnds(access({ enforced: false }), NOW), null);
   });
 
+  // Anything that does not renew (a cancelled subscription, a billing problem,
+  // a membership): the end is the end.
+  const cancelled = (endsIn: number) =>
+    access({ access_ends_at: at(endsIn), subscription: sub({ status: "cancelled", will_renew: false }) });
+
   it("has nothing to wait for once the end has passed", () => {
-    assert.equal(msUntilAccessEnds(access({ access_ends_at: at(0) }), NOW), null);
-    assert.equal(msUntilAccessEnds(access({ access_ends_at: at(-DAY) }), NOW), null);
+    assert.equal(msUntilAccessEnds(cancelled(0), NOW), null);
+    assert.equal(msUntilAccessEnds(cancelled(-DAY), NOW), null);
   });
 
   it("waits until just after the end", () => {
-    assert.equal(msUntilAccessEnds(access({ access_ends_at: at(H) }), NOW), H + 1);
+    assert.equal(msUntilAccessEnds(cancelled(H), NOW), H + 1);
   });
 
   it("never exceeds what setTimeout can hold (a longer delay fires at once)", () => {
     assert.equal(MAX_TIMEOUT_MS, 2_147_483_647);
-    assert.equal(msUntilAccessEnds(access({ access_ends_at: at(90 * DAY) }), NOW), MAX_TIMEOUT_MS);
+    assert.equal(msUntilAccessEnds(cancelled(90 * DAY), NOW), MAX_TIMEOUT_MS);
+    assert.equal(msUntilAccessEnds(renewing(90 * DAY), NOW), MAX_TIMEOUT_MS);
+  });
+
+  it("for a renewing subscription waits for the renewal to arrive, then for the grace to run out", () => {
+    // Before the period end: until the store's notification has had time to land.
+    assert.equal(msUntilAccessEnds(renewing(H), NOW), H + RENEWAL_SETTLE_MS + 1);
+    // A minute past it: the rest of that settling time.
+    assert.equal(msUntilAccessEnds(renewing(-60_000), NOW), RENEWAL_SETTLE_MS - 60_000 + 1);
+    // Settled and still unrenewed: the next change is the grace ending.
+    assert.equal(msUntilAccessEnds(renewing(-H), NOW), RENEWAL_GRACE_MS - H + 1);
+    // Right at the settle moment the settling is over (the boundary passed).
+    assert.equal(msUntilAccessEnds(renewing(-RENEWAL_SETTLE_MS), NOW), RENEWAL_GRACE_MS - RENEWAL_SETTLE_MS + 1);
+  });
+
+  it("for a renewing subscription has nothing left once the grace has run out", () => {
+    assert.equal(msUntilAccessEnds(renewing(-RENEWAL_GRACE_MS), NOW), null);
+    assert.equal(msUntilAccessEnds(renewing(-4 * DAY), NOW), null);
+  });
+});
+
+/** A client paying through the store whose subscription renews: its period ends `endsIn` ms from NOW. */
+function renewing(endsIn: number): MyAccess {
+  return access({ access_ends_at: at(endsIn), subscription: sub({ access_until: at(endsIn) }) });
+}
+
+describe("isRenewing", () => {
+  it("is an active store subscription set to renew", () => {
+    assert.equal(isRenewing(access()), true);
+    assert.equal(isRenewing(access({ subscription: sub({ status: "active", will_renew: true }) })), true);
+  });
+
+  it("is not a cancelled, failing, ended or non-renewing subscription", () => {
+    for (const s of [
+      sub({ status: "cancelled", will_renew: false }),
+      sub({ status: "billing_issue", will_renew: false }),
+      sub({ status: "expired", will_renew: false }),
+      sub({ status: "active", will_renew: false }),
+      // The store keeps retrying a failed charge, so the row may still say it
+      // will renew; the status decides, and none of these is an active renewal.
+      sub({ status: "billing_issue", will_renew: true }),
+      sub({ status: "cancelled", will_renew: true }),
+      sub({ status: "expired", will_renew: true }),
+    ]) {
+      assert.equal(isRenewing(access({ subscription: s })), false, `${s.status} will_renew=${s.will_renew}`);
+    }
+  });
+
+  it("is not access that comes from anywhere else, nor no subscription at all", () => {
+    for (const source of ["coach", "membership", "open", null] as const) {
+      assert.equal(isRenewing(access({ source })), false, String(source));
+    }
+    assert.equal(isRenewing(access({ subscription: null })), false);
+    assert.equal(isRenewing(NONE), false);
+  });
+});
+
+describe("a renewing subscription's period end", () => {
+  it("is RENEWAL_GRACE_MS (72 h, like the database's content grace) and RENEWAL_SETTLE_MS (5 min)", () => {
+    assert.equal(RENEWAL_GRACE_MS, 72 * H);
+    assert.equal(RENEWAL_SETTLE_MS, 5 * 60_000);
+  });
+
+  it("is not a hard end: the app has not heard of the renewal yet, so access goes on for 72 h", () => {
+    assert.equal(stateOf(renewing(H)), "active");
+    for (const ago of [0, 1, H, 71 * H]) {
+      const a = renewing(-ago);
+      assert.equal(stateOf(a), "active", `${ago} ms past the period end`);
+      assert.equal(hasAccessNow(a, NOW), true, `${ago} ms past the period end`);
+    }
+  });
+
+  it("lapses once the 72 h have run out", () => {
+    for (const ago of [RENEWAL_GRACE_MS, RENEWAL_GRACE_MS + 1, 73 * H, 10 * DAY]) {
+      assert.equal(stateOf(renewing(-ago)), "lapsed", `${ago} ms past the period end`);
+      assert.equal(hasAccessNow(renewing(-ago), NOW), false, `${ago} ms past the period end`);
+    }
+  });
+
+  it("never outlives the server saying no: a fresh answer without access is lapsed, renewing row or not", () => {
+    const no = (over: Partial<MyAccess>) =>
+      access({ has_access: false, source: null, subscription: sub({ access_until: at(-H) }), ...over });
+    assert.equal(stateOf(no({ access_ends_at: null })), "lapsed");
+    assert.equal(stateOf(no({ access_ends_at: at(H) })), "lapsed");
+    assert.equal(hasAccessNow(no({ access_ends_at: at(-H) }), NOW), false);
+  });
+
+  it("is a hard end for the other states, which the store will not extend", () => {
+    const hard = (subscription: MyAccessSubscription) =>
+      access({ access_ends_at: at(-H), subscription });
+    assert.equal(stateOf(hard(sub({ status: "cancelled", will_renew: false }))), "lapsed");
+    assert.equal(stateOf(hard(sub({ status: "billing_issue", will_renew: false }))), "lapsed");
+    // A failing charge the store is still retrying: its grace is the end.
+    assert.equal(stateOf(hard(sub({ status: "billing_issue", will_renew: true }))), "lapsed");
+  });
+
+  it("still tells a renewing subscriber's access from a billing problem or a cancellation", () => {
+    assert.equal(stateOf(renewing(-H)), "active");
+    assert.equal(stateOf(access({ subscription: sub({ status: "billing_issue", will_renew: false }) })), "grace");
+  });
+});
+
+describe("needsRenewalSync", () => {
+  const unrenewed = (endedAgo: number, over: Partial<MyAccessSubscription> = {}): MyAccess =>
+    access({ subscription: sub({ access_until: at(-endedAgo), ...over }) });
+
+  it("is false without an answer and while the switch is off: nothing is asked while dark", () => {
+    assert.equal(needsRenewalSync(null, NOW), false);
+    assert.equal(needsRenewalSync({ ...unrenewed(DAY), enforced: false }, NOW), false);
+    assert.equal(needsRenewalSync(OPEN_ACCESS, NOW), false);
+  });
+
+  it("is true once a renewing subscription's period ended RENEWAL_SETTLE_MS ago and the answer still holds that end", () => {
+    assert.equal(needsRenewalSync(unrenewed(RENEWAL_SETTLE_MS), NOW), true);
+    assert.equal(needsRenewalSync(unrenewed(H), NOW), true);
+    assert.equal(needsRenewalSync(unrenewed(30 * DAY), NOW), true);
+  });
+
+  it("waits while the store's notification may still be on its way", () => {
+    assert.equal(needsRenewalSync(access(), NOW), false);
+    assert.equal(needsRenewalSync(unrenewed(-H), NOW), false);
+    assert.equal(needsRenewalSync(unrenewed(0), NOW), false);
+    assert.equal(needsRenewalSync(unrenewed(RENEWAL_SETTLE_MS - 1), NOW), false);
+  });
+
+  it("also holds after the grace and for an answer that says no: that paying client needs the repair most", () => {
+    const lost = access({
+      has_access: false,
+      source: null,
+      access_ends_at: null,
+      subscription: sub({ access_until: at(-4 * DAY) }),
+    });
+    assert.equal(needsRenewalSync(lost, NOW), true);
+  });
+
+  it("is false for what the store will not renew, and for no subscription", () => {
+    for (const over of [
+      { status: "cancelled", will_renew: false },
+      { status: "billing_issue", will_renew: false },
+      { status: "expired", will_renew: false },
+      { status: "active", will_renew: false },
+    ] as const) {
+      assert.equal(needsRenewalSync(unrenewed(DAY, over), NOW), false, `${over.status} ${over.will_renew}`);
+    }
+    assert.equal(needsRenewalSync(access({ subscription: null }), NOW), false);
+    assert.equal(needsRenewalSync(NONE, NOW), false);
+  });
+
+  it("is false when the period has no readable end", () => {
+    assert.equal(needsRenewalSync(access({ subscription: sub({ access_until: "infinity" }) }), NOW), false);
+    assert.equal(needsRenewalSync(access({ subscription: sub({ access_until: "" }) }), NOW), false);
+    assert.equal(needsRenewalSync(access({ subscription: sub({ access_until: "not a date" }) }), NOW), false);
   });
 });
 

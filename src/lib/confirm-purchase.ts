@@ -15,7 +15,7 @@ export const CONFIRM_TIMEOUT_MS = 60_000;
 
 export type ConfirmDeps = {
   /** Calls sync-subscription and stores its answer in the access query. May reject. */
-  sync(): Promise<void>;
+  sync(): Promise<unknown>;
   /** The access query now shows a subscription that grants access. */
   confirmed(): boolean;
   sleep(ms: number): Promise<void>;
