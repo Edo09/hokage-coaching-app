@@ -205,3 +205,39 @@ Stage 0. Must ship before Task 3's migration is applied, because a `content_requ
 - [ ] **Step 5: Commit** `docs(premium): subscriptions section of the DB guide`. Also commit the spec and this plan if not yet committed (`docs(premium): design and server plan`).
 - [ ] **Step 6: One fresh reviewer on the whole branch** (the most capable model, given the spec, this plan and `git diff <base>..HEAD`): look for correctness bugs, RLS holes, rules that differ from the spec, tests that cannot fail. Fix what is real, re-run Steps 2–4.
 - [ ] **Step 7: Stop and report to the owner.** What exists, what was verified and how (rolled-back rehearsals, unit tests), what was not (Deno type-check if unavailable, any live probe), and the go-needed list: push the panel commit, push the app commits (deploys both functions; they answer 503 until the secrets exist), apply the two migrations with `db query --yes -f`, set secrets, and, once applied, add the Premium bullet to `CLAUDE.md` and `AGENTS.md` in one commit (they must stay identical). Nothing from that list happens without the owner's go.
+
+
+---
+
+## Execution record (2026-11-23)
+
+Executed inline on `main` (the repo's rule: no branches or worktrees). App repo commits: `29467de` design and plan, `a6d88b7` Task 2, `c80ffbb` Task 3, `c330721` Task 4, `5cb0d91` Task 5, `51f788f` Task 6, `4251d1f` Task 7 docs, `4de6efb` the review's fixes. Panel repo: `50dc5f5` Task 1. **Nothing is pushed and nothing is applied to the live project.**
+
+Verified: `supabase/scripts/smoke_premium.sql` (sections 1-15) passes as a rolled-back rehearsal on the live schema, and the live project still has none of the new objects afterwards; `smoke_plan_pushes.sql` and `smoke_meal_registrations.sql` still pass with both migrations in place; `npm test` 508/508; `npm run lint` 0 errors; `deno check` passes for `revenuecat-webhook`, `sync-subscription` and `estimate-meal` (run on a copy of `supabase/functions` outside the repo, because Deno picks up the repo's `package.json` and expects `node_modules`). One independent whole-branch review found no Critical issue; its six Important findings were fixed test-first (see the last commit).
+
+### Rulings made during execution
+
+- Content reads share the 72-hour grace with writes (`premium_content_access`, renamed from `premium_write_access`): the stamp triggers read `program_exercises` as the client, so a write grace under an immediate read lock cannot work. Spec decision 6 amended. The app still shows the locked state the moment access ends.
+- The two coach jobs in migration 2 are generated from the repo's own definitions (equal to live) with exactly two edits each.
+- Two shared modules the plan did not list: `_shared/revenuecat-client.ts` and `_shared/subscription-deps.ts`. A 200 from RevenueCat without a `subscriber` is an error to retry, never "no access".
+- Review fixes: a revoked row's end of access never moves forward (the grace is counted once); every event type re-reads except `TEST` and three irrelevant ones; the sync cooldown is a per-user slot (`take_subscription_sync`); `access_ends_at` is computed in SQL; `content_requests` is granted to the service role.
+- The optional webhook signature is handled by documentation: enable it only after a real delivery passes with it.
+- Declined-to-judge, ruled to stand: sandbox purchases grant Premium on production (spec decision 12); legacy routines, meals and the exercise catalog stay readable to a locked client; a locked client cannot log, edit or delete meals after the grace; a membership set to paused/expired/cancelled gets no grace; assign and update pushes still reach locked clients; `revenuecat_events` has no retention; ordering by fetch start time may discard a slow answer; `sync-subscription` refuses browser origins outside `ALLOWED_ORIGINS`; `CLAUDE.md`/`AGENTS.md` get their Premium bullet when the migrations are applied; the panel commit must be live before migration 2.
+
+### Deferred minors
+
+- Google base plans: REST v1 may report the base plan separately (`product_plan_identifier`), so the three Google plans could share one `product_id`.
+- `refunded_at` counts even if RevenueCat keeps it after a re-purchase of the same product.
+- `will_renew` is true for promotional and open-ended grants.
+- A stale `expires_at` survives an open-ended grant (`access_until = infinity` beside a past date).
+- The webhook reads the body and builds an admin client before checking the method and secret.
+- `sync-subscription` answers 502 for a database failure too.
+- `request_content`'s race branch can return a null row (negligible).
+- Sequential re-reads at 20 s each can pass RevenueCat's 60 s on a transfer with several ids.
+- Untested wiring: the two `index.ts` files, `subscription-deps.ts`, the subscription-grace branch through the policies, and the coach jobs' equivalence by running them.
+- Section 6.7 does not say that sandbox purchases grant real access here, nor that a paused/expired/cancelled membership locks at once.
+- Every RevenueCat fixture is hand-written.
+
+### Before the switch is turned on
+
+Capture one real `GET /v1/subscribers` body per store from the sandbox (active, cancelled, refunded, promotional, transferred away) and add them as fixtures; check the Google base-plan and refund questions above against them; confirm a real signed delivery before enabling `REVENUECAT_WEBHOOK_SIGNING_SECRET`; give every client who should keep access a membership.
