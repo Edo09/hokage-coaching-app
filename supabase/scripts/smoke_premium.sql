@@ -57,6 +57,39 @@ begin
   return n;
 end $$;
 
+-- The message a statement raises under the current role, or null if it ran.
+create function pg_temp.message_of(p_sql text) returns text language plpgsql as $$
+begin
+  execute p_sql;
+  return null;
+exception when others then
+  return sqlerrm;
+end $$;
+
+-- How many rows a statement changed under the current role (RLS filters
+-- silently, so a blocked update or delete shows as 0).
+create function pg_temp.rows_affected(p_sql text) returns bigint language plpgsql as $$
+declare n bigint;
+begin
+  execute p_sql;
+  get diagnostics n = row_count;
+  return n;
+end $$;
+
+-- One insert into each of the five logging tables, keyed by n so they never collide.
+create function pg_temp.writes(p_user uuid, p_meal uuid, p_pe uuid, n int) returns text[] language sql as $$
+  select array[
+    format('insert into public.program_exercise_completions (user_id, program_exercise_id, week_number) values (%L, %L, %s)',
+           p_user, p_pe, n),
+    format('insert into public.workout_set_logs (user_id, program_exercise_id, week_number, set_index) values (%L, %L, %s, %s)',
+           p_user, p_pe, n, n),
+    format('insert into public.supplement_intake_logs (user_id, taken_on, supplement_name) values (%L, current_date - %s, %L)',
+           p_user, n, 'smoke: ' || n),
+    format('insert into public.meals (user_id, name, meal_type) values (%L, %L, %L)', p_user, 'smoke ' || n, 'snack'),
+    format('insert into public.meal_items (meal_id, user_id, name) values (%L, %L, %L)', p_meal, p_user, 'smoke ' || n)
+  ]
+$$;
+
 create function pg_temp.set_sub(p_user uuid, p_premium boolean, p_until timestamptz)
 returns void language sql as $$
   insert into public.subscriptions
@@ -93,6 +126,24 @@ declare
   v_has    boolean;
   v_src    text;
   v_coached boolean;
+  v_id     uuid;
+  v_id2    uuid;
+  v_p2     uuid := gen_random_uuid();
+  v_n2     uuid := gen_random_uuid();
+  v_s2     uuid := gen_random_uuid();
+  v_day    uuid := gen_random_uuid();
+  v_pm     uuid := gen_random_uuid();
+  v_opt    uuid := gen_random_uuid();
+  v_meal   uuid := gen_random_uuid();
+  v_pe     uuid := gen_random_uuid();
+  v_t      text;
+  v_stmt   text;
+  v_locked text[] := array['programs', 'program_weeks', 'program_days', 'program_exercises',
+                           'nutrition_plans', 'nutrition_plan_meals', 'nutrition_plan_options',
+                           'nutrition_plan_option_items', 'nutrition_plan_targets',
+                           'supplement_plans', 'supplement_plan_items'];
+  v_history text[] := array['program_exercise_completions', 'workout_set_logs', 'supplement_intake_logs',
+                            'meals', 'meal_items', 'body_measurements'];
 begin
   select id into v_coach from public.profiles where role = 'coach' limit 1;
   assert v_coach is not null, 'there is no coach to act as';
@@ -114,7 +165,7 @@ begin
 
   perform pg_temp.act_as(v_client);
   assert public.has_premium_access(), '1: off: a client with nothing has access';
-  assert public.premium_write_access(), '1: off: and may write';
+  assert public.premium_content_access(), '1: off: and may write';
   assert pg_temp.sqlstate_of('select * from public.premium_settings') = '42501',
     '1: premium_settings is not readable by a client';
   assert pg_temp.sqlstate_of('select * from public.revenuecat_events') = '42501',
@@ -123,8 +174,8 @@ begin
     '1: premium_source_for is server-only';
   assert pg_temp.sqlstate_of('select public.premium_access_for(auth.uid())') = '42501',
     '1: premium_access_for is server-only';
-  assert pg_temp.sqlstate_of('select public.premium_write_access_for(auth.uid())') = '42501',
-    '1: premium_write_access_for is server-only';
+  assert pg_temp.sqlstate_of('select public.premium_content_access_for(auth.uid())') = '42501',
+    '1: premium_content_access_for is server-only';
   assert pg_temp.sqlstate_of('select public.is_being_coached(auth.uid())') = '42501',
     '1: is_being_coached is server-only';
   perform pg_temp.act_as_owner();
@@ -166,30 +217,30 @@ begin
   delete from public.subscriptions where user_id = v_client;
   delete from public.memberships where client_id = v_client;
 
-  -- ---- 3. Writes stay open for 72 hours after access ends -----------------------
+  -- ---- 3. Content and logging stay open for 72 hours after access ends -----------------------
 
   perform pg_temp.set_sub(v_client, true, now() - interval '71 hours');
-  assert not public.premium_access_for(v_client) and public.premium_write_access_for(v_client),
-    '3: 71 h after the end: no read access, writes still allowed';
+  assert not public.premium_access_for(v_client) and public.premium_content_access_for(v_client),
+    '3: 71 h after the end: no access, but the 72-hour grace is still open';
   perform pg_temp.set_sub(v_client, true, now() - interval '73 hours');
-  assert not public.premium_write_access_for(v_client), '3: 73 h after the end: writes closed too';
+  assert not public.premium_content_access_for(v_client), '3: 73 h after the end: the grace is over';
 
   -- A refund (is_premium false) counts its grace from the sync that revoked it,
   -- not from the end of the paid period.
   perform pg_temp.set_sub(v_client, false, now() + interval '10 days');
   update public.subscriptions set last_synced_at = now() - interval '80 hours' where user_id = v_client;
-  assert not public.premium_write_access_for(v_client), '3: a refund synced 80 h ago has no write grace left';
+  assert not public.premium_content_access_for(v_client), '3: a refund synced 80 h ago has no grace left';
   update public.subscriptions set last_synced_at = now() - interval '1 hour' where user_id = v_client;
-  assert public.premium_write_access_for(v_client), '3: a refund synced an hour ago still has its grace';
+  assert public.premium_content_access_for(v_client), '3: a refund synced an hour ago still has its grace';
   delete from public.subscriptions where user_id = v_client;
 
   perform pg_temp.set_membership(v_client, 'active', v_today - 3);
-  assert public.premium_write_access_for(v_client) and not public.premium_access_for(v_client),
-    '3: a membership that ended 3 days ago: writes still allowed';
+  assert public.premium_content_access_for(v_client) and not public.premium_access_for(v_client),
+    '3: a membership that ended 3 days ago: the grace is still open';
   perform pg_temp.set_membership(v_client, 'active', v_today - 4);
-  assert not public.premium_write_access_for(v_client), '3: ended 4 days ago: writes closed';
+  assert not public.premium_content_access_for(v_client), '3: ended 4 days ago: the grace is over';
   perform pg_temp.set_membership(v_client, 'paused', v_today + 30);
-  assert not public.premium_write_access_for(v_client), '3: a paused membership gets no grace';
+  assert not public.premium_content_access_for(v_client), '3: a paused membership gets no grace';
   delete from public.memberships where client_id = v_client;
 
   -- ---- 4. The writers (server only) ---------------------------------------------
@@ -421,6 +472,234 @@ begin
   assert not public.is_being_coached(v_client), '6: on: a client with nothing is not coached';
   perform pg_temp.set_sub(v_client, true, now() + interval '10 days');
   assert public.is_being_coached(v_client), '6: on: a live subscription counts';
+
+  -- ---- 7. Requests --------------------------------------------------------------
+
+  update public.premium_settings set enforced = true;
+  update public.programs set status = 'archived' where user_id in (v_client, v_other) and status = 'active';
+  update public.nutrition_plans set status = 'archived' where user_id in (v_client, v_other) and status = 'active';
+  update public.supplement_plans set status = 'archived' where user_id in (v_client, v_other) and status = 'active';
+  delete from public.subscriptions where user_id in (v_client, v_other);
+  delete from public.memberships where client_id in (v_client, v_other);
+  delete from public.content_requests where user_id in (v_client, v_other);
+  delete from public.coach_notifications where client_id in (v_client, v_other) and kind = 'content_requested';
+
+  assert pg_temp.message_of('select public.request_content(''program'')') = 'premium_required',
+    '7: signed out: refused';
+  perform pg_temp.act_as(v_coach);
+  assert pg_temp.message_of('select public.request_content(''program'')') = 'premium_required',
+    '7: the coach does not request';
+  perform pg_temp.act_as(v_client);
+  assert pg_temp.message_of('select public.request_content(''program'')') = 'premium_required',
+    '7: a client without access is refused';
+  assert pg_temp.sqlstate_of('select public.request_content(''program'')') = '42501',
+    '7: with an insufficient-privilege code';
+
+  perform pg_temp.act_as_owner();
+  perform pg_temp.set_membership(v_client, 'active', null);
+  perform pg_temp.act_as(v_client);
+  v_id := (public.request_content('program', 'quiero ganar músculo')).id;
+  assert (select kind from public.content_requests where id = v_id) = 'program'
+     and (select status from public.content_requests where id = v_id) = 'pending'
+     and (select note from public.content_requests where id = v_id) = 'quiero ganar músculo',
+    '7: a client with access gets a pending request, with the note';
+  assert (public.request_content('program', 'otra nota')).id = v_id,
+    '7: asking again while one is pending returns that one';
+  assert (select note from public.content_requests where id = v_id) = 'quiero ganar músculo',
+    '7: and keeps its note';
+  v_id2 := (public.request_content('nutrition_plan', repeat('x', 500))).id;
+  assert v_id2 <> v_id, '7: the other kind is a request of its own (a 500-character note is fine)';
+  assert pg_temp.message_of('select public.request_content(''yoga'')') = 'invalid_kind', '7: an unknown kind is refused';
+  assert pg_temp.message_of(format('select public.request_content(%L, %L)', 'program', repeat('x', 501))) = 'note_too_long',
+    '7: a 501-character note is refused';
+
+  perform pg_temp.act_as_owner();
+  assert (select count(*) from public.coach_notifications
+           where client_id = v_client and kind = 'content_requested') = 2, '7: one notice per request, not per call';
+  assert exists (select 1 from public.coach_notifications n
+                  where n.dedupe_key = 'content_requested:' || v_id and n.client_id = v_client
+                    and n.data ->> 'kind' = 'program' and n.data ->> 'request_id' = v_id::text
+                    and n.data ->> 'note' = 'quiero ganar músculo'),
+    '7: the notice names the request, its kind and its note';
+  insert into public.content_requests (user_id, kind) values (v_other, 'nutrition_plan');
+
+  perform pg_temp.act_as(v_client);
+  assert pg_temp.sqlstate_of(format('insert into public.content_requests (user_id, kind) values (%L, %L)', v_client, 'program')) = '42501',
+    '7: a client cannot insert a request directly';
+  assert pg_temp.sqlstate_of('delete from public.content_requests') = '42501', '7: a client cannot delete a request';
+  assert pg_temp.rows_affected('update public.content_requests set status = ''fulfilled''') = 0,
+    '7: a client cannot resolve a request';
+  assert pg_temp.rows_in('public.content_requests') = 2, '7: a client reads only their own requests';
+
+  perform pg_temp.act_as(v_coach);
+  assert pg_temp.rows_in('public.content_requests') >= 3, '7: the coach reads every request';
+  assert pg_temp.rows_affected(format(
+    'update public.content_requests set status = ''dismissed'', resolved_at = now(), resolved_by = %L where id = %L',
+    v_coach, v_id)) = 1, '7: the coach dismisses a request';
+  perform pg_temp.act_as(v_client);
+  assert (public.request_content('program', 'otra vez')).id <> v_id, '7: after a dismissal the client can ask again';
+
+  perform pg_temp.act_as_owner();
+  perform pg_temp.set_membership(v_other, 'active', null);
+  delete from public.content_requests where user_id = v_other;
+  insert into public.programs (id, user_id, assigned_by, name, duration_weeks, start_date, status)
+  values (gen_random_uuid(), v_other, v_coach, 'smoke: otro programa', 4, v_today, 'active');
+  perform pg_temp.act_as(v_other);
+  assert pg_temp.message_of('select public.request_content(''program'')') = 'already_assigned',
+    '7: with an active program already assigned, a request is refused';
+
+  -- ---- 8. The assignment fulfils the request ------------------------------------
+
+  perform pg_temp.act_as_owner();
+  delete from public.content_requests where user_id = v_client;
+  perform pg_temp.act_as(v_client);
+  v_id  := (public.request_content('program')).id;
+  v_id2 := (public.request_content('nutrition_plan')).id;
+
+  perform pg_temp.act_as(v_coach);
+  insert into public.programs (id, name, duration_weeks, start_date, status, is_template)
+  values (gen_random_uuid(), 'smoke: plantilla', 4, v_today, 'active', true);
+  insert into public.supplement_plans (id, user_id, assigned_by, name, status)
+  values (v_s2, v_client, v_coach, 'smoke: suplementos', 'active');
+  insert into public.programs (id, user_id, assigned_by, name, duration_weeks, start_date, status)
+  values (gen_random_uuid(), v_other, v_coach, 'smoke: de otro', 4, v_today, 'active');
+  perform pg_temp.act_as_owner();
+  assert (select count(*) from public.content_requests where user_id = v_client and status = 'pending') = 2,
+    '8: a template, a supplement plan and another client''s program fulfil nothing';
+
+  perform pg_temp.act_as(v_coach);
+  insert into public.programs (id, user_id, assigned_by, name, duration_weeks, start_date, status)
+  values (v_p2, v_client, v_coach, 'smoke: programa', 4, v_today, 'active');
+  perform pg_temp.act_as_owner();
+  assert (select status from public.content_requests where id = v_id) = 'fulfilled'
+     and (select resolved_at from public.content_requests where id = v_id) is not null,
+    '8: assigning a program fulfils the program request';
+  assert (select status from public.content_requests where id = v_id2) = 'pending',
+    '8: and leaves the nutrition request alone';
+
+  perform pg_temp.act_as(v_coach);
+  insert into public.nutrition_plans (id, user_id, assigned_by, name, status)
+  values (v_n2, v_client, v_coach, 'smoke: nutrición', 'archived');
+  perform pg_temp.act_as_owner();
+  assert (select status from public.content_requests where id = v_id2) = 'pending',
+    '8: an archived plan fulfils nothing';
+  perform pg_temp.act_as(v_coach);
+  update public.nutrition_plans set status = 'active' where id = v_n2;
+  perform pg_temp.act_as_owner();
+  assert (select status from public.content_requests where id = v_id2) = 'fulfilled',
+    '8: a plan becoming active fulfils the nutrition request';
+
+  perform pg_temp.set_membership(v_client, 'active', null);
+  perform pg_temp.act_as(v_client);
+  assert pg_temp.message_of('select public.request_content(''program'')') = 'already_assigned', '8: now a program request is refused';
+  assert pg_temp.message_of('select public.request_content(''nutrition_plan'')') = 'already_assigned',
+    '8: and so is a nutrition request';
+
+  -- ---- 9. The lock on reads -----------------------------------------------------
+
+  perform pg_temp.act_as_owner();
+  insert into public.program_weeks (program_id, week_number) values (v_p2, 1);
+  insert into public.program_days (id, program_id, day_index) values (v_day, v_p2, 1);
+  insert into public.program_exercises (id, program_day_id, custom_name) values (v_pe, v_day, 'smoke: sentadilla');
+  insert into public.nutrition_plan_targets (plan_id, day_type) values (v_n2, 'both');
+  insert into public.nutrition_plan_meals (id, plan_id, slot_index) values (v_pm, v_n2, 1);
+  insert into public.nutrition_plan_options (id, plan_meal_id) values (v_opt, v_pm);
+  insert into public.nutrition_plan_option_items (option_id, name) values (v_opt, 'smoke: arroz');
+  insert into public.supplement_plan_items (plan_id, name) values (v_s2, 'smoke: creatina');
+  -- History the client made while they had access.
+  insert into public.program_exercise_completions (user_id, week_number) values (v_client, 1);
+  insert into public.workout_set_logs (user_id, week_number, set_index) values (v_client, 1, 1);
+  insert into public.supplement_intake_logs (user_id, taken_on, supplement_name) values (v_client, v_today, 'smoke: creatina');
+  insert into public.meals (id, user_id, name, meal_type) values (v_meal, v_client, 'smoke', 'lunch');
+  insert into public.meal_items (meal_id, user_id, name) values (v_meal, v_client, 'smoke: arroz');
+  insert into public.body_measurements (user_id, measured_on) values (v_client, v_today)
+  on conflict do nothing;
+
+  perform pg_temp.act_as(v_client);
+  foreach v_t in array v_locked loop
+    assert pg_temp.rows_in('public.' || v_t) > 0, format('9: with access the client reads %s', v_t);
+  end loop;
+
+  perform pg_temp.act_as_owner();
+  delete from public.memberships where client_id = v_client;
+  perform pg_temp.act_as(v_client);
+  foreach v_t in array v_locked loop
+    assert pg_temp.rows_in('public.' || v_t) = 0, format('9: without access %s is hidden', v_t);
+  end loop;
+  assert (public.get_my_access() ->> 'has_program')::boolean
+     and (public.get_my_access() ->> 'has_nutrition_plan')::boolean
+     and (public.get_my_access() ->> 'has_supplement_plan')::boolean,
+    '9: the locked client is still told that something is assigned (a flag, never the content)';
+  foreach v_t in array v_history loop
+    assert pg_temp.rows_in('public.' || v_t) > 0, format('9: without access the client still reads their %s history', v_t);
+  end loop;
+
+  perform pg_temp.act_as(v_coach);
+  foreach v_t in array v_locked loop
+    assert pg_temp.rows_in('public.' || v_t) > 0, format('9: the coach still reads %s', v_t);
+  end loop;
+
+  -- ---- 10. The 72-hour grace, then the lock on writes and reads ----------------------
+
+  perform pg_temp.act_as_owner();
+  perform pg_temp.set_membership(v_client, 'active', v_today - 2);
+  perform pg_temp.act_as(v_client);
+  assert not (public.get_my_access() ->> 'has_access')::boolean,
+    '10: inside the grace the app is still told there is no access (it shows the locked state)';
+  foreach v_t in array v_locked loop
+    assert pg_temp.rows_in('public.' || v_t) > 0, format('10: inside the grace %s is still readable', v_t);
+  end loop;
+  foreach v_stmt in array pg_temp.writes(v_client, v_meal, v_pe, 2) loop
+    assert pg_temp.sqlstate_of(v_stmt) is null, format('10: inside the grace, this is accepted: %s (got: %s)', left(v_stmt, 70), pg_temp.message_of(v_stmt));
+  end loop;
+
+  perform pg_temp.act_as_owner();
+  perform pg_temp.set_membership(v_client, 'active', v_today - 5);
+  perform pg_temp.act_as(v_client);
+  foreach v_t in array v_locked loop
+    assert pg_temp.rows_in('public.' || v_t) = 0, format('10: after the grace %s is hidden', v_t);
+  end loop;
+  foreach v_stmt in array pg_temp.writes(v_client, v_meal, v_pe, 3) loop
+    assert pg_temp.sqlstate_of(v_stmt) = '42501', format('10: after the grace, this is refused: %s (got: %s)', left(v_stmt, 70), coalesce(pg_temp.message_of(v_stmt), 'it ran'));
+  end loop;
+  assert pg_temp.rows_affected('update public.supplement_intake_logs set supplement_name = supplement_name') = 0,
+    '10: after the grace, an update is blocked';
+  assert pg_temp.rows_affected('update public.workout_set_logs set week_number = week_number') = 0,
+    '10: on the set logs too';
+  assert pg_temp.rows_affected('delete from public.program_exercise_completions') = 0,
+    '10: and a delete is blocked';
+  assert pg_temp.rows_affected('delete from public.meal_items') = 0, '10: on the meal items too';
+  assert pg_temp.sqlstate_of(format('insert into public.body_measurements (user_id, measured_on) values (%L, %L)',
+           v_client, v_today - 9)) is null, '10: weight and measurements are never locked';
+  assert pg_temp.rows_affected('update public.profiles set display_name = display_name where id = auth.uid()') = 1,
+    '10: nor is the profile';
+
+  perform pg_temp.act_as_owner();
+  perform pg_temp.set_membership(v_client, 'active', null);
+  perform pg_temp.act_as(v_client);
+  assert pg_temp.rows_affected('update public.supplement_intake_logs set supplement_name = supplement_name') > 0,
+    '10: with access again, updates work';
+  assert pg_temp.rows_affected('delete from public.program_exercise_completions') > 0, '10: and so do deletes';
+
+  -- ---- 11. Dark: with the switch off nobody is locked -----------------------------------
+
+  perform pg_temp.act_as_owner();
+  update public.premium_settings set enforced = false;
+  delete from public.memberships where client_id = v_client;
+  perform pg_temp.act_as(v_client);
+  foreach v_t in array v_locked loop
+    assert pg_temp.rows_in('public.' || v_t) > 0, format('11: off: a client with nothing still reads %s', v_t);
+  end loop;
+  foreach v_stmt in array pg_temp.writes(v_client, v_meal, v_pe, 4) loop
+    assert pg_temp.sqlstate_of(v_stmt) is null, format('11: off: this write is accepted: %s (got: %s)', left(v_stmt, 70), pg_temp.message_of(v_stmt));
+  end loop;
+  perform pg_temp.act_as_owner();
+  assert position('is_being_coached' in pg_get_functiondef('public.create_coach_daily_notices'::regproc)) > 0
+     and position('memberships' in pg_get_functiondef('public.create_coach_daily_notices'::regproc)) = 0,
+    '11: the daily notices ask is_being_coached, not the memberships table';
+  assert position('is_being_coached' in pg_get_functiondef('public.send_block_ending_pushes'::regproc)) > 0
+     and position('memberships' in pg_get_functiondef('public.send_block_ending_pushes'::regproc)) = 0,
+    '11: and so do the block-ending pushes';
 
   raise exception 'SMOKE OK: premium; nothing was saved';
 end $$;

@@ -9,7 +9,7 @@
 -- through the writers below) and a coach-set membership.
 --
 -- It ships DARK. premium_settings.enforced starts false, and while it is false
--- has_premium_access() and premium_write_access() are true for everyone and
+-- has_premium_access() and premium_content_access() are true for everyone and
 -- is_being_coached() is the old membership rule, so applying this file
 -- changes nothing for any user. Going live is one statement, after the app
 -- with a paywall is installed and the stores are set up:
@@ -23,10 +23,13 @@
 --   subscriptions        one row per user: the current store subscription
 --   revenuecat_events    every webhook delivery, once (idempotency + audit)
 --   premium_source_for   the rule: 'coach' | 'subscription' | 'membership' | null
---   premium_access_for / premium_write_access_for / is_being_coached
---                        the rule with the switch applied (server only)
---   has_premium_access / premium_write_access
---                        the same for the caller; what the lock policies call
+--   premium_access_for / premium_content_access_for / is_being_coached
+--                        the rule with the switch applied (server only); the
+--                        content one adds the 72-hour grace the lock uses
+--   has_premium_access / premium_content_access
+--                        the same for the caller: the first is what the app
+--                        and request_content ask, the second what the lock
+--                        policies call
 --   get_my_access        what the app is told, in one row
 --   coach_client_access  what the panel is told, one row per client
 --   record_revenuecat_event / finish_revenuecat_event / apply_subscription_snapshot
@@ -149,11 +152,16 @@ as $$
   select not public.premium_enforced() or public.premium_source_for(p_user) is not null
 $$;
 
--- Writes stay open for 72 hours after access ends, so what a client logged
--- offline just before an expiry still syncs just after it. A revoked
--- subscription (is_premium = false) counts its hours from the sync that
--- revoked it; a lapsed membership gets 3 calendar days.
-create or replace function public.premium_write_access_for(p_user uuid)
+-- What the lock uses, not premium_access_for: the coach's content and the
+-- client's logging stay open for 72 hours after access ends. What a client
+-- logged offline just before an expiry still syncs just after it; a renewal
+-- the store processes late does not flicker the program away; and the
+-- triggers that stamp a check-off or a set read the program as the client, so
+-- the write grace needs the read grace. A revoked subscription
+-- (is_premium = false) counts its hours from the sync that revoked it; a
+-- lapsed membership gets 3 calendar days. The app still shows the locked
+-- state the moment access ends (get_my_access says has_access = false).
+create or replace function public.premium_content_access_for(p_user uuid)
 returns boolean
 language sql
 stable
@@ -201,14 +209,14 @@ as $$
   select public.premium_access_for(auth.uid())
 $$;
 
-create or replace function public.premium_write_access()
+create or replace function public.premium_content_access()
 returns boolean
 language sql
 stable
 security definer
 set search_path = ''
 as $$
-  select public.premium_write_access_for(auth.uid())
+  select public.premium_content_access_for(auth.uid())
 $$;
 
 -- 5) What the app and the panel are told ------------------------------------------------
@@ -385,7 +393,7 @@ $$;
 revoke all on function public.premium_enforced()                    from public, anon, authenticated;
 revoke all on function public.premium_source_for(uuid)              from public, anon, authenticated;
 revoke all on function public.premium_access_for(uuid)              from public, anon, authenticated;
-revoke all on function public.premium_write_access_for(uuid)        from public, anon, authenticated;
+revoke all on function public.premium_content_access_for(uuid)        from public, anon, authenticated;
 revoke all on function public.is_being_coached(uuid)                from public, anon, authenticated;
 revoke all on function public.record_revenuecat_event(text, text, text, timestamptz, jsonb)
                                                                     from public, anon, authenticated;
@@ -400,9 +408,9 @@ grant execute on function public.apply_subscription_snapshot(uuid, jsonb, timest
 
 -- The lock policies call these as the signed-in role, so they must be executable.
 revoke all on function public.has_premium_access()   from public;
-revoke all on function public.premium_write_access() from public;
+revoke all on function public.premium_content_access() from public;
 grant execute on function public.has_premium_access()   to anon, authenticated;
-grant execute on function public.premium_write_access() to anon, authenticated;
+grant execute on function public.premium_content_access() to anon, authenticated;
 
 revoke all on function public.get_my_access()        from public, anon;
 revoke all on function public.coach_client_access()  from public, anon;

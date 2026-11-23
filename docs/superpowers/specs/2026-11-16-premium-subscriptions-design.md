@@ -139,9 +139,14 @@ at once.
 
 The other functions, all `SECURITY DEFINER`, `search_path = ''`:
 
-- `premium_write_access()`: `has_premium_access()`, plus **72 hours** after access
-  ended. Used by the logging policies only, so a set or meal logged offline just
-  before an expiry still syncs just after it instead of being dropped.
+- `premium_content_access()`: `has_premium_access()`, plus **72 hours** after access
+  ended. What the lock policies call, for reading the coach's content and for
+  writing logs: a set or meal logged offline just before an expiry still syncs
+  just after it, a renewal the store processes late does not flicker the program
+  away, and the triggers that stamp a check-off or a set read the program as the
+  client, so the write grace needs the read grace. The app still shows the locked
+  state the moment access ends, because `get_my_access()` answers with the strict
+  rule.
 - `premium_access_for(uuid)` and `is_being_coached(uuid)`: the same answers for
   any user, for the server's jobs. Not granted to `authenticated`, so no client
   can probe another person's status.
@@ -158,7 +163,7 @@ The other functions, all `SECURITY DEFINER`, `search_path = ''`:
 
 | | With access | Without access |
 |---|---|---|
-| Read the assigned program, nutrition plan, supplement plan | yes | **no** (11 tables, restrictive `SELECT`) |
+| Read the assigned program, nutrition plan, supplement plan | yes | **no** after the 72 h grace (11 tables, restrictive `SELECT`) |
 | Check off exercises, log sets, register meals, tick supplements | yes | **no** after the 72 h grace (5 tables, restrictive `INSERT/UPDATE/DELETE`) |
 | Send a request | yes | **no** (`request_content`) |
 | Read history: set logs, completions, meals, supplement ticks, measurements | yes | yes |
@@ -435,7 +440,7 @@ No new page. Existing places learn the new facts.
 | 5, 6 | Subscribed, asks for a program / a plan | SQL smoke: `request_content`, notice written, duplicate returns the first; panel check |
 | 7 | Both assigned | SQL smoke: content readable, pending requests fulfilled by the assignment |
 | 8 | Cancels, keeps access | unit test: `cancelled`, `will_renew = false`; SQL smoke: access until `access_until`; UI state |
-| 9 | Expires | SQL smoke: content hidden, history readable, writes refused after 72 h; device check of the locked state and Progress |
+| 9 | Expires | SQL smoke: content hidden and writes refused after the 72 h grace, history readable; device check of the locked state and Progress |
 | 10 | Restores | unit test: transfer touches both users; `restorePurchases` on a device |
 | 11 | New device | same user id returns the same row (SQL); sign-in on a second device |
 | 12 | Payment problem | unit test: billing issue keeps access until the grace end; SQL smoke: then none |
@@ -561,8 +566,12 @@ editor beyond «Dar acceso ahora».
 5. Only coach content and its logging are gated. Onboarding, profile, weight and
    the AI insight stay open to everyone, because a new client must finish
    onboarding before they can subscribe.
-6. Writes to the five logging tables stay open for 72 hours after access ends, so
-   offline logs do not vanish; reads of coach content lock at once.
+6. The coach's content and the five logging tables stay open for 72 hours after
+   access ends: offline logs do not vanish, a late store renewal does not flicker
+   the program away, and the stamp triggers must read the program to accept a
+   check-off. The app shows the locked state the moment access ends; only the
+   database is lenient. (Found while testing: the first design locked reads at
+   once, which made the write grace impossible.)
 7. The lock hides content of every status, active and archived: the app never
    shows archived content, and logs keep their own exercise names.
 8. A request is one tap and an optional note up to 500 characters; the onboarding
