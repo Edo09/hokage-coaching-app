@@ -784,6 +784,46 @@ inEachZone("planReminders: access", () => {
     assert.deepEqual(plan({ access: access({ access_ends_at: endsAt("2026-10-05", 12) }) }), []);
   });
 
+  it("an active, renewing subscription covers every reminder past its period end: the store is expected to move that end", () => {
+    // A monthly subscriber who last opened the app three days before renewing
+    // would otherwise get reminders for three days and none after.
+    const renewing = access({
+      source: "subscription",
+      subscription: { status: "active", will_renew: true },
+      access_ends_at: endsAt("2026-10-10", 15),
+    });
+    assert.equal(plan({ access: renewing }).length, 6);
+    // Its period end is already past in the answer in hand: still planned (the renewal has not been heard of).
+    const stale = access({
+      source: "subscription",
+      subscription: { status: "active", will_renew: true },
+      access_ends_at: endsAt("2026-10-05", 12),
+    });
+    assert.equal(plan({ access: stale }).length, 6);
+  });
+
+  it("anything that will not renew keeps its hard end: cancelled, a billing problem, a membership", () => {
+    const ends = endsAt("2026-10-10", 15);
+    const expected = ["reminder-2026-10-07-training", "reminder-2026-10-09-training"];
+    const hard = [
+      access({ source: "subscription", subscription: { status: "cancelled", will_renew: false }, access_ends_at: ends }),
+      access({ source: "subscription", subscription: { status: "active", will_renew: false }, access_ends_at: ends }),
+      // The store retrying a failed charge may still say it will renew; the grace is the end.
+      access({ source: "subscription", subscription: { status: "billing_issue", will_renew: true }, access_ends_at: ends }),
+      access({ source: "membership", subscription: null, access_ends_at: ends }),
+    ];
+    for (const a of hard) assert.deepEqual(ids(plan({ access: a })), expected, String(a.source));
+  });
+
+  it("a renewing subscription the server says has no access covers nothing", () => {
+    const locked = access({
+      has_access: false,
+      source: "subscription",
+      subscription: { status: "active", will_renew: true },
+    });
+    assert.deepEqual(plan({ access: locked }), []);
+  });
+
   it("applies to inactivity and week-opened reminders too", () => {
     const inactivity = plan({
       prefs: prefs({ training: false, inactivity: true }),

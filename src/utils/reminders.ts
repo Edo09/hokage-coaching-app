@@ -9,6 +9,7 @@ import type {
 import { addDays, dateKeyToDate, toDateKey } from "@/src/utils/dates";
 import { currentWeekOf, isAfterEnd, isBeforeStart, weekOpensOn } from "@/src/utils/program";
 import { dayNameToIndex, dowIndex } from "@/src/utils/progress";
+import { isRenewing, type RenewalView } from "@/src/utils/subscription";
 
 // Pure planner behind the local reminders (docs/superpowers/specs/
 // 2026-09-29-local-reminders-design.md). No React, no Expo, no I/O — kept
@@ -48,8 +49,10 @@ export type PlannedReminder = {
 };
 
 /** What the planner reads of the server's access answer (get_my_access, see
-    src/utils/subscription.ts). */
-export type ReminderAccess = Pick<MyAccess, "enforced" | "has_access" | "access_ends_at">;
+    src/utils/subscription.ts); `source` and `subscription` only to tell a
+    renewing subscription from an end that is final. */
+export type ReminderAccess = Pick<MyAccess, "enforced" | "has_access" | "access_ends_at"> &
+  RenewalView;
 
 export type ReminderInput = {
   program: ProgramWithDetails | null;
@@ -106,9 +109,13 @@ function weekOfDate(program: ProgramWithDetails, dateKey: string): number {
 
 /** Premium's coverage: the server says the client has access and, at the
     moment the reminder would fire, it has not ended (an end earlier that day
-    covers the day's earlier reminders, not its later ones). */
+    covers the day's earlier reminders, not its later ones). A renewing
+    subscription's period end is not an end: the store is expected to move it,
+    and the plan cannot know the renewal yet, so it is planned open-ended (if
+    the renewal fails the answer changes and the plan is made again). */
 function coveredByAccess(access: ReminderAccess, fireAt: Date): boolean {
   if (!access.has_access) return false;
+  if (isRenewing(access)) return true;
   if (access.access_ends_at == null) return true;
   const ends = Date.parse(access.access_ends_at);
   return Number.isNaN(ends) || fireAt.getTime() < ends;
