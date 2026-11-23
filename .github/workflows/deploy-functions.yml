@@ -7,10 +7,12 @@
 # SUPABASE_ACCESS_TOKEN (Settings → Secrets and variables → Actions).
 #
 # Function secrets (ALLOWED_ORIGINS, GEMINI_API_KEY, GROQ_API_KEY,
-# ESTIMATE_MEAL_SECRET, and the optional test-only ESTIMATE_FAIL_USER_ID) are
-# not set here: set them in the dashboard (Edge Functions → Secrets).
+# ESTIMATE_MEAL_SECRET, the optional test-only ESTIMATE_FAIL_USER_ID, and for
+# Premium REVENUECAT_WEBHOOK_SECRET, REVENUECAT_API_KEY and the optional
+# REVENUECAT_WEBHOOK_SIGNING_SECRET) are not set here: set them in the
+# dashboard (Edge Functions → Secrets).
 # ESTIMATE_MEAL_SECRET also goes in Vault, with estimate-meal's URL
-# (docs/ADMIN_WEB_DB_CONNECTION.md §6.6).
+# (docs/ADMIN_WEB_DB_CONNECTION.md §6.6). The Premium ones: §6.7.
 
 name: Deploy Edge Functions
 
@@ -53,7 +55,7 @@ jobs:
       # supabase/functions/_shared, which the dashboard editor can't do.
       - name: Deploy
         run: |
-          for fn in create-client reset-client-password ai-complete generate-program generate-nutrition-plan; do
+          for fn in create-client reset-client-password ai-complete generate-program generate-nutrition-plan sync-subscription; do
             echo "::group::$fn"
             supabase functions deploy "$fn" --project-ref "$PROJECT_REF"
             echo "::endgroup::"
@@ -61,4 +63,8 @@ jobs:
           # estimate-meal is called by the database (pg_net) with its own secret, not a user JWT.
           echo "::group::estimate-meal"
           supabase functions deploy estimate-meal --project-ref "$PROJECT_REF" --no-verify-jwt
+          echo "::endgroup::"
+          # revenuecat-webhook is called by RevenueCat with its own secret, not a user JWT.
+          echo "::group::revenuecat-webhook"
+          supabase functions deploy revenuecat-webhook --project-ref "$PROJECT_REF" --no-verify-jwt
           echo "::endgroup::"
