@@ -224,7 +224,10 @@ export default function RootLayout() {
                 <Stack.Screen name="(onboarding)" />
                 <Stack.Screen name="(tabs)" />
                 {/* Premium's paywall: over the tabs, AuthGate leaves it alone */}
-                <Stack.Screen name="paywall" options={{ presentation: "modal" }} />
+                <Stack.Screen
+                  name="paywall"
+                  options={{ presentation: "modal", animation: "slide_from_bottom" }}
+                />
               </Stack>
             </View>
             </View>

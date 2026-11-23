@@ -90,6 +90,12 @@ export function pickPlans(packages: readonly StorePackage[]): Plan[] {
   });
 }
 
+/** The plan selected when the paywall opens: the annual one, else the longest
+    on offer (`plans` come in display order, shortest first). */
+export function defaultPlanKind(plans: readonly Plan[]): PlanKind | null {
+  return plans.find((p) => p.kind === "annual")?.kind ?? plans[plans.length - 1]?.kind ?? null;
+}
+
 /** What went wrong with a purchase or a restore, as far as the screen cares. */
 export type FailureKind =
   | "cancelled"

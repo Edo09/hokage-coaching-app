@@ -756,6 +756,40 @@ export default {
       restore: "Restore purchases",
       renewsAutomatically:
         "Renews automatically. You can cancel anytime in your store settings.",
+      // What is included
+      benefitProgram: "Ask your coach for your personalized training program",
+      benefitNutrition: "Ask for your nutrition plan",
+      benefitAccess: "Use your program, plan and supplements while your subscription is active",
+      // Each plan's length and its monthly equivalent
+      periodMonthly: "every month",
+      periodQuarterly: "every 3 months",
+      periodAnnual: "every year",
+      perMonth: "{{price}} a month",
+      saving: "Save {{percent}}%",
+      terms: "Terms of Use",
+      privacy: "Privacy Policy",
+      // The renewal terms each store requires
+      disclosureIos:
+        "Payment will be charged to your Apple account at confirmation of purchase. The subscription renews automatically unless it is canceled at least 24 hours before the end of the current period. The renewal is charged within 24 hours before the end of the period. You can manage or cancel your subscription in your App Store account settings.",
+      disclosureAndroid:
+        "Payment will be charged to your Google Play account at confirmation of purchase. The subscription renews automatically until you cancel it. You can manage or cancel it in Google Play.",
+      loadingPlans: "Loading plans…",
+      plansFailed: "We couldn't load the plans.",
+      // Where buying is not possible
+      webTitle: "Subscribe in the app",
+      webHint:
+        "To subscribe, open the app on your iPhone or Android. If you already have access, it works here as usual.",
+      unavailableHint: "Subscriptions aren't available right now.",
+      // Purchase confirmed, or already subscribed
+      successTitle: "You're Premium!",
+      successHint: "You can now ask your coach for your program or your nutrition plan.",
+      alreadyTitle: "You already have Premium",
+      renewsOn: "Renews on {{date}}",
+      endsOn: "You have access until {{date}}",
+      done: "Done",
+      alreadyPurchased:
+        "This subscription is already on your store account. Restore your purchases to activate it here.",
+      processingHint: "It can take a few minutes. You can close this screen: it will activate by itself.",
     },
     // Purchase and restore states
     states: {

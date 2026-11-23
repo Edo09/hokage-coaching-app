@@ -756,6 +756,40 @@ export default {
       restore: "Restaurar compras",
       renewsAutomatically:
         "Se renueva automáticamente. Puedes cancelar cuando quieras desde los ajustes de la tienda.",
+      // Lo que incluye
+      benefitProgram: "Pídele a tu coach tu programa de entrenamiento personalizado",
+      benefitNutrition: "Pídele tu plan de nutrición",
+      benefitAccess: "Usa tu programa, tu plan y tus suplementos mientras tu suscripción esté activa",
+      // Duración de cada plan y su equivalente mensual
+      periodMonthly: "cada mes",
+      periodQuarterly: "cada 3 meses",
+      periodAnnual: "cada año",
+      perMonth: "{{price}} al mes",
+      saving: "Ahorra {{percent}} %",
+      terms: "Términos de uso",
+      privacy: "Política de privacidad",
+      // Condiciones de renovación que exige cada tienda
+      disclosureIos:
+        "El pago se cargará a tu cuenta de Apple al confirmar la compra. La suscripción se renueva automáticamente salvo que la canceles al menos 24 horas antes de que termine el periodo en curso. La renovación se cobra dentro de las 24 horas previas al final del periodo. Puedes gestionar o cancelar tu suscripción en los ajustes de tu cuenta de la App Store.",
+      disclosureAndroid:
+        "El pago se cargará a tu cuenta de Google Play al confirmar la compra. La suscripción se renueva automáticamente hasta que la canceles. Puedes gestionarla o cancelarla en Google Play.",
+      loadingPlans: "Cargando planes…",
+      plansFailed: "No pudimos cargar los planes.",
+      // Donde no se puede comprar
+      webTitle: "Suscríbete desde la app",
+      webHint:
+        "Para suscribirte, abre la app en tu iPhone o Android. Si ya tienes acceso, aquí funciona con normalidad.",
+      unavailableHint: "Las suscripciones no están disponibles por ahora.",
+      // Compra confirmada, o ya suscrito
+      successTitle: "¡Ya eres Premium!",
+      successHint: "Ya puedes pedirle tu programa o tu plan de nutrición a tu coach.",
+      alreadyTitle: "Ya tienes Premium",
+      renewsOn: "Se renueva el {{date}}",
+      endsOn: "Tienes acceso hasta el {{date}}",
+      done: "Listo",
+      alreadyPurchased:
+        "Esta suscripción ya está en tu cuenta de la tienda. Restaura tus compras para activarla aquí.",
+      processingHint: "Puede tardar unos minutos. Puedes cerrar esta pantalla: se activará sola.",
     },
     // Estados de la compra y de la restauración
     states: {

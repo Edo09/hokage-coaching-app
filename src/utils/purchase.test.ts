@@ -7,6 +7,7 @@ import { describe, it } from "node:test";
 
 import {
   classifyPurchaseError,
+  defaultPlanKind,
   pickPlans,
   PurchaseFailed,
   type ErrorCodes,
@@ -176,5 +177,21 @@ describe("PurchaseFailed", () => {
     assert.ok(error instanceof PurchaseFailed);
     assert.equal(error.failure, failure);
     assert.equal(error.name, "PurchaseFailed");
+  });
+});
+
+describe("defaultPlanKind", () => {
+  it("preselects the annual plan when it is offered", () => {
+    assert.equal(defaultPlanKind(pickPlans([MONTHLY, QUARTERLY, ANNUAL])), "annual");
+    assert.equal(defaultPlanKind(pickPlans([MONTHLY, ANNUAL])), "annual");
+  });
+
+  it("else the longest plan there is", () => {
+    assert.equal(defaultPlanKind(pickPlans([MONTHLY, QUARTERLY])), "quarterly");
+    assert.equal(defaultPlanKind(pickPlans([MONTHLY])), "monthly");
+  });
+
+  it("has none to preselect when nothing is offered", () => {
+    assert.equal(defaultPlanKind([]), null);
   });
 });
