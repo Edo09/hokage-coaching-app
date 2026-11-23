@@ -15,6 +15,7 @@ import {
   DEFAULT_REMINDER_PREFS,
   planReminders,
   type PlannedReminder,
+  type ReminderAccess,
   type ReminderInput,
   type ReminderPrefs,
 } from "@/src/utils/reminders";
@@ -703,5 +704,100 @@ inEachZone("planReminders: everything on", () => {
         "reminder-2026-10-19-week",
       ],
     );
+  });
+});
+
+// Premium: once the switch is on, coverage comes from the server's access
+// answer (get_my_access) instead of the membership row; while it is off the
+// membership rule stands exactly as before. The planner fires at a time, so an
+// access that ends earlier that day does not cover that day's reminder.
+function access(patch: Partial<ReminderAccess> = {}): ReminderAccess {
+  return { enforced: true, has_access: true, access_ends_at: null, ...patch };
+}
+
+/** An access end as the server sends it: a timestamp, here at a local time. */
+const endsAt = (dateKey: string, hour: number) => at(dateKey, hour).toISOString();
+
+inEachZone("planReminders: access", () => {
+  it("while the switch is off the membership rule stands, whatever the access says", () => {
+    const dark = access({ enforced: false });
+    assert.deepEqual(plan({ access: dark, membership: { status: "expired", expires_at: null } }), []);
+    assert.deepEqual(
+      ids(plan({ access: dark, membership: { status: "active", expires_at: "2026-10-12" } })),
+      [
+        "reminder-2026-10-07-training",
+        "reminder-2026-10-09-training",
+        "reminder-2026-10-12-training",
+      ],
+    );
+    assert.equal(plan({ access: dark, membership: null }).length, 6);
+    // Dark, nobody is locked, even by an answer that says has_access false.
+    assert.equal(plan({ access: access({ enforced: false, has_access: false }) }).length, 6);
+  });
+
+  it("no access answer yet: the membership rule, as before", () => {
+    assert.deepEqual(plan({ access: null, membership: { status: "paused", expires_at: null } }), []);
+    assert.equal(plan({ access: null }).length, 6);
+    assert.equal(plan({ access: undefined }).length, 6);
+  });
+
+  it("switch on and no access: nothing, even with an active membership row", () => {
+    assert.deepEqual(
+      plan({
+        access: access({ has_access: false }),
+        membership: { status: "active", expires_at: null },
+      }),
+      [],
+    );
+  });
+
+  it("switch on: access covers every date, and the membership row no longer matters", () => {
+    const list = plan({
+      access: access(),
+      membership: { status: "paused", expires_at: "2026-10-01" },
+    });
+    assert.equal(list.length, 6);
+  });
+
+  it("covers a reminder while access lasts past its time, and not after the end", () => {
+    const list = plan({ access: access({ access_ends_at: endsAt("2026-10-12", 15) }) });
+    assert.deepEqual(ids(list), [
+      "reminder-2026-10-07-training",
+      "reminder-2026-10-09-training",
+      "reminder-2026-10-12-training",
+    ]);
+  });
+
+  it("an end before the reminder's hour drops that day's reminder, and the hour moves the cut", () => {
+    // Ends Mon 10-12 07:00; the reminder is at 08:00.
+    const early = plan({ access: access({ access_ends_at: endsAt("2026-10-12", 7) }) });
+    assert.deepEqual(ids(early), ["reminder-2026-10-07-training", "reminder-2026-10-09-training"]);
+    // Ends Mon 10-12 15:00; an evening reminder (20:00) is after it.
+    const evening = plan({
+      prefs: prefs({ hour: 20 }),
+      access: access({ access_ends_at: endsAt("2026-10-12", 15) }),
+    });
+    assert.deepEqual(ids(evening), ["reminder-2026-10-07-training", "reminder-2026-10-09-training"]);
+  });
+
+  it("a stale answer whose end has already passed schedules nothing", () => {
+    assert.deepEqual(plan({ access: access({ access_ends_at: endsAt("2026-10-05", 12) }) }), []);
+  });
+
+  it("applies to inactivity and week-opened reminders too", () => {
+    const inactivity = plan({
+      prefs: prefs({ training: false, inactivity: true }),
+      access: access({ access_ends_at: endsAt("2026-10-10", 15) }),
+    });
+    // Without access limits it would also have 10-12 (start + 7).
+    assert.deepEqual(ids(inactivity), ["reminder-2026-10-09-inactivity"]);
+
+    const week = plan({
+      prefs: WEEK_ONLY,
+      program: LOCKED,
+      access: access({ access_ends_at: endsAt("2026-10-15", 15) }),
+    });
+    // Week 3 opens 10-19, after the end.
+    assert.deepEqual(ids(week), ["reminder-2026-10-12-week"]);
   });
 });

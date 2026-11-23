@@ -5,6 +5,7 @@ import { AppState, Platform } from "react-native";
 
 import { useAuth } from "@/src/hooks/use-auth";
 import { useMembership } from "@/src/hooks/use-membership";
+import { usePremiumAccess } from "@/src/hooks/use-premium-access";
 import { useProfile } from "@/src/hooks/use-profile";
 import { useProgram } from "@/src/hooks/use-program";
 import { useProgramLogging } from "@/src/hooks/use-program-logging";
@@ -49,10 +50,11 @@ function useLogSource(userId: string | undefined, hasExercises: boolean): Source
  *
  * Rebuilds the whole 14-day plan, debounced, when the app returns to the
  * foreground, the day changes, the program, its log, the profile's training
- * days or the membership change, the preferences or the language change, or
- * the permission changes. Without permission it cancels them all instead.
- * While any of that is still loading (or failed with nothing cached) it
- * leaves what's scheduled alone (`reminderSyncAction`). Nothing on web.
+ * days, the membership or the Premium access answer change, the preferences
+ * or the language change, or the permission changes. Without permission it
+ * cancels them all instead. While any of that is still loading (or failed with
+ * nothing cached) it leaves what's scheduled alone (`reminderSyncAction`).
+ * Nothing on web.
  */
 export function useReminderSync(): void {
   const { t, i18n } = useTranslation();
@@ -66,6 +68,9 @@ export function useReminderSync(): void {
     loading: membershipLoading,
     error: membershipError,
   } = useMembership();
+  // Premium: once the switch is on this, not the membership row, says who is
+  // covered; while it is off the planner keeps the membership rule.
+  const { access, loading: accessLoading } = usePremiumAccess();
   const hasExercises = program?.program_days.some((d) => d.program_exercises.length > 0) ?? false;
   const logSource = useLogSource(user?.id, hasExercises);
   const availableDays = profile?.available_days ?? null;
@@ -105,6 +110,8 @@ export function useReminderSync(): void {
       error: membershipError,
       hasData: membership != null,
     }),
+    // A failed read is not waited for: the hook opens a client it cannot read.
+    access: sourceState({ loading: accessLoading, error: false, hasData: access != null }),
   });
 
   useEffect(() => {
@@ -126,6 +133,7 @@ export function useReminderSync(): void {
           setLogs,
           availableDays,
           membership,
+          access,
           prefs,
           now: new Date(),
           labelOf: (day) => programDayName(day, t),
@@ -144,6 +152,7 @@ export function useReminderSync(): void {
     setLogs,
     availableDays,
     membership,
+    access,
     prefs,
     t,
     language,

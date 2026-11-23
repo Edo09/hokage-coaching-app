@@ -33,6 +33,9 @@ export type ReminderSyncGate = {
   log: SourceState;
   profile: SourceState;
   membership: SourceState;
+  /** Premium's access answer (get_my_access): once the switch is on it, not
+      the membership, says who is covered. */
+  access: SourceState;
 };
 
 /** "wait" keeps whatever is scheduled; "cancel" drops every reminder;
@@ -42,6 +45,6 @@ export function reminderSyncAction(g: ReminderSyncGate): ReminderSyncAction {
   // Without permission nothing may stay scheduled, whatever the data says.
   if (g.permission !== "granted") return "cancel";
   if (!g.prefsReady) return "wait";
-  const sources = [g.program, g.log, g.profile, g.membership];
+  const sources = [g.program, g.log, g.profile, g.membership, g.access];
   return sources.every((s) => s === "ready") ? "plan" : "wait";
 }

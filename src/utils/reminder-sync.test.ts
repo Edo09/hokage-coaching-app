@@ -18,6 +18,7 @@ const READY: ReminderSyncGate = {
   log: "ready",
   profile: "ready",
   membership: "ready",
+  access: "ready",
 };
 
 const action = (patch: Partial<ReminderSyncGate>) => reminderSyncAction({ ...READY, ...patch });
@@ -63,7 +64,7 @@ describe("reminderSyncAction", () => {
   });
 
   it("waits while any source is loading or failed with nothing cached", () => {
-    for (const source of ["program", "log", "profile", "membership"] as const) {
+    for (const source of ["program", "log", "profile", "membership", "access"] as const) {
       for (const state of ["loading", "failed"] as const) {
         assert.equal(action({ [source]: state }), "wait", `${source} ${state}`);
       }

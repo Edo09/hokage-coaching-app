@@ -1,5 +1,6 @@
 import type {
   Membership,
+  MyAccess,
   ProgramDayWithExercises,
   ProgramExerciseCompletion,
   ProgramWithDetails,
@@ -46,6 +47,10 @@ export type PlannedReminder = {
   params: Record<string, string | number>;
 };
 
+/** What the planner reads of the server's access answer (get_my_access, see
+    src/utils/subscription.ts). */
+export type ReminderAccess = Pick<MyAccess, "enforced" | "has_access" | "access_ends_at">;
+
 export type ReminderInput = {
   program: ProgramWithDetails | null;
   completions: ProgramExerciseCompletion[];
@@ -53,6 +58,10 @@ export type ReminderInput = {
   /** profiles.available_days: "Mon" … "Sun". */
   availableDays: string[] | null;
   membership: Pick<Membership, "status" | "expires_at"> | null;
+  /** Premium. Once the switch is on (`enforced`) this decides coverage and the
+      membership row no longer does; while it is off, null or missing, the
+      membership rule stands exactly as before. */
+  access?: ReminderAccess | null;
   prefs: ReminderPrefs;
   now: Date;
   /** A day's display name: its label, else its weekday name, else its number
@@ -95,18 +104,33 @@ function weekOfDate(program: ProgramWithDetails, dateKey: string): number {
   return currentWeekOf(program.start_date, program.duration_weeks, dateKeyToDate(dateKey));
 }
 
+/** Premium's coverage: the server says the client has access and, at the
+    moment the reminder would fire, it has not ended (an end earlier that day
+    covers the day's earlier reminders, not its later ones). */
+function coveredByAccess(access: ReminderAccess, fireAt: Date): boolean {
+  if (!access.has_access) return false;
+  if (access.access_ends_at == null) return true;
+  const ends = Date.parse(access.access_ends_at);
+  return Number.isNaN(ends) || fireAt.getTime() < ends;
+}
+
 /** The general rules every reminder date must pass: inside the program
-    (start_date … start + 7·weeks − 1) and covered by the membership. The
-    membership covers a date unless it is paused/expired/cancelled or
-    expires_at is before that date; no membership row covers everything. */
+    (start_date … start + 7·weeks − 1) and covered. With Premium on, access
+    covers it (coveredByAccess) and the membership row is not consulted. While
+    it is off, the membership covers a date unless it is paused/expired/
+    cancelled or expires_at is before that date; no membership row covers
+    everything. `fireAt` is when the reminder would go off on that date. */
 function dateAllowed(
   program: ProgramWithDetails,
-  membership: ReminderInput["membership"],
+  input: Pick<ReminderInput, "membership" | "access">,
   dateKey: string,
+  fireAt: Date,
 ): boolean {
   const at = dateKeyToDate(dateKey);
   if (isBeforeStart(program.start_date, at)) return false;
   if (isAfterEnd(program.start_date, program.duration_weeks, at)) return false;
+  const { membership, access } = input;
+  if (access?.enforced) return coveredByAccess(access, fireAt);
   if (membership == null) return true;
   if (UNCOVERED.has(membership.status)) return false;
   return membership.expires_at == null || membership.expires_at >= dateKey;
@@ -173,7 +197,7 @@ function planTraining(
   program: ProgramWithDetails,
   log: LogView,
 ): PlannedReminder[] {
-  const { availableDays, membership, prefs, now, labelOf } = input;
+  const { availableDays, prefs, now, labelOf } = input;
   if (!prefs.training) return [];
   // "Mon" … "Sun" → Monday-based index, the same mapping as the dashboard.
   const weekdays = new Set(
@@ -186,8 +210,8 @@ function planTraining(
   for (let i = 0; i < WINDOW_DAYS; i++) {
     const date = addDays(today, i);
     if (!weekdays.has(dowIndex(dateKeyToDate(date)))) continue;
-    if (!dateAllowed(program, membership, date)) continue;
     const fireAt = atHour(date, prefs.hour);
+    if (!dateAllowed(program, input, date, fireAt)) continue;
     if (!isAhead(fireAt, now)) continue;
     if (date === today && log.trainedOn.has(today)) continue;
     const week = weekOfDate(program, date);
@@ -221,7 +245,7 @@ function planInactivity(
   program: ProgramWithDetails,
   log: LogView,
 ): PlannedReminder[] {
-  const { membership, prefs, now, labelOf } = input;
+  const { prefs, now, labelOf } = input;
   if (!prefs.inactivity) return [];
   const today = toDateKey(now);
   const lastDay = addDays(today, WINDOW_DAYS - 1);
@@ -237,7 +261,7 @@ function planInactivity(
     if (date > lastDay) continue;
     const fireAt = atHour(date, prefs.hour);
     if (!isAhead(fireAt, now)) continue;
-    if (!dateAllowed(program, membership, date)) continue;
+    if (!dateAllowed(program, input, date, fireAt)) continue;
     const day = firstPending(program, log, weekOfDate(program, date));
     if (day == null) continue;
     out.push({
@@ -260,7 +284,7 @@ function planWeekOpened(
   program: ProgramWithDetails,
   log: LogView,
 ): PlannedReminder[] {
-  const { membership, prefs, now, labelOf } = input;
+  const { prefs, now, labelOf } = input;
   if (!prefs.weekOpened || !program.lock_future_weeks) return [];
   const today = toDateKey(now);
   const lastDay = addDays(today, WINDOW_DAYS - 1);
@@ -269,8 +293,8 @@ function planWeekOpened(
   for (let w = 2; w <= program.duration_weeks; w++) {
     const date = weekOpensOn(program.start_date, w);
     if (date < today || date > lastDay) continue;
-    if (!dateAllowed(program, membership, date)) continue;
     const fireAt = atHour(date, prefs.hour);
+    if (!dateAllowed(program, input, date, fireAt)) continue;
     if (!isAhead(fireAt, now)) continue;
     const day = firstPending(program, log, w);
     if (day == null) continue;
