@@ -146,10 +146,9 @@ function RequestBody({ kind }: { kind: ContentRequestKind }) {
       sending={sending}
       online={online}
       onSend={() => void submit()}
-      onViewPlans={() => {
-        requestSheet.close();
-        router.push("/paywall");
-      }}
+      // The paywall is a native modal screen: on iOS it is not presented while
+      // this sheet's own Modal is still dismissing, so it waits for it.
+      onViewPlans={() => requestSheet.closeThen(() => router.push("/paywall"))}
     />
   );
 }
@@ -171,7 +170,7 @@ export function RequestSheetHost() {
   }
 
   return (
-    <BottomSheet visible={kind != null} onClose={requestSheet.close}>
+    <BottomSheet visible={kind != null} onClose={requestSheet.close} onDismiss={requestSheet.dismissed}>
       {shown != null && <RequestBody key={opens} kind={shown} />}
     </BottomSheet>
   );

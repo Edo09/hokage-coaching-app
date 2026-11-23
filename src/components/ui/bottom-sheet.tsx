@@ -1,6 +1,6 @@
-import React from "react";
+import React, { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
-import { Modal, useWindowDimensions } from "react-native";
+import { Modal, Platform, useWindowDimensions } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useKeyboardHeight } from "@/src/hooks/use-keyboard-height";
@@ -11,6 +11,11 @@ const SHEET_MAX_SHARE = 0.9;
 type Props = {
   visible: boolean;
   onClose: () => void;
+  /** The sheet has finished going away. iOS reports it itself (Modal's
+      onDismiss, after the slide-out); elsewhere it is reported as soon as
+      `visible` turns false. For what must wait for it, like pushing a native
+      modal screen. */
+  onDismiss?: () => void;
   children: React.ReactNode;
 };
 
@@ -20,11 +25,17 @@ type Props = {
  * with a text field. It renders its children whenever it is mounted; the
  * caller decides what stays rendered while it slides out.
  */
-export function BottomSheet({ visible, onClose, children }: Props) {
+export function BottomSheet({ visible, onClose, onDismiss, children }: Props) {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const { height: windowHeight } = useWindowDimensions();
   const keyboard = useKeyboardHeight();
+
+  const wasVisible = useRef(visible);
+  useEffect(() => {
+    if (Platform.OS !== "ios" && wasVisible.current && !visible) onDismiss?.();
+    wasVisible.current = visible;
+  }, [visible, onDismiss]);
 
   return (
     <Modal
@@ -36,6 +47,7 @@ export function BottomSheet({ visible, onClose, children }: Props) {
       statusBarTranslucent
       navigationBarTranslucent
       onRequestClose={onClose}
+      onDismiss={Platform.OS === "ios" ? onDismiss : undefined}
     >
       <Pressable
         onPress={onClose}
