@@ -5,7 +5,7 @@ import React from "react";
 import { useTranslation } from "react-i18next";
 
 import { AppMenu } from "@/src/components/app-menu";
-import { ProgramHomeCard } from "@/src/components/program/program-home-card";
+import { HomeProgramSlot } from "@/src/components/premium/home-program-slot";
 import { Ring } from "@/src/components/progress/ring";
 import {
   CapsLabel,
@@ -295,31 +295,13 @@ export default function HomeScreen() {
               onAction={() => router.push("/(tabs)/routines")}
               className="px-5 mb-3"
             />
-            {program != null ? (
-              <View className="px-5">
-                <ProgramHomeCard
-                  program={program}
-                  notStarted={programNotStarted}
-                  onPress={() => router.push("/(tabs)/routines")}
-                />
-              </View>
-            ) : programLoading ? (
-              <View className="px-5">
-                <View className="h-[168px] rounded-[20px] border border-border bg-surface" />
-              </View>
-            ) : (
-              <View className="px-5">
-                <Card
-                  onPress={() => router.push("/(tabs)/routines")}
-                  className="items-center gap-2 rounded-[20px] p-6"
-                >
-                  <Ionicons name="ribbon-outline" size={26} color={colors.contentTertiary} />
-                  <Text className="text-center text-[13px] text-content-secondary">
-                    {t("coach.noProgramHint")}
-                  </Text>
-                </Card>
-              </View>
-            )}
+            {/* The program card, or what the client can do without one (Premium):
+                ask for it, request sent, subscribe, renew. */}
+            <HomeProgramSlot
+              program={program}
+              notStarted={programNotStarted}
+              loading={programLoading}
+            />
           </View>
 
           {/* Today's meals */}

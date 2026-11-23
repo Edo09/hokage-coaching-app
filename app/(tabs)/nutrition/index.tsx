@@ -1,16 +1,18 @@
 import React, { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { EmptyState } from "@/src/components/empty-state";
 import { DayTypeChip } from "@/src/components/nutrition/day-type-chip";
 import { MealCard, NotTodayRow } from "@/src/components/nutrition/meal-card";
 import { RegistrationSheet, type SheetTarget } from "@/src/components/nutrition/registration-sheet";
 import { ShoppingListCard } from "@/src/components/nutrition/shopping-list-card";
 import { SupplementStackView } from "@/src/components/nutrition/supplement-stack-view";
 import { TodayCard } from "@/src/components/nutrition/today-card";
+import { ContentGateView } from "@/src/components/premium/content-gate-view";
 import { CapsLabel, Card, ErrorState, LoadingBlock, Screen, SegmentedControl } from "@/src/components/ui";
+import { useContentGate } from "@/src/hooks/use-content-gate";
 import { useMealRegistrations, type RegisterInput } from "@/src/hooks/use-meal-registrations";
 import { useNutritionPlan } from "@/src/hooks/use-nutrition-plan";
+import { usePremiumAccess } from "@/src/hooks/use-premium-access";
 import { useRefreshOnFocus } from "@/src/hooks/use-refresh-on-focus";
 import { useSupplementLog } from "@/src/hooks/use-supplement-log";
 import { useSupplementPlan } from "@/src/hooks/use-supplement-plan";
@@ -23,6 +25,7 @@ import { toDateKey } from "@/src/utils/dates";
 import { itemsOf } from "@/src/utils/meal-counting";
 import { doneCount, mealDisplayName, nextMealId, todayMeals } from "@/src/utils/meal-registration";
 import { targetFor, type ResolvedDay } from "@/src/utils/nutrition-plan";
+import { nutritionPane } from "@/src/utils/subscription";
 
 type Pane = "plan" | "supplements";
 // Segment order: a pane further right drifts in from the right.
@@ -41,14 +44,24 @@ export default function NutritionScreen() {
   const { t } = useTranslation();
   const plan = useNutritionPlan();
   const supplements = useSupplementPlan();
+  const access = usePremiumAccess();
   useRefreshOnFocus(plan.refresh);
   useRefreshOnFocus(supplements.refresh);
 
-  // Seeded once both queries have loaded (spec «No plan»); after that the
-  // client's choice wins, so a refetch can't move the pane under them.
+  // Seeded once the queries and the access answer have loaded (spec «No
+  // plan»); after that the client's choice wins, so a refetch can't move the
+  // pane under them. A client whose access ended has nothing to read, so the
+  // flags of what is assigned decide (nutritionPane).
   const [pane, setPane] = useState<Pane | null>(null);
-  if (pane == null && !plan.loading && !supplements.loading) {
-    setPane(plan.plan != null ? "plan" : supplements.plan != null ? "supplements" : "plan");
+  if (pane == null && !plan.loading && !supplements.loading && !access.loading) {
+    setPane(
+      nutritionPane({
+        state: access.state,
+        access: access.access,
+        hasPlan: plan.plan != null,
+        hasSupplements: supplements.plan != null,
+      }),
+    );
   }
 
   return (
@@ -94,13 +107,19 @@ function PlanPane({ plan }: { plan: ReturnType<typeof useNutritionPlan> }) {
   const [popKeys, setPopKeys] = useState<Record<string, number>>({});
   const popSeq = useRef(0);
   const arrive = useArrival(plan.loading && plan.plan == null);
+  // Access first: a client whose access ended sees the locked state even when
+  // a copy of the plan is still cached.
+  const gate = useContentGate("nutrition_plan", plan.plan != null);
 
   if (plan.loading && plan.plan == null) return <LoadingBlock />;
   if (plan.error && plan.plan == null) return <ErrorState onRetry={plan.refresh} />;
-  if (plan.plan == null) {
+  if (gate.kind === "loading") return <LoadingBlock />;
+  if (gate.kind !== "content" || plan.plan == null) {
     return (
       <Screen entering={arrive} onRefresh={plan.refresh} contentContainerClassName="flex-grow justify-center p-4 pb-24">
-        <EmptyState icon="nutrition-outline" title={t("mealReg.noPlanTitle")} subtitle={t("mealReg.noPlanHint")} />
+        {gate.kind === "empty" || gate.kind === "pending" || gate.kind === "locked" ? (
+          <ContentGateView kind="nutrition_plan" shown={gate} variant="screen" />
+        ) : null}
       </Screen>
     );
   }
@@ -240,28 +259,28 @@ function SupplementsPane({
   day: ResolvedDay;
   cycling: boolean;
 }) {
-  const { t } = useTranslation();
   // The day-reactive key: ticks start over at midnight with the tab open.
   const today = useToday();
   const intake = useSupplementLog(toDateKey(today));
   const arrive = useArrival(supplements.loading && supplements.plan == null);
+  // Supplements follow the nutrition gate (they have no request of their own).
+  const gate = useContentGate("supplement_plan", supplements.plan != null);
 
   if (supplements.loading && supplements.plan == null) return <LoadingBlock />;
   if (supplements.error && supplements.plan == null) {
     return <ErrorState onRetry={supplements.refresh} />;
   }
-  if (supplements.plan == null) {
+  if (gate.kind === "loading") return <LoadingBlock />;
+  if (gate.kind !== "content" || supplements.plan == null) {
     return (
       <Screen
         entering={arrive}
         onRefresh={supplements.refresh}
         contentContainerClassName="flex-grow justify-center p-4 pb-24"
       >
-        <EmptyState
-          icon="medkit-outline"
-          title={t("supplements.noPlanTitle")}
-          subtitle={t("supplements.noPlanHint")}
-        />
+        {gate.kind === "empty" || gate.kind === "pending" || gate.kind === "locked" ? (
+          <ContentGateView kind="supplement_plan" shown={gate} variant="screen" />
+        ) : null}
       </Screen>
     );
   }

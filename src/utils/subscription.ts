@@ -207,8 +207,11 @@ export function contentGate(i: {
   access: MyAccess | null;
   hasContent: boolean;
   pending: ContentRequest | null;
+  /** The client's requests are still being read: a request button would flash
+      before «Solicitud enviada», so nothing is offered yet. */
+  requestsLoading?: boolean;
 }): ContentGate {
-  const { gate, state, access, hasContent, pending } = i;
+  const { gate, state, access, hasContent, pending, requestsLoading = false } = i;
   if (state === "loading") return hasContent ? { kind: "content" } : { kind: "loading" };
 
   if (state === "lapsed") {
@@ -223,6 +226,7 @@ export function contentGate(i: {
     return { kind: "empty", action: null };
   }
   if (pending != null) return { kind: "pending", since: pending.created_at };
+  if (requestsLoading) return { kind: "loading" };
   return { kind: "empty", action: "request" };
 }
 

@@ -1,10 +1,10 @@
 import React, { useEffect, useRef, useState } from "react";
-import { useTranslation } from "react-i18next";
 import type { ScrollView as RNScrollView } from "react-native";
 
-import { EmptyState } from "@/src/components/empty-state";
+import { ContentGateView } from "@/src/components/premium/content-gate-view";
 import { ProgramView } from "@/src/components/program/program-view";
 import { ErrorState, LoadingBlock, Screen } from "@/src/components/ui";
+import { useContentGate } from "@/src/hooks/use-content-gate";
 import { useProgram } from "@/src/hooks/use-program";
 import { useRefreshOnFocus } from "@/src/hooks/use-refresh-on-focus";
 import { useArrival } from "@/src/lib/motion";
@@ -13,10 +13,10 @@ import { View } from "@/src/tw";
 
 // Coach app = programs only. The client follows the single active coach program
 // (self-made routines + the AI generator live in the SOLO app, not here). When
-// no program is assigned yet, a waiting state — refetched on focus so a freshly
-// assigned program appears on return.
+// there is none to show, what the client can do about it (Premium): ask the
+// coach for one, see that the request was sent, subscribe, or renew — refetched
+// on focus so a freshly assigned program appears on return.
 export default function RoutinesScreen() {
-  const { t } = useTranslation();
   const {
     program,
     week,
@@ -29,6 +29,9 @@ export default function RoutinesScreen() {
     refresh,
   } = useProgram();
   useRefreshOnFocus(refresh);
+  // Access first: a client whose access ended sees the locked state even when
+  // a copy of the program is still cached.
+  const gate = useContentGate("program", program != null);
   const arrive = useArrival(loading && program == null);
   const scrollRef = useRef<RNScrollView>(null);
 
@@ -63,9 +66,12 @@ export default function RoutinesScreen() {
     );
   }
 
+  const shown =
+    gate.kind === "empty" || gate.kind === "pending" || gate.kind === "locked" ? gate : null;
+
   return (
     <View className="flex-1 bg-brand-dark">
-      {program != null ? (
+      {program != null && gate.kind === "content" ? (
         <Screen
           entering={arrive}
           onRefresh={refresh}
@@ -83,14 +89,12 @@ export default function RoutinesScreen() {
             scrollRef={scrollRef}
           />
         </Screen>
-      ) : (
+      ) : shown != null ? (
         <View className="flex-1 items-center justify-center px-6">
-          <EmptyState
-            icon="ribbon-outline"
-            title={t("coach.noProgramTitle")}
-            subtitle={t("coach.noProgramHint")}
-          />
+          <ContentGateView kind="program" shown={shown} variant="screen" />
         </View>
+      ) : (
+        <LoadingBlock />
       )}
     </View>
   );

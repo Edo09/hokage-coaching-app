@@ -358,6 +358,26 @@ describe("contentGate", () => {
         assert.deepEqual(contentGate({ ...loading, hasContent: true, pending: null }), { kind: "content" });
         assert.deepEqual(contentGate({ ...loading, hasContent: false, pending: null }), { kind: "loading" });
       });
+
+      it("while the client's requests still load, nothing is offered: no flash of «Solicitar» before «Solicitud enviada»", () => {
+        const base = {
+          gate,
+          state: stateOf(access()),
+          access: access(),
+          hasContent: false,
+          pending: null,
+          requestsLoading: true,
+        };
+        // What would flash is the request button; a stack with no request has nothing to wait for.
+        assert.deepEqual(contentGate(base), kind == null ? { kind: "empty", action: null } : { kind: "loading" });
+        // Content in hand, a request already known and a locked client are not held back.
+        assert.deepEqual(contentGate({ ...base, hasContent: true }), { kind: "content" });
+        if (kind != null) assert.equal(contentGate({ ...base, pending: request({ kind }) }).kind, "pending");
+        assert.deepEqual(contentGate({ ...base, state: stateOf(NONE), access: NONE }), {
+          kind: "empty",
+          action: kind == null ? null : "paywall",
+        });
+      });
     });
   }
 

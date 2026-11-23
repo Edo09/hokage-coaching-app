@@ -12,6 +12,8 @@ type IoniconName = React.ComponentProps<typeof Ionicons>["name"];
 type Props = {
   title: string;
   subtitle?: string;
+  /** A small line under the subtitle, e.g. the date a request was sent. */
+  footnote?: string;
   actionLabel?: string;
   onAction?: () => void;
   icon?: IoniconName;
@@ -20,6 +22,7 @@ type Props = {
 export function EmptyState({
   title,
   subtitle,
+  footnote,
   actionLabel,
   onAction,
   icon = "file-tray-outline",
@@ -33,6 +36,9 @@ export function EmptyState({
       <Text className="text-lg font-semibold text-content-primary text-center">{title}</Text>
       {subtitle != null && (
         <Text className="text-sm text-content-tertiary text-center px-6">{subtitle}</Text>
+      )}
+      {footnote != null && (
+        <Text className="text-xs text-content-muted text-center px-6">{footnote}</Text>
       )}
       {actionLabel != null && onAction != null && (
         <Button onPress={onAction} className="mt-2">
