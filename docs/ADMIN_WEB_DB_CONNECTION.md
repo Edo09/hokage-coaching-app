@@ -425,6 +425,68 @@ select j.jobname, d.status, d.return_message
  where j.jobname like 'meal-estimates-%' order by d.start_time desc limit 5;
 ```
 
+### 6.7 Premium subscriptions (`revenuecat-webhook`, `sync-subscription`)
+
+Clients pay in the app (Apple and Google, through RevenueCat) for the right to ask the coach for a program or a nutrition plan and to use what the coach assigns. Design: `docs/superpowers/specs/2026-11-16-premium-subscriptions-design.md`. The server stage ships **dark**: everything below can be deployed and tested while `premium_settings.enforced` is `false`, and then nobody is locked and nothing changes for any user.
+
+**Access** is one rule in SQL (`premium_source_for`): the coach role, or an active store subscription (`subscriptions`), or an active coach-set membership (`memberships`). With the switch on, a client without access cannot read the coach's content or log against it (restrictive RLS policies, after a 72-hour grace), cannot send a request, and the coach's daily notices and block-ending pushes skip them. History, profile and weight stay readable and writable.
+
+| Function | Called by | Auth |
+|---|---|---|
+| `revenuecat-webhook` | RevenueCat | the `Authorization` header set in RevenueCat (and, if configured, a signature); deployed `--no-verify-jwt` |
+| `sync-subscription` | the app, after a purchase, a restore, or from Settings | the client's JWT; the user is the token's, never the body; a call within 10 s of the last sync answers from what is stored |
+
+- **Flow:** an event is only a signal. The webhook records it once (`revenuecat_events`, by event id), re-reads the customer from RevenueCat's REST API (`GET /v1/subscribers/{id}`, only for ids that are real profiles) and stores what that says (`apply_subscription_snapshot`), so nothing in a payload ever decides access: a leaked secret or a replayed event can only cause a re-read. RevenueCat counts only HTTP 200 as delivered and retries five times (about 2.5 to 40 minutes): the function answers 200 for handled, ignored, repeated and unknown-user events, and 5xx only when the database or RevenueCat's API failed.
+- **Secrets** (`supabase secrets set … --project-ref rzgwkwxskrovxnnymxqo`): `REVENUECAT_WEBHOOK_SECRET` is the value of the Authorization header configured in RevenueCat; `REVENUECAT_API_KEY` is the project's **secret** API key (`sk_…`, never in the app); `REVENUECAT_WEBHOOK_SIGNING_SECRET` is optional, and when set the signature (`X-RevenueCat-Webhook-Signature`) is required too. Without the first the webhook answers 503; without the second every sync fails and is retried.
+- **RevenueCat side:** Integrations → Webhooks (needs its Pro plan, free below $2,500 of monthly revenue): URL `https://rzgwkwxskrovxnnymxqo.supabase.co/functions/v1/revenuecat-webhook`, the Authorization value above, production and sandbox, all apps. Store and product setup: the design's «Setup outside the code».
+
+Setup, in this order (the owner):
+
+```bash
+# 1. The panel first: its bell must tolerate the new notice kind (a push of the
+#    hokage-web-panel commit «don't break the bell on a notice kind it doesn't know yet»).
+# 2. Apply the migrations (the access one, then requests and locks), each with:
+supabase db query --remote=rzgwkwxskrovxnnymxqo --yes -f supabase/migrations/20261123120000_premium_access.sql
+supabase db query --remote=rzgwkwxskrovxnnymxqo --yes -f supabase/migrations/20261123130000_premium_requests_and_locks.sql
+# 3. Deploy: a push to main runs .github/workflows/deploy-functions.yml (both functions
+#    answer 503 until their secrets exist; the webhook never touches the database before that).
+# 4. The secrets:
+supabase secrets set REVENUECAT_WEBHOOK_SECRET=<secret> REVENUECAT_API_KEY=<sk_…> --project-ref rzgwkwxskrovxnnymxqo
+# 5. RevenueCat → Webhooks, then «Send test event»: expect 200 and, in revenuecat_events,
+#    a TEST row with outcome ignored.
+```
+
+Probes after the deploy (no secret needed for the first two):
+
+```bash
+curl -i -X POST https://rzgwkwxskrovxnnymxqo.supabase.co/functions/v1/revenuecat-webhook                          # 503 until the secret is set, then 401
+curl -i -X POST -H 'Authorization: wrong' https://rzgwkwxskrovxnnymxqo.supabase.co/functions/v1/revenuecat-webhook  # 401
+```
+
+The switch (SQL editor or `db query`):
+
+```sql
+select enforced, updated_at from public.premium_settings;                  -- false until go-live
+update public.premium_settings set enforced = true,  updated_at = now();  -- go live
+update public.premium_settings set enforced = false, updated_at = now();  -- and back
+-- Before going live: who would be locked? (give them a membership first, or they lose access)
+select id, display_name from public.profiles where role = 'user' and public.premium_source_for(id) is null;
+```
+
+Checks:
+
+```sql
+select event_type, outcome, count(*) from public.revenuecat_events group by 1, 2 order by 1, 2;
+select received_at, event_type, error from public.revenuecat_events where outcome = 'failed' order by received_at desc limit 10;
+select user_id, status, is_premium, store, environment, access_until, last_synced_at
+  from public.subscriptions order by last_synced_at desc limit 10;
+select kind, status, count(*) from public.content_requests group by 1, 2;
+```
+
+Tests: `npm test` covers the pure modules and the handlers (`src/utils/revenuecat*.test.ts`, `secret.test.ts`, `subscription-sync.test.ts`). `supabase/scripts/smoke_premium.sql` covers the SQL (expects «SMOKE OK: premium; nothing was saved»); it runs after the two migrations, or before them as a rehearsal: put the two migrations and the script, in that order, between `begin;` and `rollback;` (dropping each migration's own `begin;` and `commit;`) and run the file with `supabase db query --remote=<ref> --yes -f`; the script's final error rolls everything back. `smoke_plan_pushes.sql` and `smoke_meal_registrations.sql` must still pass with the migrations in place.
+
+Known limits: the web build and old app builds cannot sell anything (clients there keep access only through a membership); `sync-subscription` has no throttle for a user with no subscription row yet.
+
 ## 7. Security Checklist
 
 - [ ] **Service-role key is never in the SPA** — only inside the Edge Functions (§6).
@@ -453,6 +515,8 @@ Source of truth: **`supabase/migrations/20260707120000_coaching_platform.sql`** 
 
 **Membership table** — `public.memberships`: `client_id`, `coach_id`, `plan_name`, `status` (`active`/`expired`/`paused`/`cancelled`), `price`, `currency`, `started_at`, `expires_at`, `notes`.
 
+**Premium** (§6.7) — `public.premium_settings` (the switch: `enforced`, default false), `public.subscriptions` (one row per user: `product_id`, `store`, `environment`, `status` active/cancelled/billing_issue/expired, `is_premium`, `will_renew`, `access_until`, `last_synced_at`; written only by the Edge Functions, read by its owner and the coach), `public.revenuecat_events` (every webhook delivery once; server-only) and `public.content_requests` («Solicitar programa» / «Solicitar Plan de nutrición»: `kind` program/nutrition_plan, `status` pending/fulfilled/dismissed, `note`; made through `request_content()` and closed when the content is assigned).
+
 **Exercise catalog** — `public.exercises`: `id`, `name` (case-insensitively unique), `video_url`, `body_part_id` (→ `bodyparts.id`), `created_at`, `updated_at`. Coach-writable only (`is_coach()`), readable by everyone. `routine_exercises.exercise_id` (→ `exercises.id`, `not null`, `on delete restrict`) replaced the old per-row `name`/`video_url` text columns — those are gone after the cleanup migration ran.
 
 **Helper functions (security definer)**
@@ -462,6 +526,9 @@ Source of truth: **`supabase/migrations/20260707120000_coaching_platform.sql`** 
 | `is_coach()` | True when the caller's profile role is `coach`. Gates all coach RLS policies. |
 | `is_assigned_routine(uuid)` / `is_assigned_meal(uuid)` | Used by restrictive policies to keep assigned plans read-only for clients. |
 | `guard_role_change()` (trigger `trg_guard_role_change`) | Blocks role changes made through the API (clients cannot self-promote). |
+| `has_premium_access()` / `premium_content_access()` | Premium access for the caller: strict (what the app and `request_content()` ask) / with a 72-hour grace (what the lock policies call). True for everyone while `premium_settings.enforced` is false. |
+| `get_my_access()` / `coach_client_access()` | What the app is told (one row: access, source, subscription, membership, whether content is assigned) / what the panel is told (one row per client; coach only). |
+| `request_content(kind, note)` | The only way a client creates a request; checks access, refuses duplicates and already-assigned content. |
 
 **Auth trigger** — `handle_new_user` (base schema): auto-inserts a `profiles` row on signup, so `create-client` does not insert the profile manually.
 
