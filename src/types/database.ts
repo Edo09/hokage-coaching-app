@@ -504,3 +504,59 @@ export type SupplementIntakeLog = {
 export type SupplementPlanWithDetails = SupplementPlan & {
   supplement_plan_items: SupplementPlanItem[];
 };
+
+// ---- Premium (docs/superpowers/specs/2026-11-16-premium-subscriptions-design.md)
+// The app never decides access: the server answers rpc('get_my_access') from
+// one rule (coach, a store subscription, or a coach-set membership).
+
+/** Who grants the access, as get_my_access() says; 'open' while the switch is off. */
+export type AccessSource = "coach" | "subscription" | "membership" | "open";
+
+export type SubscriptionStatus = "active" | "cancelled" | "billing_issue" | "expired";
+
+/** The caller's subscriptions row, as get_my_access() reports it. */
+export type MyAccessSubscription = {
+  status: SubscriptionStatus;
+  store: string;
+  product_id: string;
+  environment: "production" | "sandbox";
+  is_premium: boolean;
+  will_renew: boolean;
+  started_at: string | null;
+  current_period_started_at: string | null;
+  expires_at: string | null;
+  grace_expires_at: string | null;
+  /** A timestamp, or the string "infinity" for an open-ended grant. */
+  access_until: string;
+  last_synced_at: string;
+};
+
+/** The answer of rpc('get_my_access'): what every Premium screen is built from. */
+export type MyAccess = {
+  enforced: boolean;
+  has_access: boolean;
+  source: AccessSource | null;
+  /** When the access that exists now ends; null when it never ends or there is none. */
+  access_ends_at: string | null;
+  subscription: MyAccessSubscription | null;
+  membership: { status: MembershipStatus; expires_at: string | null } | null;
+  /** Flags only, never the content: an active program / plan is assigned. */
+  has_program: boolean;
+  has_nutrition_plan: boolean;
+  has_supplement_plan: boolean;
+};
+
+export type ContentRequestKind = "program" | "nutrition_plan";
+export type ContentRequestStatus = "pending" | "fulfilled" | "dismissed";
+
+/** A client's request for a program or a nutrition plan (content_requests). */
+export type ContentRequest = {
+  id: string;
+  user_id: string;
+  kind: ContentRequestKind;
+  status: ContentRequestStatus;
+  note: string | null;
+  created_at: string;
+  resolved_at: string | null;
+  resolved_by: string | null;
+};

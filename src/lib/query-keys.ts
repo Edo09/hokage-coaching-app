@@ -26,7 +26,14 @@ export const qk = {
   // The client's own daily supplement ticks.
   supplementLog: (userId: string | undefined, dateKey: string) =>
     ["supplement-log", userId, dateKey] as const,
+  // Premium: the answer of rpc('get_my_access') (does this client have access),
+  // and the client's own requests for a program or plan.
+  access: (userId: string | undefined) => ["access", userId] as const,
+  contentRequests: (userId: string | undefined) => ["content-requests", userId] as const,
 };
+
+// What the coach's content lock hides: refetched when access starts or ends.
+export const premiumContentKeys = [["program"], ["nutrition-plan"], ["supplement-plan"]] as const;
 
 export const qkPrefixes = [
   ["meals"],
