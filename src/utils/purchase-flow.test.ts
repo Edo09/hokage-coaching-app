@@ -158,3 +158,18 @@ describe("flowReducer: restoring", () => {
     assert.deepEqual(state, INITIAL_FLOW);
   });
 });
+
+describe("flowReducer: reset", () => {
+  it("a finished flow goes back to idle, so the next restore or purchase can start", () => {
+    for (const p of ["confirmed", "processing"] as const) {
+      assert.deepEqual(flowReducer({ ...phase(p), restored: "found" }, { type: "reset" }), INITIAL_FLOW, p);
+    }
+  });
+
+  it("never cuts a flow short: it is ignored while anything is in progress, and at rest", () => {
+    for (const p of ["idle", "purchasing", "confirming", "restoring"] as const) {
+      const state = phase(p);
+      assert.equal(flowReducer(state, { type: "reset" }), state, p);
+    }
+  });
+});

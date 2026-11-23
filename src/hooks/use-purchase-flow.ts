@@ -113,6 +113,7 @@ export function usePurchaseFlow() {
   }, [state.phase, subscribed]);
 
   const dismiss = useCallback(() => dispatch({ type: "dismiss" }), []);
+  const reset = useCallback(() => dispatch({ type: "reset" }), []);
 
-  return { state, buy, restore, dismiss };
+  return { state, buy, restore, dismiss, reset };
 }

@@ -29,3 +29,13 @@ export function formatShortDate(key: string, lang: string): string {
     { day: "numeric", month: "short" },
   );
 }
+
+/** "23 de diciembre de 2026" / "December 23, 2026": the day of an instant (an
+    ISO timestamp, in the phone's time zone) with its year. */
+export function formatLongDate(iso: string, lang: string): string {
+  return new Date(iso).toLocaleDateString(lang === "es" ? "es-ES" : "en-US", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+}

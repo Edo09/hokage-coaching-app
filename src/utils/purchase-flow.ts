@@ -34,7 +34,10 @@ export type FlowEvent =
   | { type: "failed"; failure: PurchaseFailure }
   | { type: "confirmed" }
   | { type: "timedOut" }
-  | { type: "dismiss" };
+  | { type: "dismiss" }
+  /** A finished flow (success, or the wait that gave up) back to idle, for a
+      screen that stays open after it, like Settings. */
+  | { type: "reset" };
 
 export function flowReducer(state: FlowState, event: FlowEvent): FlowState {
   switch (event.type) {
@@ -66,6 +69,8 @@ export function flowReducer(state: FlowState, event: FlowEvent): FlowState {
         : state;
     case "timedOut":
       return state.phase === "confirming" ? { ...state, phase: "processing" } : state;
+    case "reset":
+      return state.phase === "confirmed" || state.phase === "processing" ? INITIAL_FLOW : state;
     case "dismiss":
       return state.failure == null && state.restored == null
         ? state

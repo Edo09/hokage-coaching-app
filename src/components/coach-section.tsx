@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { Linking } from "react-native";
 
 import { MembershipCard } from "@/src/components/membership-card";
+import { SubscriptionCard } from "@/src/components/premium/subscription-card";
 import { Button, Card } from "@/src/components/ui";
 import { useCoach } from "@/src/hooks/use-coach";
 import { useMembership } from "@/src/hooks/use-membership";
@@ -61,6 +62,9 @@ export function CoachSection() {
       </Card>
 
       <MembershipCard membership={membership} />
+
+      {/* Premium: the store subscription, beside the coach-set membership */}
+      <SubscriptionCard />
     </>
   );
 }

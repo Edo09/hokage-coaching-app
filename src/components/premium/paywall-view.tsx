@@ -8,6 +8,7 @@ import { Button, Card, HeaderPanel, PosterText, SkewButton, Spinner } from "@/sr
 import type { PlanKind } from "@/src/config/purchases";
 import { useColors } from "@/src/theme/colors";
 import { Pressable, ScrollView, Text, View } from "@/src/tw";
+import { formatLongDate } from "@/src/utils/dates";
 import type { Plan } from "@/src/utils/purchase";
 import type { FlowState } from "@/src/utils/purchase-flow";
 
@@ -180,15 +181,6 @@ function Panel({
       {children != null && <View className="mt-2 w-full gap-2">{children}</View>}
     </Card>
   );
-}
-
-/** A date as «23 de noviembre de 2026» in the app's language. */
-function formatLongDate(iso: string, language: string): string {
-  return new Date(iso).toLocaleDateString(language === "es" ? "es-ES" : "en-US", {
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  });
 }
 
 function Offer({

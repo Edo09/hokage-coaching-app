@@ -815,6 +815,21 @@ export default {
     // Tarjeta de suscripción en Ajustes
     card: {
       manage: "Gestionar suscripción",
+      title: "Suscripción",
+      status_none: "Sin suscripción",
+      status_active: "Activa",
+      status_cancelled: "Cancelada",
+      status_billing_issue: "Problema de pago",
+      status_expired: "Vencida",
+      status_membership: "Por membresía",
+      date_renews: "Se renueva el {{date}}",
+      date_ends: "Termina el {{date}}",
+      date_ended: "Terminó el {{date}}",
+      sandbox: "Compra de prueba (sandbox)",
+      membershipHint: "Tu acceso viene de tu membresía con tu coach.",
+      billingHint: "La tienda no pudo cobrar. Actualiza tu método de pago para no perder el acceso.",
+      storeOnly: "Para suscribirte o gestionar tu suscripción, usa la app para iOS o Android.",
+      seePlans: "Ver planes",
     },
   },
 

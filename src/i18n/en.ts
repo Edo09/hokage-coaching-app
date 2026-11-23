@@ -815,6 +815,21 @@ export default {
     // Subscription card in Settings
     card: {
       manage: "Manage subscription",
+      title: "Subscription",
+      status_none: "No subscription",
+      status_active: "Active",
+      status_cancelled: "Canceled",
+      status_billing_issue: "Payment issue",
+      status_expired: "Expired",
+      status_membership: "Via membership",
+      date_renews: "Renews on {{date}}",
+      date_ends: "Ends on {{date}}",
+      date_ended: "Ended on {{date}}",
+      sandbox: "Test purchase (sandbox)",
+      membershipHint: "Your access comes from your membership with your coach.",
+      billingHint: "The store couldn't charge you. Update your payment method to keep your access.",
+      storeOnly: "To subscribe or manage your subscription, use the iOS or Android app.",
+      seePlans: "See plans",
     },
   },
 
