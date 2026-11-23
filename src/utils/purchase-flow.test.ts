@@ -7,6 +7,7 @@ import { describe, it } from "node:test";
 import {
   flowReducer,
   INITIAL_FLOW,
+  settledByAccess,
   type FlowEvent,
   type FlowState,
 } from "@/src/utils/purchase-flow";
@@ -170,6 +171,23 @@ describe("flowReducer: reset", () => {
     for (const p of ["idle", "purchasing", "confirming", "restoring"] as const) {
       const state = phase(p);
       assert.equal(flowReducer(state, { type: "reset" }), state, p);
+    }
+  });
+});
+
+describe("settledByAccess", () => {
+  it("the server already showing the subscription ends a wait that is still confirming or has given up", () => {
+    // A sync that stalls must not keep «Confirmando tu compra…» up once Realtime
+    // or the webhook has put the subscription in the access query.
+    assert.equal(settledByAccess("confirming", true), true);
+    assert.equal(settledByAccess("processing", true), true);
+  });
+
+  it("needs the subscription, and a wait to end", () => {
+    assert.equal(settledByAccess("confirming", false), false);
+    assert.equal(settledByAccess("processing", false), false);
+    for (const p of ["idle", "purchasing", "restoring", "confirmed"] as const) {
+      assert.equal(settledByAccess(p, true), false, p);
     }
   });
 });

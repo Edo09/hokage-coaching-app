@@ -39,6 +39,16 @@ export type FlowEvent =
       screen that stays open after it, like Settings. */
   | { type: "reset" };
 
+/**
+ * The wait is over because the server already shows the subscription (the
+ * webhook, Realtime, a later foreground), however the wait itself is going: a
+ * sync that stalls must not keep «Confirmando tu compra…» up. True only for
+ * the two phases that wait for it; the screen raises «confirmed» then.
+ */
+export function settledByAccess(phase: FlowState["phase"], subscribed: boolean): boolean {
+  return subscribed && (phase === "confirming" || phase === "processing");
+}
+
 export function flowReducer(state: FlowState, event: FlowEvent): FlowState {
   switch (event.type) {
     case "buy":

@@ -89,9 +89,13 @@ describe("confirmPurchase", () => {
     assert.equal(time(), 0);
   });
 
-  it("does not even sync when it is cancelled before it starts", async () => {
-    const { deps, syncs } = fake({ cancelAt: 0 });
+  it("still runs the first sync when the screen is already gone: the store has been paid, the server must hear of it", async () => {
+    // The paywall can be swiped away between the store sheet closing and the
+    // purchase resolving; the purchase is real either way, so the one cheap
+    // call that tells the server runs, and then the wait stops.
+    const { deps, syncs, time } = fake({ cancelAt: 0 });
     assert.equal(await confirmPurchase(deps), "cancelled");
-    assert.deepEqual(syncs, []);
+    assert.deepEqual(syncs, [0]);
+    assert.equal(time(), 0);
   });
 });

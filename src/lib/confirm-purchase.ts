@@ -36,7 +36,10 @@ export async function confirmPurchase(
 
   const start = deps.now();
   let lastSync = start;
-  if (deps.cancelled()) return "cancelled";
+  // The first sync runs even when the screen is already gone: the store has
+  // been paid, so the server must hear of it (the paywall can be swiped away
+  // between the store sheet closing and the purchase resolving). Only the
+  // waiting after it depends on the screen.
   await trySync();
   if (deps.cancelled()) return "cancelled";
   if (deps.confirmed()) return "confirmed";
