@@ -17,6 +17,7 @@ import { setupRestAlerts } from "@/src/lib/rest-alert";
 import { AuthProvider } from "@/src/providers/auth-provider";
 import { CelebrationProvider } from "@/src/providers/celebration-provider";
 import { RestTimerProvider } from "@/src/providers/rest-timer-provider";
+import { SubscriptionProvider } from "@/src/providers/subscription-provider";
 import { useColors } from "@/src/theme/colors";
 import { WEB_MAX_WIDTH } from "@/src/theme/layout";
 import { applyThemeMode, getStoredThemeMode } from "@/src/theme/theme-mode";
@@ -85,13 +86,15 @@ function AuthGate() {
     const inAuthGroup = (segments[0]) === "(auth)";
     const inOnboarding = (segments[0]) === "(onboarding)";
     const inTabs = (segments[0]) === "(tabs)";
+    // The paywall sits outside the tabs: a signed-in client may stay on it.
+    const inPaywall = (segments[0]) === "paywall";
 
 
     if (!session && !inAuthGroup) {
       router.replace("/(auth)/login");
     } else if (session && !onboardingCompleted && !inOnboarding) {
       router.replace("/(onboarding)");
-    } else if (session && onboardingCompleted && !inTabs) {
+    } else if (session && onboardingCompleted && !inTabs && !inPaywall) {
       router.replace("/(tabs)");
     }
   }, [session, loading, onboardingCompleted, segments, router]);
@@ -170,6 +173,8 @@ export default function RootLayout() {
       <I18nextProvider i18n={i18n}>
         <GluestackUIProvider mode={themeMode ?? "system"}>
           <AuthProvider>
+          {/* Premium's side effects (purchases SDK, access Realtime and clock) */}
+          <SubscriptionProvider>
           {/* Above the router: one rest timer app-wide, so a countdown started
               on an exercise survives navigating away from it. */}
           <RestTimerProvider>
@@ -218,6 +223,8 @@ export default function RootLayout() {
                 <Stack.Screen name="(auth)" />
                 <Stack.Screen name="(onboarding)" />
                 <Stack.Screen name="(tabs)" />
+                {/* Premium's paywall: over the tabs, AuthGate leaves it alone */}
+                <Stack.Screen name="paywall" options={{ presentation: "modal" }} />
               </Stack>
             </View>
             </View>
@@ -225,6 +232,7 @@ export default function RootLayout() {
           </CelebrationProvider>
             </ToastProvider>
           </RestTimerProvider>
+          </SubscriptionProvider>
           </AuthProvider>
         </GluestackUIProvider>
       </I18nextProvider>
