@@ -211,7 +211,7 @@ Stage 0. Must ship before Task 3's migration is applied, because a `content_requ
 
 ## Execution record (2026-11-23)
 
-Executed inline on `main` (the repo's rule: no branches or worktrees). App repo commits: `29467de` design and plan, `a6d88b7` Task 2, `c80ffbb` Task 3, `c330721` Task 4, `5cb0d91` Task 5, `51f788f` Task 6, `4251d1f` Task 7 docs, `4de6efb` the review's fixes. Panel repo: `50dc5f5` Task 1. **Nothing is pushed and nothing is applied to the live project.**
+Executed inline on `main` (the repo's rule: no branches or worktrees). App repo commits: `29467de` design and plan, `a6d88b7` Task 2, `c80ffbb` Task 3, `c330721` Task 4, `5cb0d91` Task 5, `51f788f` Task 6, `4251d1f` Task 7 docs, `4de6efb` the review's fixes. Panel repo: `50dc5f5` Task 1. At the end of execution nothing was pushed or applied; the rollout is recorded at the end of this section.
 
 Verified: `supabase/scripts/smoke_premium.sql` (sections 1-15) passes as a rolled-back rehearsal on the live schema, and the live project still has none of the new objects afterwards; `smoke_plan_pushes.sql` and `smoke_meal_registrations.sql` still pass with both migrations in place; `npm test` 508/508; `npm run lint` 0 errors; `deno check` passes for `revenuecat-webhook`, `sync-subscription` and `estimate-meal` (run on a copy of `supabase/functions` outside the repo, because Deno picks up the repo's `package.json` and expects `node_modules`). One independent whole-branch review found no Critical issue; its six Important findings were fixed test-first (see the last commit).
 
@@ -237,6 +237,14 @@ Verified: `supabase/scripts/smoke_premium.sql` (sections 1-15) passes as a rolle
 - Untested wiring: the two `index.ts` files, `subscription-deps.ts`, the subscription-grace branch through the policies, and the coach jobs' equivalence by running them.
 - Section 6.7 does not say that sandbox purchases grant real access here, nor that a paused/expired/cancelled membership locks at once.
 - Every RevenueCat fixture is hand-written.
+
+### Rollout (2026-11-23, after the owner's go)
+
+Pushed: panel `50dc5f5`, app `8235fae..2d161e3`. The deploy workflow succeeded: `revenuecat-webhook` v1 (JWT verification off), `sync-subscription` v1, `estimate-meal` v4. Applied to the live project, in order: `20261123120000_premium_access.sql`, then `20261123130000_premium_requests_and_locks.sql`; `premium_settings.enforced` is `false`.
+
+Checked on the applied state: `smoke_premium.sql`, `smoke_plan_pushes.sql` and `smoke_meal_registrations.sql` all pass (rolled back, with identical row counts before and after); 11 read locks, 15 write locks, 3 triggers, the notice kind, both coach jobs and realtime for the three tables are in place; Supabase's advisors flag nothing actionable in the new objects (server-only tables with RLS and no policies, the RPC functions, the project's usual client-plus-coach permissive policies, an unused index on a new table). Live probes: the webhook answers 503 until its secret is set and 405 to a GET; `sync-subscription` is refused at the gateway without a token; `estimate-meal` still answers 401 without its secret.
+
+Still to do: create the RevenueCat project, then set `REVENUECAT_WEBHOOK_SECRET` and `REVENUECAT_API_KEY` and configure the webhook (§6.7); plans 2 (app) and 3 (panel).
 
 ### Before the switch is turned on
 

@@ -75,6 +75,24 @@ What this means when working here:
   re-sends lost calls and retries failures, and each failure's reason goes to
   `meal_estimate_errors` (server-only: read it with SQL). See
   `docs/ADMIN_WEB_DB_CONNECTION.md` §6.6.
+- Premium subscriptions (RevenueCat): clients pay in the app for the right to
+  ask the coach for a program or nutrition plan and to use what is assigned.
+  Applied 2026-11-23, **dark**: the one switch `premium_settings.enforced` is
+  `false`, so nobody is locked and nothing changed for any user; going live is
+  `update public.premium_settings set enforced = true` (checklist in
+  `docs/ADMIN_WEB_DB_CONNECTION.md` §6.7). One rule in SQL
+  (`premium_source_for` / `has_premium_access()`): the coach role, an active
+  store subscription (`subscriptions`, written only by the `revenuecat-webhook`
+  and `sync-subscription` Edge Functions, which re-read the customer from
+  RevenueCat's REST API and never trust the payload) or an active coach-set
+  `memberships` row. With the switch on, a client without access cannot read the
+  coach's content or log against it (restrictive RLS, after a 72-hour grace),
+  cannot ask for a program or plan (`request_content`, rows in
+  `content_requests`, bell kind `content_requested`), and the daily coach
+  notices and block-ending pushes skip them. The function secrets
+  `REVENUECAT_WEBHOOK_SECRET` and `REVENUECAT_API_KEY` are not set yet (no
+  RevenueCat project); the app and panel parts are not built. Design:
+  `docs/superpowers/specs/2026-11-16-premium-subscriptions-design.md`.
 - Schema source of truth: `supabase/migrations`. Migrations here do not reach
   Zyron's database (and vice versa).
 - `supabase/scripts/convert_shared_db_to_hokage_only.sql` was a one-off, already
