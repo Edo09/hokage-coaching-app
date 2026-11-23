@@ -714,6 +714,65 @@ export default {
     timing_any: "Anytime",
   },
 
+  // Premium (RevenueCat subscription): what the tabs show without a program or
+  // plan, the subscription screen and the Settings card.
+  // src/i18n/premium.test.ts pins the design's Spanish text and keeps es and en
+  // on the same keys.
+  premium: {
+    // Program, nutrition plan and supplements: empty, request sent or access
+    // ended
+    gate: {
+      program: {
+        title: "No program yet",
+        noneHint: "Subscribe and ask your coach for your personalized program.",
+        requestHint: "Ask for your program and your coach will prepare it for you.",
+        requestAction: "Request program",
+        lockedHint: "Renew your subscription to get back to your program. Your history is still here.",
+      },
+      nutrition: {
+        title: "No nutrition plan yet",
+        noneHint: "Subscribe and ask your coach for your personalized nutrition plan.",
+        requestHint: "Ask for your nutrition plan and your coach will prepare it for you.",
+        requestAction: "Request Nutrition plan",
+        lockedHint:
+          "Renew your subscription to get back to your nutrition plan. Your history is still here.",
+      },
+      supplements: {
+        lockedHint:
+          "Renew your subscription to get back to your supplement plan. Your history is still here.",
+      },
+      pendingTitle: "Request sent",
+      pendingHint: "Your coach will see it and let you know when it's ready.",
+      pendingSince: "Sent on {{date}}",
+      lockedTitle: "Your access has ended",
+      renewAction: "Renew subscription",
+    },
+    paywall: {
+      title: "Premium access",
+      planMonthly: "Monthly",
+      planQuarterly: "Quarterly",
+      planAnnual: "Annual",
+      subscribe: "Subscribe",
+      restore: "Restore purchases",
+      renewsAutomatically:
+        "Renews automatically. You can cancel anytime in your store settings.",
+    },
+    // Purchase and restore states
+    states: {
+      confirming: "Confirming your purchase…",
+      processing: "Your purchase is being processed",
+      pendingApproval: "Your purchase is pending approval",
+      failed: "The purchase couldn't be completed. Please try again.",
+      restored: "Purchases restored",
+      nothingToRestore: "We couldn't find any purchases to restore",
+      offline: "No connection",
+    },
+    // Subscription card in Settings
+    card: {
+      manage: "Manage subscription",
+    },
+  },
+
   // Local reminders (notifications): training day, inactivity and week
   // opened, plus their onboarding step and their Settings card
   reminders: {

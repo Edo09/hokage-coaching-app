@@ -714,6 +714,65 @@ export default {
     timing_any: "Cualquier momento",
   },
 
+  // Premium (suscripción con RevenueCat): lo que muestran las pestañas sin
+  // programa o plan, la pantalla de suscripción y la tarjeta de Ajustes.
+  // src/i18n/premium.test.ts fija el texto del diseño y que es y en tengan las
+  // mismas claves.
+  premium: {
+    // Programa, plan de nutrición y suplementos: vacío, solicitud enviada o
+    // acceso terminado
+    gate: {
+      program: {
+        title: "Aún sin programa",
+        noneHint: "Suscríbete y pídele tu programa personalizado a tu coach.",
+        requestHint: "Pide tu programa y tu coach lo preparará para ti.",
+        requestAction: "Solicitar programa",
+        lockedHint: "Renueva tu suscripción para volver a tu programa. Tu historial sigue aquí.",
+      },
+      nutrition: {
+        title: "Aún sin plan de nutrición",
+        noneHint: "Suscríbete y pídele tu plan de nutrición personalizado a tu coach.",
+        requestHint: "Pide tu plan de nutrición y tu coach lo preparará para ti.",
+        requestAction: "Solicitar Plan de nutrición",
+        lockedHint:
+          "Renueva tu suscripción para volver a tu plan de nutrición. Tu historial sigue aquí.",
+      },
+      supplements: {
+        lockedHint:
+          "Renueva tu suscripción para volver a tu plan de suplementos. Tu historial sigue aquí.",
+      },
+      pendingTitle: "Solicitud enviada",
+      pendingHint: "Tu coach la verá y te avisará cuando esté lista.",
+      pendingSince: "Enviada el {{date}}",
+      lockedTitle: "Tu acceso terminó",
+      renewAction: "Renovar suscripción",
+    },
+    paywall: {
+      title: "Acceso Premium",
+      planMonthly: "Mensual",
+      planQuarterly: "Trimestral",
+      planAnnual: "Anual",
+      subscribe: "Suscribirme",
+      restore: "Restaurar compras",
+      renewsAutomatically:
+        "Se renueva automáticamente. Puedes cancelar cuando quieras desde los ajustes de la tienda.",
+    },
+    // Estados de la compra y de la restauración
+    states: {
+      confirming: "Confirmando tu compra…",
+      processing: "Tu compra se está procesando",
+      pendingApproval: "Tu compra está pendiente de aprobación",
+      failed: "No se pudo completar la compra. Inténtalo de nuevo.",
+      restored: "Compras restauradas",
+      nothingToRestore: "No encontramos compras para restaurar",
+      offline: "Sin conexión",
+    },
+    // Tarjeta de suscripción en Ajustes
+    card: {
+      manage: "Gestionar suscripción",
+    },
+  },
+
   // Recordatorios locales (notificaciones): día de entreno, inactividad y
   // semana abierta, más su paso en el onboarding y su tarjeta en Ajustes
   reminders: {
