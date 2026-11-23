@@ -138,15 +138,16 @@ export async function handleWebhook(deps: WebhookDeps, req: WebhookRequest): Pro
 }
 
 export type OwnSyncDeps = SyncDeps & {
-  /** The caller's subscriptions.last_synced_at, or null when they have no row. */
-  lastSyncedAt(userId: string): Promise<Date | null>;
+  /**
+   * take_subscription_sync: true when this user may sync now (and the slot is
+   * stamped), false when they took it a few seconds ago. Held per user, not on
+   * the subscription row, so it also holds for a user who has none yet.
+   */
+  takeSlot(userId: string): Promise<boolean>;
 };
 
-const COOLDOWN_MS = 10_000;
-
-/** sync-subscription: re-reads the caller's own account, unless it was read a moment ago. */
+/** sync-subscription: re-reads the caller's own account, unless they synced a moment ago. */
 export async function syncOwnAccount(deps: OwnSyncDeps, userId: string): Promise<'cooldown' | ApplyResult> {
-  const last = await deps.lastSyncedAt(userId);
-  if (last !== null && deps.now().getTime() - last.getTime() < COOLDOWN_MS) return 'cooldown';
+  if (!(await deps.takeSlot(userId))) return 'cooldown';
   return syncUser(deps, userId);
 }

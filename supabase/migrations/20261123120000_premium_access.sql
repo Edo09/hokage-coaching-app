@@ -110,6 +110,18 @@ alter table public.revenuecat_events enable row level security;
 revoke all on public.revenuecat_events from anon, authenticated;
 grant select, insert, update on public.revenuecat_events to service_role;
 
+-- 3b) subscription_sync_slots: the sync-subscription cooldown ----------------------------
+-- One row per user, so the cooldown also holds for a user who has no
+-- subscription row yet (whose every call would otherwise reach RevenueCat).
+create table if not exists public.subscription_sync_slots (
+  user_id      uuid primary key references public.profiles(id) on delete cascade,
+  attempted_at timestamptz not null default now()
+);
+
+alter table public.subscription_sync_slots enable row level security;
+revoke all on public.subscription_sync_slots from anon, authenticated;
+grant select, insert, update on public.subscription_sync_slots to service_role;
+
 -- 4) The rule -------------------------------------------------------------------------
 create or replace function public.premium_enforced()
 returns boolean
@@ -150,6 +162,48 @@ security definer
 set search_path = ''
 as $$
   select not public.premium_enforced() or public.premium_source_for(p_user) is not null
+$$;
+
+-- The instant a coach's calendar day ends (the start of the next one). The time
+-- zone is the one coach_local_date() uses; supabase/scripts/smoke_premium.sql
+-- asserts the two agree, so changing one without the other fails it.
+create or replace function public.coach_day_end(p_date date)
+returns timestamptz
+language sql
+stable
+set search_path = ''
+as $$
+  select ((p_date + 1)::timestamp at time zone 'America/Santo_Domingo')
+$$;
+
+-- When the access that exists now ends: the later end among the sources that
+-- grant it. Null when it never ends (the coach, an open-ended membership or
+-- grant) and when there is no access at all, so read it beside has_access. The
+-- app flips its screen at this moment without a round trip, and never has to
+-- copy the rule to find it.
+create or replace function public.premium_ends_at_for(p_user uuid)
+returns timestamptz
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select case
+    when exists (select 1 from public.profiles p where p.id = p_user and p.role = 'coach') then null
+    else nullif(
+      (select max(g.ends_at) from (
+         select s.access_until as ends_at
+           from public.subscriptions s
+          where s.user_id = p_user and s.is_premium and s.access_until > now()
+         union all
+         select case when m.expires_at is null then 'infinity'::timestamptz
+                     else public.coach_day_end(m.expires_at) end
+           from public.memberships m
+          where m.client_id = p_user and m.status = 'active'
+            and (m.expires_at is null or m.expires_at >= public.coach_local_date())
+       ) g),
+      'infinity'::timestamptz)
+  end
 $$;
 
 -- What the lock uses, not premium_access_for: the coach's content and the
@@ -244,6 +298,7 @@ begin
     'has_access', (not v_enforced) or v_source is not null,
     'source',     case when v_source is not null then v_source
                        when not v_enforced then 'open' end,
+    'access_ends_at', case when v_source is not null then public.premium_ends_at_for(v_uid) end,
     'subscription', (select jsonb_build_object(
         'status', s.status, 'store', s.store, 'product_id', s.product_id,
         'environment', s.environment, 'is_premium', s.is_premium, 'will_renew', s.will_renew,
@@ -266,7 +321,7 @@ $$;
 -- One row per client for the panel's lists, badges and attention rules, so
 -- they read the rule instead of copying it. Coach only.
 create or replace function public.coach_client_access()
-returns table (client_id uuid, has_access boolean, source text, being_coached boolean)
+returns table (client_id uuid, has_access boolean, source text, being_coached boolean, access_ends_at timestamptz)
 language plpgsql
 stable
 security definer
@@ -280,7 +335,8 @@ begin
     select p.id,
            public.premium_access_for(p.id),
            public.premium_source_for(p.id),
-           public.is_being_coached(p.id)
+           public.is_being_coached(p.id),
+           public.premium_ends_at_for(p.id)
       from public.profiles p
      where p.role = 'user';
 end;
@@ -376,7 +432,14 @@ begin
     current_period_started_at = coalesce(excluded.current_period_started_at, s.current_period_started_at),
     expires_at                = coalesce(excluded.expires_at, s.expires_at),
     grace_expires_at          = excluded.grace_expires_at,
-    access_until              = excluded.access_until,
+    -- A revoked row's end of access never moves forward. Every sync of a
+    -- refunded customer asks for «now» as the end, and taking it would start
+    -- the 72-hour grace again at each sync (the user can call sync-subscription
+    -- themselves). A purchase, a renewal or the revoking sync itself is taken
+    -- as it comes; a second sync of a row that is already revoked is not.
+    access_until              = case when excluded.is_premium or s.is_premium
+                                     then excluded.access_until
+                                     else least(s.access_until, excluded.access_until) end,
     rc_app_user_id            = coalesce(excluded.rc_app_user_id, s.rc_app_user_id),
     last_event_id             = coalesce(excluded.last_event_id, s.last_event_id),
     last_event_at             = coalesce(excluded.last_event_at, s.last_event_at),
@@ -388,6 +451,27 @@ begin
 end;
 $$;
 
+-- sync-subscription's cooldown. True when the user may sync now (and the slot
+-- is stamped), false when they took it less than p_cooldown_seconds ago or
+-- have no profile. One statement, so two calls at once cannot both get it.
+create or replace function public.take_subscription_sync(p_user uuid, p_cooldown_seconds int default 10)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if not exists (select 1 from public.profiles where id = p_user) then
+    return false;
+  end if;
+  insert into public.subscription_sync_slots as t (user_id, attempted_at)
+  values (p_user, now())
+  on conflict (user_id) do update set attempted_at = now()
+    where t.attempted_at <= now() - make_interval(secs => p_cooldown_seconds);
+  return found;
+end;
+$$;
+
 -- 7) Who may call what ---------------------------------------------------------------------
 -- Functions are executable by everyone unless revoked.
 revoke all on function public.premium_enforced()                    from public, anon, authenticated;
@@ -395,12 +479,16 @@ revoke all on function public.premium_source_for(uuid)              from public,
 revoke all on function public.premium_access_for(uuid)              from public, anon, authenticated;
 revoke all on function public.premium_content_access_for(uuid)        from public, anon, authenticated;
 revoke all on function public.is_being_coached(uuid)                from public, anon, authenticated;
+revoke all on function public.coach_day_end(date)                   from public, anon, authenticated;
+revoke all on function public.premium_ends_at_for(uuid)             from public, anon, authenticated;
 revoke all on function public.record_revenuecat_event(text, text, text, timestamptz, jsonb)
                                                                     from public, anon, authenticated;
 revoke all on function public.finish_revenuecat_event(text, text, text)
                                                                     from public, anon, authenticated;
 revoke all on function public.apply_subscription_snapshot(uuid, jsonb, timestamptz, text, timestamptz)
                                                                     from public, anon, authenticated;
+revoke all on function public.take_subscription_sync(uuid, int)     from public, anon, authenticated;
+grant execute on function public.take_subscription_sync(uuid, int)  to service_role;
 grant execute on function public.record_revenuecat_event(text, text, text, timestamptz, jsonb) to service_role;
 grant execute on function public.finish_revenuecat_event(text, text, text)                    to service_role;
 grant execute on function public.apply_subscription_snapshot(uuid, jsonb, timestamptz, text, timestamptz)

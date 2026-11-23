@@ -207,6 +207,13 @@ only the service role writes. In `supabase_realtime`.
 `synced` | `ignored` | `unknown_user` | `failed`), `error`. No policies, no
 grants but `service_role`: unreadable from the API.
 
+### `subscription_sync_slots` (the sync cooldown)
+
+`user_id` (pk, → `profiles`, cascade), `attempted_at`. Server-only.
+`take_subscription_sync(user, seconds = 10)` stamps the slot and answers true, or
+answers false when the user took it less than `seconds` ago or has no profile, in
+one statement, so two calls at once cannot both get it.
+
 ### Writers
 
 Two `SECURITY DEFINER` functions, executable by `service_role` only:
@@ -215,6 +222,9 @@ whether it is new, a repeat already `synced`, or a repeat still unprocessed (a
 retry after a failure, which must run again); `apply_subscription_snapshot(user,
 patch, fetched_at)` upserts the row only when `fetched_at` is not older than the
 row's `last_synced_at`, so two overlapping syncs cannot leave the older answer.
+A row that is already revoked keeps its end of access when a later sync of the same
+customer asks for a later one (every sync of a refunded customer asks for «now»), so
+the 72-hour grace is counted once, from the sync that revoked it.
 Both live in SQL so idempotency and ordering are tested by the smoke script with
 plain data, without deploying anything.
 
@@ -264,12 +274,13 @@ monthly tracked revenue.
   `REVENUECAT_WEBHOOK_SIGNING_SECRET` is set the function also requires a valid
   signature within 5 minutes. Because the payload never decides access (below),
   a replay can do nothing but trigger a re-read.
-- **What triggers a re-read.** `INITIAL_PURCHASE`, `RENEWAL`, `CANCELLATION`,
-  `UNCANCELLATION`, `EXPIRATION`, `BILLING_ISSUE`, `PRODUCT_CHANGE`,
-  `SUBSCRIPTION_PAUSED`, `SUBSCRIPTION_EXTENDED`, `REFUND_REVERSED`,
-  `TEMPORARY_ENTITLEMENT_GRANT`, and `TRANSFER` (every user in `transferred_from`
-  and `transferred_to`; the event has no `app_user_id`). `TEST` is acknowledged;
-  any other type is recorded as `ignored`.
+- **What triggers a re-read.** Every event type except `TEST` (acknowledged) and
+  three that have nothing to do with a subscription (`EXPERIMENT_ENROLLMENT`,
+  `VIRTUAL_CURRENCY_TRANSACTION`, `INVOICE_ISSUANCE`, recorded as `ignored`),
+  including a type RevenueCat adds later: a re-read is harmless, a missed one is a
+  wrong access. A `TRANSFER` re-reads every user in `transferred_from` and
+  `transferred_to` (the event has no `app_user_id`); the others, the ids among
+  `app_user_id`, `original_app_user_id` and `aliases`.
 - **The re-read.** For each affected id that is a UUID *and* an existing profile
   (RevenueCat's lookup creates a missing customer, so never an arbitrary id), the
   function asks RevenueCat's REST API for the customer with the secret key
@@ -294,8 +305,10 @@ monthly tracked revenue.
   *the caller's own* customer (the id comes from the token, never the body),
   applies it, returns the new access. The app calls it right after a purchase or
   a restore, and from Settings. It is the safety net for a webhook that was lost
-  or late, and costs nothing extra: it is the same code. Calls within 10 seconds
-  of the last sync return the stored row.
+  or late, and costs nothing extra: it is the same code. A call within 10 seconds
+  of the user's last attempt answers from what is stored: the cooldown is a slot
+  per user (`subscription_sync_slots`, taken by `take_subscription_sync`), not a
+  read of the subscription row, so it also holds for a user who has none yet.
 - **Sandbox.** One webhook configuration sends production and sandbox events;
   they are applied and flagged `environment = 'sandbox'`, so the production
   project can be tested from the stores' sandboxes.

@@ -34,6 +34,7 @@ function harness(opts: {
   secret?: string | undefined;
   signingSecret?: string | undefined;
   recordThrows?: boolean;
+  slot?: boolean;
 } = {}) {
   let reads = 0;
   const calls = {
@@ -43,6 +44,7 @@ function harness(opts: {
     fetched: [] as string[],
     fetchedClock: [] as number[],
     applied: [] as Applied[],
+    slots: [] as string[],
   };
   const known = new Set(opts.known ?? [U1, U2]);
   const clock = () => BASE + reads * 1000;
@@ -65,10 +67,9 @@ function harness(opts: {
       },
     },
   };
-  const deps: WebhookDeps & OwnSyncDeps & { lastSynced: Date | null } = {
+  const deps: WebhookDeps & OwnSyncDeps = {
     secret: "secret" in opts ? opts.secret : "hook-secret",
     signingSecret: opts.signingSecret,
-    lastSynced: null,
     now: () => new Date(BASE + ++reads * 1000),
     recordEvent: async (event) => {
       if (opts.recordThrows) throw new Error("database is down");
@@ -92,7 +93,10 @@ function harness(opts: {
       calls.applied.push({ userId, patch, fetchedAt, eventId, eventAt });
       return opts.apply ?? "applied";
     },
-    lastSyncedAt: async () => deps.lastSynced,
+    takeSlot: async (userId) => {
+      calls.slots.push(userId);
+      return opts.slot ?? true;
+    },
   };
   return { deps, calls };
 }
@@ -199,7 +203,7 @@ describe("handleWebhook: what is recorded and re-read", () => {
 
   it("records a type that never changes access as ignored", async () => {
     const { deps, calls } = harness();
-    const r = await handleWebhook(deps, post(envelope(event({ type: "NON_RENEWING_PURCHASE" }))));
+    const r = await handleWebhook(deps, post(envelope(event({ type: "EXPERIMENT_ENROLLMENT" }))));
     assert.equal(r.status, 200);
     assert.equal(calls.finish.at(-1)?.outcome, "ignored");
     assert.equal(calls.fetched.length, 0);
@@ -285,19 +289,17 @@ describe("syncUser and syncOwnAccount", () => {
     await assert.rejects(() => syncUser(deps, U1), /RevenueCat answered 500/);
   });
 
-  it("does not re-read an account synced less than 10 seconds ago", async () => {
-    const { deps, calls } = harness();
-    deps.lastSynced = new Date(BASE - 5_000);
+  it("does not call RevenueCat when the cooldown slot is taken", async () => {
+    const { deps, calls } = harness({ slot: false });
     assert.equal(await syncOwnAccount(deps, U1), "cooldown");
+    assert.deepEqual(calls.slots, [U1]);
     assert.equal(calls.fetched.length, 0);
   });
 
-  it("re-reads an account synced more than 10 seconds ago, or never", async () => {
-    for (const last of [new Date(BASE - 30_000), null]) {
-      const { deps, calls } = harness();
-      deps.lastSynced = last;
-      assert.equal(await syncOwnAccount(deps, U1), "applied");
-      assert.deepEqual(calls.fetched, [U1]);
-    }
+  it("takes the slot for the caller's own id, then re-reads that account", async () => {
+    const { deps, calls } = harness({ slot: true });
+    assert.equal(await syncOwnAccount(deps, U1), "applied");
+    assert.deepEqual(calls.slots, [U1]);
+    assert.deepEqual(calls.fetched, [U1]);
   });
 });

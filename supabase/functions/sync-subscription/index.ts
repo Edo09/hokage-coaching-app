@@ -30,17 +30,16 @@ Deno.serve(withCors(async (req) => {
       return json({ error: 'not configured' }, 503);
     }
 
+    const admin = adminClient();
     const deps: OwnSyncDeps = {
-      ...syncDeps(adminClient(), revenueCatKey),
-      // Read as the caller: RLS lets a user read their own subscriptions row.
-      lastSyncedAt: async (userId) => {
-        const { data, error } = await db
-          .from('subscriptions')
-          .select('last_synced_at')
-          .eq('user_id', userId)
-          .maybeSingle();
-        if (error) throw new Error(`subscriptions lookup failed: ${error.message}`);
-        return data ? new Date(data.last_synced_at as string) : null;
+      ...syncDeps(admin, revenueCatKey),
+      takeSlot: async (userId) => {
+        const { data, error } = await admin.rpc('take_subscription_sync', {
+          p_user: userId,
+          p_cooldown_seconds: 10,
+        });
+        if (error) throw new Error(`take_subscription_sync failed: ${error.message}`);
+        return data === true;
       },
     };
     const result = await syncOwnAccount(deps, user.id);

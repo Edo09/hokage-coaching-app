@@ -54,6 +54,9 @@ create policy "coach manages requests" on public.content_requests for all
 revoke all on public.content_requests from anon, authenticated;
 grant select on public.content_requests to authenticated;
 grant update (status, resolved_at, resolved_by) on public.content_requests to authenticated;
+-- The project grants tables one by one: without this an Edge Function reading
+-- the requests with the service role would get 42501.
+grant select, insert, update, delete on public.content_requests to service_role;
 
 -- 2) A new kind of coach notice ----------------------------------------------------------
 --   content_requested  A client asked for a program or a nutrition plan.

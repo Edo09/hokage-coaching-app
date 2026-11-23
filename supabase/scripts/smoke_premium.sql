@@ -136,6 +136,7 @@ declare
   v_opt    uuid := gen_random_uuid();
   v_meal   uuid := gen_random_uuid();
   v_pe     uuid := gen_random_uuid();
+  v_ts     timestamptz;
   v_t      text;
   v_stmt   text;
   v_locked text[] := array['programs', 'program_weeks', 'program_days', 'program_exercises',
@@ -700,6 +701,122 @@ begin
   assert position('is_being_coached' in pg_get_functiondef('public.send_block_ending_pushes'::regproc)) > 0
      and position('memberships' in pg_get_functiondef('public.send_block_ending_pushes'::regproc)) = 0,
     '11: and so do the block-ending pushes';
+
+  -- ---- 12. A revoked subscription's end never moves forward --------------------------
+  -- Every sync of a refunded customer asks for «now» as the end of access. If the
+  -- row took it, the 72-hour grace would start again at each sync, and a client
+  -- could keep reading and logging through the API by syncing every 3 days.
+
+  perform pg_temp.act_as_owner();
+  update public.premium_settings set enforced = true;
+  delete from public.subscriptions where user_id in (v_client, v_other);
+  delete from public.memberships where client_id in (v_client, v_other);
+
+  perform pg_temp.act_as_server();
+  assert public.apply_subscription_snapshot(v_other, v_patch, now() - interval '200 hours') = 'applied',
+    '12: the purchase is applied';
+  assert public.apply_subscription_snapshot(v_other,
+           v_patch || jsonb_build_object('status', 'expired', 'is_premium', false, 'will_renew', false,
+                                         'access_until', now() - interval '100 hours'),
+           now() - interval '100 hours') = 'applied', '12: the sync that revokes it is applied';
+  perform pg_temp.act_as_owner();
+  assert not public.premium_content_access_for(v_other), '12: 100 hours after the revocation the grace is over';
+
+  perform pg_temp.act_as_server();
+  assert public.apply_subscription_snapshot(v_other,
+           v_patch || jsonb_build_object('status', 'expired', 'is_premium', false, 'will_renew', false,
+                                         'access_until', now() - interval '1 hour'),
+           now() - interval '1 hour') = 'applied', '12: a later sync of the same revoked customer is applied';
+  perform pg_temp.act_as_owner();
+  assert (select access_until from public.subscriptions where user_id = v_other) = now() - interval '100 hours',
+    '12: but the end of access did not move forward';
+  assert not public.premium_content_access_for(v_other), '12: so the grace did not start again';
+
+  perform pg_temp.act_as_server();
+  assert public.apply_subscription_snapshot(v_other, v_patch, now()) = 'applied', '12: a new purchase is applied';
+  perform pg_temp.act_as_owner();
+  assert public.premium_access_for(v_other), '12: and gives access back';
+  delete from public.subscriptions where user_id = v_other;
+
+  -- ---- 13. The moment access ends ---------------------------------------------------------
+
+  assert public.coach_local_date(public.coach_day_end(v_today) - interval '1 second') = v_today
+     and public.coach_local_date(public.coach_day_end(v_today)) = v_today + 1,
+    '13: coach_day_end lands exactly where coach_local_date turns the day';
+
+  perform pg_temp.act_as(v_client);
+  assert public.get_my_access() -> 'access_ends_at' = 'null'::jsonb, '13: no access: no end to report';
+
+  perform pg_temp.act_as_owner();
+  perform pg_temp.set_sub(v_client, true, now() + interval '10 days');
+  perform pg_temp.act_as(v_client);
+  assert (public.get_my_access() ->> 'access_ends_at')::timestamptz = now() + interval '10 days',
+    '13: a subscription ends at its access_until';
+
+  perform pg_temp.act_as_owner();
+  v_ts := public.coach_day_end(v_today + 30);
+  perform pg_temp.set_membership(v_client, 'active', v_today + 30);
+  perform pg_temp.act_as(v_client);
+  assert (public.get_my_access() ->> 'access_ends_at')::timestamptz = v_ts,
+    '13: with both, access ends when the later one does (the membership, at the end of its day)';
+
+  perform pg_temp.act_as_owner();
+  perform pg_temp.set_membership(v_client, 'active', null);
+  perform pg_temp.act_as(v_client);
+  assert public.get_my_access() -> 'access_ends_at' = 'null'::jsonb,
+    '13: an open-ended membership next to a subscription never ends';
+
+  perform pg_temp.act_as_owner();
+  delete from public.subscriptions where user_id = v_client;
+  v_ts := public.coach_day_end(v_today + 5);
+  perform pg_temp.set_membership(v_client, 'active', v_today + 5);
+  perform pg_temp.act_as(v_client);
+  assert (public.get_my_access() ->> 'access_ends_at')::timestamptz = v_ts,
+    '13: a dated membership ends at the end of its day';
+
+  perform pg_temp.act_as(v_coach);
+  assert public.get_my_access() -> 'access_ends_at' = 'null'::jsonb and (public.get_my_access() ->> 'has_access')::boolean,
+    '13: the coach has access that does not end';
+  assert (select c.access_ends_at from public.coach_client_access() c where c.client_id = v_client) = v_ts,
+    '13: the panel is told the same end';
+
+  perform pg_temp.act_as_owner();
+  update public.premium_settings set enforced = false;
+  delete from public.memberships where client_id = v_client;
+  perform pg_temp.act_as(v_client);
+  assert public.get_my_access() -> 'access_ends_at' = 'null'::jsonb, '13: switch off: nothing ends';
+
+  -- ---- 14. The sync cooldown, with or without a subscription row ----------------------------
+
+  perform pg_temp.act_as_owner();
+  delete from public.subscription_sync_slots where user_id in (v_client, v_other);
+  perform pg_temp.act_as_server();
+  assert public.take_subscription_sync(v_client), '14: the first call gets the slot';
+  assert not public.take_subscription_sync(v_client),
+    '14: a second call right after does not, although this user has no subscription row';
+  assert public.take_subscription_sync(v_other), '14: another user has a slot of their own';
+  perform pg_temp.act_as_owner();
+  update public.subscription_sync_slots set attempted_at = now() - interval '11 seconds' where user_id = v_client;
+  perform pg_temp.act_as_server();
+  assert public.take_subscription_sync(v_client), '14: after the cooldown the slot is free again';
+  assert not public.take_subscription_sync(gen_random_uuid()), '14: a user with no profile gets no slot';
+  perform pg_temp.act_as(v_client);
+  assert pg_temp.sqlstate_of(format('select public.take_subscription_sync(%L)', v_client)) = '42501',
+    '14: a client cannot take a slot';
+  assert pg_temp.sqlstate_of('select * from public.subscription_sync_slots') = '42501', '14: nor read the slots';
+
+  -- ---- 15. The service role can reach every new table ----------------------------------------
+
+  perform pg_temp.act_as_owner();
+  foreach v_t in array array['content_requests', 'subscription_sync_slots'] loop
+    assert has_table_privilege('service_role', 'public.' || v_t, 'select')
+       and has_table_privilege('service_role', 'public.' || v_t, 'insert')
+       and has_table_privilege('service_role', 'public.' || v_t, 'update'),
+      format('15: the service role is granted %s', v_t);
+    assert not has_table_privilege('anon', 'public.' || v_t, 'select'), format('15: anon reads no %s', v_t);
+  end loop;
+  assert has_table_privilege('service_role', 'public.content_requests', 'delete'),
+    '15: and may delete requests (a future cleanup)';
 
   raise exception 'SMOKE OK: premium; nothing was saved';
 end $$;

@@ -40,19 +40,16 @@ export function parseWebhook(body: unknown): { ok: true; event: RcEvent } | { ok
   return { ok: true, event: e as RcEvent };
 }
 
-/** The event types after which a customer's access may have changed. */
-const SYNC_EVENT_TYPES: ReadonlySet<string> = new Set([
-  'INITIAL_PURCHASE',
-  'RENEWAL',
-  'CANCELLATION',
-  'UNCANCELLATION',
-  'EXPIRATION',
-  'BILLING_ISSUE',
-  'PRODUCT_CHANGE',
-  'SUBSCRIPTION_PAUSED',
-  'SUBSCRIPTION_EXTENDED',
-  'REFUND_REVERSED',
-  'TEMPORARY_ENTITLEMENT_GRANT',
+/**
+ * The event types that have nothing to do with a subscription's access. Every
+ * other type, including one RevenueCat adds later, re-reads the customer: a
+ * re-read is harmless (the payload never decides access), while a missed one
+ * leaves a wrong access in the database.
+ */
+const IGNORED_EVENT_TYPES: ReadonlySet<string> = new Set([
+  'EXPERIMENT_ENROLLMENT',
+  'VIRTUAL_CURRENCY_TRANSACTION',
+  'INVOICE_ISSUANCE',
 ]);
 
 export type EventPlan =
@@ -64,26 +61,19 @@ const strings = (x: unknown): string[] =>
   Array.isArray(x) ? x.filter((v): v is string => typeof v === 'string') : [];
 
 /**
- * What to do with an event: acknowledge a test, ignore a type that never
- * changes access, or re-read the customers it concerns. Only UUIDs can be a
- * Supabase user; any other id (an anonymous RevenueCat id) is returned as
- * unknown. A transfer carries no app_user_id: both ends are in its arrays.
+ * What to do with an event: acknowledge a test, ignore a type that has nothing
+ * to do with a subscription, or re-read the customers it concerns. Only UUIDs
+ * can be a Supabase user; any other id (an anonymous RevenueCat id) is returned
+ * as unknown. A transfer carries no app_user_id: both ends are in its arrays.
  */
 export function planEvent(event: RcEvent): EventPlan {
   if (event.type === 'TEST') return { action: 'ack' };
+  if (IGNORED_EVENT_TYPES.has(event.type)) return { action: 'ignore' };
 
-  let ids: string[];
-  if (event.type === 'TRANSFER') {
-    ids = [...strings(event.transferred_from), ...strings(event.transferred_to)];
-  } else if (SYNC_EVENT_TYPES.has(event.type)) {
-    ids = [
-      ...strings([event.app_user_id]),
-      ...strings([event.original_app_user_id]),
-      ...strings(event.aliases),
-    ];
-  } else {
-    return { action: 'ignore' };
-  }
+  const ids: string[] =
+    event.type === 'TRANSFER'
+      ? [...strings(event.transferred_from), ...strings(event.transferred_to)]
+      : [...strings([event.app_user_id]), ...strings([event.original_app_user_id]), ...strings(event.aliases)];
 
   const userIds: string[] = [];
   const unknownIds: string[] = [];

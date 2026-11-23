@@ -86,9 +86,15 @@ describe("planEvent", () => {
     assert.deepEqual(planEvent(ev({ type: "TEST", app_user_id: U1 })), { action: "ack" });
   });
 
-  it("ignores the types that never change access", () => {
-    for (const type of ["NON_RENEWING_PURCHASE", "EXPERIMENT_ENROLLMENT", "SUBSCRIBER_ALIAS", "INVOICE_ISSUANCE", "VIRTUAL_CURRENCY_TRANSACTION", "SOMETHING_NEW"]) {
+  it("ignores only the types that have nothing to do with a subscription", () => {
+    for (const type of ["EXPERIMENT_ENROLLMENT", "VIRTUAL_CURRENCY_TRANSACTION", "INVOICE_ISSUANCE"]) {
       assert.deepEqual(planEvent(ev({ type, app_user_id: U1 })), { action: "ignore" }, type);
+    }
+  });
+
+  it("re-reads for any other type, including one RevenueCat adds later: a re-read is harmless, a missed one is a wrong access", () => {
+    for (const type of ["NON_RENEWING_PURCHASE", "PURCHASE_REDEEMED", "SUBSCRIBER_ALIAS", "SOMETHING_RC_ADDS_LATER"]) {
+      assert.deepEqual(planEvent(ev({ type, app_user_id: U1 })), { action: "sync", userIds: [U1], unknownIds: [] }, type);
     }
   });
 
