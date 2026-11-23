@@ -98,7 +98,11 @@ What this means when working here:
   `src/lib/purchases.ts`, native only), but **no purchase has run on a device**:
   it needs a development build and the RevenueCat project, with
   `EXPO_PUBLIC_REVENUECAT_IOS_KEY` / `_ANDROID_KEY` per EAS environment (a Test
-  Store `test_…` key only in `development`). The panel part is not built.
+  Store `test_…` key only in `development`). A subscription that is active and
+  set to renew is not locked at its period end (the app counts it for 72 h more
+  and, if the renewal has not arrived five minutes after the end, asks
+  `sync-subscription`); while the switch is off a release build offers no
+  request button, a dev client does. The panel part is not built.
   Design: `docs/superpowers/specs/2026-11-16-premium-subscriptions-design.md`.
 - Schema source of truth: `supabase/migrations`. Migrations here do not reach
   Zyron's database (and vice versa).
