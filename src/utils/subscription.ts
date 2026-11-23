@@ -280,8 +280,20 @@ export function contentGate(i: {
   /** The client's requests are still being read: a request button would flash
       before «Solicitud enviada», so nothing is offered yet. */
   requestsLoading?: boolean;
+  /** Offer requests while the switch is off (`open`). Only a dev client does:
+      the panel (plan 3) cannot yet show the coach who asked for what, so a
+      release build keeps today's plain empty state until the switch is on. */
+  requestsEnabledWhileOpen?: boolean;
 }): ContentGate {
-  const { gate, state, access, hasContent, pending, requestsLoading = false } = i;
+  const {
+    gate,
+    state,
+    access,
+    hasContent,
+    pending,
+    requestsLoading = false,
+    requestsEnabledWhileOpen = false,
+  } = i;
   if (state === "loading") return hasContent ? { kind: "content" } : { kind: "loading" };
 
   if (state === "lapsed") {
@@ -295,6 +307,9 @@ export function contentGate(i: {
   if (access?.source === "coach" || requestKindOf(gate) == null) {
     return { kind: "empty", action: null };
   }
+  // The switch is off: nothing changes for anyone, so no request is offered
+  // (nor a pending one shown) unless this is a dev client testing them.
+  if (state === "open" && !requestsEnabledWhileOpen) return { kind: "empty", action: null };
   if (pending != null) return { kind: "pending", since: pending.created_at };
   if (requestsLoading) return { kind: "loading" };
   return { kind: "empty", action: "request" };
@@ -323,6 +338,9 @@ export type GateCopy = {
   action: "request" | "paywall" | null;
   /** «Enviada el {{date}}»: the view fills the date. */
   footnoteKey: string | null;
+  /** Nothing to offer: the app's own empty state, as before Premium. Home's
+      card then shows the hint alone, with no title. */
+  plain: boolean;
 };
 
 /** The texts and button of a shown gate. With nothing to offer the app's own
@@ -345,6 +363,7 @@ export function gateCopy(gate: GateKind, shown: ShownGate): GateCopy {
         actionKey: "premium.gate.renewAction",
         action: "paywall",
         footnoteKey: null,
+        plain: false,
       };
     case "pending":
       return {
@@ -354,6 +373,7 @@ export function gateCopy(gate: GateKind, shown: ShownGate): GateCopy {
         actionKey: null,
         action: null,
         footnoteKey: "premium.gate.pendingSince",
+        plain: false,
       };
     case "empty": {
       if (shown.action == null) {
@@ -363,7 +383,7 @@ export function gateCopy(gate: GateKind, shown: ShownGate): GateCopy {
             : gate === "nutrition_plan"
               ? ["mealReg.noPlanTitle", "mealReg.noPlanHint"]
               : ["supplements.noPlanTitle", "supplements.noPlanHint"];
-        return { icon, titleKey, hintKey, actionKey: null, action: null, footnoteKey: null };
+        return { icon, titleKey, hintKey, actionKey: null, action: null, footnoteKey: null, plain: true };
       }
       return {
         icon,
@@ -375,6 +395,7 @@ export function gateCopy(gate: GateKind, shown: ShownGate): GateCopy {
         actionKey: `premium.gate.${ns}.requestAction`,
         action: shown.action,
         footnoteKey: null,
+        plain: false,
       };
     }
   }

@@ -29,5 +29,8 @@ export function useContentGate(gate: GateKind, hasContent: boolean): ContentGate
     hasContent,
     pending: kind != null ? requests.pending(kind) : null,
     requestsLoading: requests.loading,
+    // While the switch is off a release build offers no request: the panel
+    // cannot show the coach one yet. A dev client does, to test them.
+    requestsEnabledWhileOpen: __DEV__,
   });
 }

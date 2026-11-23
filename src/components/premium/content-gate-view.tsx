@@ -68,7 +68,10 @@ export function ContentGateView({ kind, shown, variant }: Props) {
       className="items-center gap-2 rounded-[20px] p-6"
     >
       <Ionicons name={copy.icon} size={26} color={colors.contentTertiary} />
-      <Text className="text-center text-[15px] font-bold text-content-primary">{t(copy.titleKey)}</Text>
+      {/* Nothing to offer: Home's card as it was before Premium, the hint alone. */}
+      {!copy.plain && (
+        <Text className="text-center text-[15px] font-bold text-content-primary">{t(copy.titleKey)}</Text>
+      )}
       <Text className="text-center text-[13px] text-content-secondary">{t(copy.hintKey)}</Text>
       {footnote != null && <Text className="text-center text-[11px] text-content-muted">{footnote}</Text>}
       {actionLabel != null && onAction != null && (

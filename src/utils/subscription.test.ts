@@ -467,17 +467,25 @@ describe("contentGate", () => {
     describe(gate, () => {
       for (const label of ["active", "open"] as const) {
         const a = label === "active" ? access() : OPEN_ACCESS;
+        // A dev client may offer requests while the switch is off (how the
+        // owner tests them); a release build does not (see below).
+        const dev = label === "open" ? { requestsEnabledWhileOpen: true } : {};
 
         it(`${label}: shows the content it has, even beside a pending request`, () => {
           assert.deepEqual(
-            contentGate({ ...withState(a), hasContent: true, pending: kind ? request({ kind }) : null }),
+            contentGate({
+              ...withState(a),
+              ...dev,
+              hasContent: true,
+              pending: kind ? request({ kind }) : null,
+            }),
             { kind: "content" },
           );
         });
 
         if (kind != null) {
           it(`${label}: offers a request when there is no content and nothing pending`, () => {
-            assert.deepEqual(contentGate({ ...withState(a), hasContent: false, pending: null }), {
+            assert.deepEqual(contentGate({ ...withState(a), ...dev, hasContent: false, pending: null }), {
               kind: "empty",
               action: "request",
             });
@@ -485,19 +493,52 @@ describe("contentGate", () => {
 
           it(`${label}: says the request was sent while one is pending`, () => {
             const pending = request({ kind, created_at: "2026-11-20T10:00:00Z" });
-            assert.deepEqual(contentGate({ ...withState(a), hasContent: false, pending }), {
+            assert.deepEqual(contentGate({ ...withState(a), ...dev, hasContent: false, pending }), {
               kind: "pending",
               since: "2026-11-20T10:00:00Z",
             });
           });
         } else {
           it(`${label}: has no request to offer, so an empty stack stays plain`, () => {
-            assert.deepEqual(contentGate({ ...withState(a), hasContent: false, pending: null }), {
+            assert.deepEqual(contentGate({ ...withState(a), ...dev, hasContent: false, pending: null }), {
               kind: "empty",
               action: null,
             });
           });
         }
+      }
+
+      if (kind != null) {
+        it("open (the switch off) in a release build: no request is offered, whatever the requests say: today's plain empty state", () => {
+          // The panel (plan 3) cannot yet show the coach who asked for what, so
+          // a button would promise an answer nobody sees.
+          const plain = { kind: "empty", action: null };
+          const base = { ...withState(OPEN_ACCESS), hasContent: false };
+          assert.deepEqual(contentGate({ ...base, pending: null }), plain);
+          assert.deepEqual(contentGate({ ...base, pending: null, requestsEnabledWhileOpen: false }), plain);
+          assert.deepEqual(contentGate({ ...base, pending: request({ kind }) }), plain);
+          assert.deepEqual(contentGate({ ...base, pending: null, requestsLoading: true }), plain);
+        });
+
+        it("open in a release build still shows the content it has", () => {
+          assert.deepEqual(contentGate({ ...withState(OPEN_ACCESS), hasContent: true, pending: null }), {
+            kind: "content",
+          });
+        });
+
+        it("the switch on offers requests whatever requestsEnabledWhileOpen says", () => {
+          for (const flag of [false, true]) {
+            assert.deepEqual(
+              contentGate({
+                ...withState(access()),
+                hasContent: false,
+                pending: null,
+                requestsEnabledWhileOpen: flag,
+              }),
+              { kind: "empty", action: "request" },
+            );
+          }
+        });
       }
 
       it("lapsed with the content assigned: locked, even when a stale copy is cached", () => {
@@ -623,6 +664,16 @@ describe("gateCopy", () => {
     assert.equal(gateCopy("nutrition_plan", { kind: "empty", action: null }).titleKey, "mealReg.noPlanTitle");
     assert.equal(gateCopy("supplement_plan", { kind: "empty", action: null }).titleKey, "supplements.noPlanTitle");
     assert.equal(gateCopy("program", { kind: "empty", action: null }).actionKey, null);
+  });
+
+  it("marks the plain empty state, which Home shows as it did before Premium: the hint, with no title", () => {
+    for (const gate of GATES) {
+      assert.equal(gateCopy(gate, { kind: "empty", action: null }).plain, true, gate);
+      for (const shown of SHOWN) {
+        if (shown.kind === "empty" && shown.action == null) continue;
+        assert.equal(gateCopy(gate, shown).plain, false, `${gate} ${shown.kind}`);
+      }
+    }
   });
 
   it("offers a request, or the paywall, with the spec's copy", () => {
