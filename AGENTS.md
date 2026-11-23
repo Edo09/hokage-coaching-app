@@ -91,8 +91,15 @@ What this means when working here:
   `content_requests`, bell kind `content_requested`), and the daily coach
   notices and block-ending pushes skip them. The function secrets
   `REVENUECAT_WEBHOOK_SECRET` and `REVENUECAT_API_KEY` are not set yet (no
-  RevenueCat project); the app and panel parts are not built. Design:
-  `docs/superpowers/specs/2026-11-16-premium-subscriptions-design.md`.
+  RevenueCat project). The app part is built (2026-11-23: `usePremiumAccess`
+  over `get_my_access()`, the `/paywall` route, the request sheet, the empty,
+  pending and locked states of the training and nutrition tabs and Home, a
+  Settings card, reminders that follow access; `react-native-purchases` behind
+  `src/lib/purchases.ts`, native only), but **no purchase has run on a device**:
+  it needs a development build and the RevenueCat project, with
+  `EXPO_PUBLIC_REVENUECAT_IOS_KEY` / `_ANDROID_KEY` per EAS environment (a Test
+  Store `test_…` key only in `development`). The panel part is not built.
+  Design: `docs/superpowers/specs/2026-11-16-premium-subscriptions-design.md`.
 - Schema source of truth: `supabase/migrations`. Migrations here do not reach
   Zyron's database (and vice versa).
 - `supabase/scripts/convert_shared_db_to_hokage_only.sql` was a one-off, already
