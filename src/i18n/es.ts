@@ -767,6 +767,17 @@ export default {
       nothingToRestore: "No encontramos compras para restaurar",
       offline: "Sin conexión",
     },
+    // Hoja «Solicitar programa» / «Solicitar Plan de nutrición»
+    request: {
+      hint: "Tu coach verá tu solicitud junto a tu perfil. Puedes dejarle una nota.",
+      noteLabel: "Nota para tu coach (opcional)",
+      notePlaceholder: "Ej.: quiero ganar masa muscular y puedo entrenar 4 días",
+      send: "Enviar solicitud",
+      needsPlan: "Necesitas una suscripción activa para pedirlo.",
+      viewPlans: "Ver planes",
+      alreadyAssigned: "Tu coach ya te asignó uno. Lo verás en unos segundos.",
+      failed: "No se pudo enviar la solicitud. Inténtalo de nuevo.",
+    },
     // Tarjeta de suscripción en Ajustes
     card: {
       manage: "Gestionar suscripción",

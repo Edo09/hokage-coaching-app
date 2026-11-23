@@ -9,6 +9,7 @@ import { AppMenu } from "@/src/components/app-menu";
 import { CheckCardHost } from "@/src/components/program/check-card";
 import { ExerciseSessionHost } from "@/src/components/program/exercise-session-host";
 import { RestTimerBar } from "@/src/components/program/rest-timer-bar";
+import { RequestSheetHost } from "@/src/components/premium/request-sheet";
 import { TabHeader } from "@/src/components/ui";
 import { useAuth } from "@/src/hooks/use-auth";
 import { useReminderSync } from "@/src/hooks/use-reminder-sync";
@@ -197,6 +198,9 @@ export default function TabsLayout() {
     <ExerciseSessionHost tabBarHeight={74} />
     {/* The card that answers a check-off: a dialog over everything above. */}
     <CheckCardHost />
+    {/* «Solicitar programa» / «Solicitar Plan de nutrición»: opened from the
+        tabs and Home with requestSheet.open(kind). */}
+    <RequestSheetHost />
     {/* Web has no local notifications. */}
     {Platform.OS !== "web" && <Reminders />}
     <PreloadTabs />

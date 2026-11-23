@@ -1,4 +1,5 @@
 export { Badge, type BadgeVariant } from "./badge";
+export { BottomSheet } from "./bottom-sheet";
 export { Burst } from "./burst";
 export { Button } from "./button";
 export { Card } from "./card";

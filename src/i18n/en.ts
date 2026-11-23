@@ -767,6 +767,17 @@ export default {
       nothingToRestore: "We couldn't find any purchases to restore",
       offline: "No connection",
     },
+    // The «Request program» / «Request Nutrition plan» sheet
+    request: {
+      hint: "Your coach will see your request along with your profile. You can leave a note.",
+      noteLabel: "Note for your coach (optional)",
+      notePlaceholder: "E.g. I want to build muscle and can train 4 days a week",
+      send: "Send request",
+      needsPlan: "You need an active subscription to ask for it.",
+      viewPlans: "See plans",
+      alreadyAssigned: "Your coach already assigned one. You'll see it in a moment.",
+      failed: "The request couldn't be sent. Please try again.",
+    },
     // Subscription card in Settings
     card: {
       manage: "Manage subscription",
