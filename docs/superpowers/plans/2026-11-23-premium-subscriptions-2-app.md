@@ -389,8 +389,8 @@ Executed inline on `main` (the repo's rule: no branches or worktrees; the tasks 
 
 ### Deferred minors
 
-- Double-tap guard: `usePurchaseFlow`'s phase ref is set in an effect, so two taps in one tick both reach `purchases.purchase`.
-- `purchases.configure()` is not wrapped in try/catch (a throw from the root effect would crash the app where the native module is missing).
+- **Fixed 2026-11-24** (`fix(premium): a double tap starts one purchase`): `usePurchaseFlow`'s phase ref is set in an effect, so two taps in one tick both reached `purchases.purchase` (seen in a browser: one click calling `buy` twice started two purchases). `buy` and `restore` now run through `createSingleFlight` (`src/lib/single-flight.ts`), one at a time from their first line: the same click starts one, a later buy runs as usual, and a restore in the same tick as a buy is ignored.
+- **Fixed 2026-11-24** (`fix(premium): a failed SDK start turns purchasing off instead of crashing the app`): `purchases.configure()` was not wrapped in try/catch, so a throw from the root effect would crash the app where the native module is missing (a development client made before the SDK was added, once a key is set; with no key nothing is started). The start now goes through `createSdkStarter` (`src/lib/sdk-starter.ts`): a start that throws leaves a console warning and purchasing off, is not tried again, and `purchases.available` (now a getter) turns false. Unit-tested only: nothing native has run.
 - «Gestionar suscripción» is offered for any subscription row whatever store it came from, and iOS has no `managementURL` fallback if `showManageSubscriptions` rejects.
 - Changes to `programs`, `nutrition_plans` and `supplement_plans` do not invalidate `qk.access`, so a lapsed client's `has_*` flags are stale until focus.
 - Cached content outside the three gates when locked: the training header's «Semana n de m» and Home's calorie goal from a cached nutrition plan.
