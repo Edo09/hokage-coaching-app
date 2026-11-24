@@ -29,8 +29,10 @@ export function useContentGate(gate: GateKind, hasContent: boolean): ContentGate
     hasContent,
     pending: kind != null ? requests.pending(kind) : null,
     requestsLoading: requests.loading,
-    // While the switch is off a release build offers no request: the panel
-    // cannot show the coach one yet. A dev client does, to test them.
-    requestsEnabledWhileOpen: __DEV__,
+    // Requests are offered while the switch is off too: the panel shows the
+    // coach who asked for what (Dashboard, bell, client page), so a button no
+    // longer promises an answer nobody sees. `__DEV__` here would hide them
+    // from release builds again until the switch is on.
+    requestsEnabledWhileOpen: true,
   });
 }

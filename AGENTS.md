@@ -101,8 +101,11 @@ What this means when working here:
   Store `test_…` key only in `development`). A subscription that is active and
   set to renew is not locked at its period end (the app counts it for 72 h more
   and, if the renewal has not arrived five minutes after the end, asks
-  `sync-subscription`); while the switch is off a release build offers no
-  request button, a dev client does. The panel part is built (2026-11-24,
+  `sync-subscription`); while the switch is off a client without a program or
+  plan can still ask for one (`requestsEnabledWhileOpen: true` in
+  `use-content-gate.ts`: release builds hid the button until the panel part
+  below existed, so deploy the panel before that app build). The panel part is
+  built (2026-11-24,
   `hokage-web-panel`: requests in the Dashboard, the bell and the client page,
   «Solicitud» and «Sin acceso» in the lists, the store subscription beside the
   membership, «Dar acceso ahora»; no server change, and while the switch is off

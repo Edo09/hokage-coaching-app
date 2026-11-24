@@ -467,8 +467,8 @@ describe("contentGate", () => {
     describe(gate, () => {
       for (const label of ["active", "open"] as const) {
         const a = label === "active" ? access() : OPEN_ACCESS;
-        // A dev client may offer requests while the switch is off (how the
-        // owner tests them); a release build does not (see below).
+        // With requestsEnabledWhileOpen on (what the hook passes) requests are
+        // offered while the switch is off; with it off they are not (see below).
         const dev = label === "open" ? { requestsEnabledWhileOpen: true } : {};
 
         it(`${label}: shows the content it has, even beside a pending request`, () => {
@@ -509,9 +509,9 @@ describe("contentGate", () => {
       }
 
       if (kind != null) {
-        it("open (the switch off) in a release build: no request is offered, whatever the requests say: today's plain empty state", () => {
-          // The panel (plan 3) cannot yet show the coach who asked for what, so
-          // a button would promise an answer nobody sees.
+        it("open (the switch off) with requests not enabled: no request is offered, whatever the requests say: today's plain empty state", () => {
+          // The option off is what a release build did before the panel showed
+          // requests: a button would promise an answer nobody sees.
           const plain = { kind: "empty", action: null };
           const base = { ...withState(OPEN_ACCESS), hasContent: false };
           assert.deepEqual(contentGate({ ...base, pending: null }), plain);
@@ -520,7 +520,7 @@ describe("contentGate", () => {
           assert.deepEqual(contentGate({ ...base, pending: null, requestsLoading: true }), plain);
         });
 
-        it("open in a release build still shows the content it has", () => {
+        it("open with requests not enabled still shows the content it has", () => {
           assert.deepEqual(contentGate({ ...withState(OPEN_ACCESS), hasContent: true, pending: null }), {
             kind: "content",
           });

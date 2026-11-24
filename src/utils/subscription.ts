@@ -280,9 +280,10 @@ export function contentGate(i: {
   /** The client's requests are still being read: a request button would flash
       before «Solicitud enviada», so nothing is offered yet. */
   requestsLoading?: boolean;
-  /** Offer requests while the switch is off (`open`). Only a dev client does:
-      the panel (plan 3) cannot yet show the coach who asked for what, so a
-      release build keeps today's plain empty state until the switch is on. */
+  /** Offer requests while the switch is off (`open`). The hook passes true now
+      that the panel shows the coach who asked for what; false keeps today's
+      plain empty state until the switch is on, as a release build did before
+      the panel part existed. */
   requestsEnabledWhileOpen?: boolean;
 }): ContentGate {
   const {
@@ -307,8 +308,8 @@ export function contentGate(i: {
   if (access?.source === "coach" || requestKindOf(gate) == null) {
     return { kind: "empty", action: null };
   }
-  // The switch is off: nothing changes for anyone, so no request is offered
-  // (nor a pending one shown) unless this is a dev client testing them.
+  // The switch is off: no request is offered (nor a pending one shown) unless
+  // requestsEnabledWhileOpen says so (the hook passes true).
   if (state === "open" && !requestsEnabledWhileOpen) return { kind: "empty", action: null };
   if (pending != null) return { kind: "pending", since: pending.created_at };
   if (requestsLoading) return { kind: "loading" };
