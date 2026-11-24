@@ -404,12 +404,18 @@ No new page. Existing places learn the new facts.
   to the manual membership (status, store, product, renews / ends, sandbox flag),
   read-only, and the combined access. The manual editor is unchanged.
 - **Add client** gets «Dar acceso ahora» (on by default): it creates an active,
-  open-ended membership with the account. A coach who adds someone by hand is
-  vouching for them, and `create-client` writes no membership today.
-- Lists read access from `coach_client_access()`; `ClientSummary` also embeds the
-  subscription and pending requests (`subscriptions!user_id`,
-  `content_requests!user_id`), so the lists stay one query. The attention rules
-  and the «clientes activos» count use `being_coached`.
+  open-ended membership with the account (the panel writes it with the coach's own
+  rights after `create-client` answers; the function writes none). A coach who adds
+  someone by hand is vouching for them.
+- Lists read access from `coach_client_access()`; `ClientSummary` also carries the
+  subscription and the pending requests (batched reads merged client-side, as the
+  panel does for its other lists, rather than the embeds `subscriptions!user_id` and
+  `content_requests!user_id`). The attention rules use `being_coached`. The
+  «clientes activos» count is the active memberships while the switch is off and
+  `has_access` once it is on: while off, `being_coached` is the old rule, which also
+  counts a client with no membership, so using it would change the tile before
+  go-live. The panel reads the switch from `get_my_access().enforced` (the coach may
+  call it) and falls back to the old rules when the answer is unavailable.
 
 ## Edge cases
 
