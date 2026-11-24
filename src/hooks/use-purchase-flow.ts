@@ -1,5 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { useCallback, useEffect, useReducer, useRef } from "react";
+import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 
 import type { PlanKind } from "@/src/config/purchases";
 import { useAuth } from "@/src/hooks/use-auth";
@@ -8,6 +8,7 @@ import { useSyncSubscription } from "@/src/hooks/use-sync-subscription";
 import { confirmPurchase } from "@/src/lib/confirm-purchase";
 import { qk } from "@/src/lib/query-keys";
 import { purchases } from "@/src/lib/purchases";
+import { createSingleFlight } from "@/src/lib/single-flight";
 import type { MyAccess } from "@/src/types/database";
 import { PurchaseFailed, type PurchaseFailure } from "@/src/utils/purchase";
 import { flowReducer, INITIAL_FLOW, settledByAccess } from "@/src/utils/purchase-flow";
@@ -53,6 +54,10 @@ export function usePurchaseFlow() {
   useEffect(() => {
     phase.current = state.phase;
   }, [state.phase]);
+  // The mirror above is only set after a render, so two taps in one tick both
+  // see "idle" and would each start a purchase: one buy or restore runs at a
+  // time, from its first line until it is over.
+  const [once] = useState(createSingleFlight);
 
   const confirm = useCallback(async () => {
     if (userId == null) return;
@@ -71,37 +76,41 @@ export function usePurchaseFlow() {
 
   const buy = useCallback(
     async (kind: PlanKind) => {
+      await once(async () => {
+        if (userId == null || phase.current !== "idle") return;
+        dispatch({ type: "buy" });
+        try {
+          await purchases.purchase(kind, userId);
+        } catch (error) {
+          dispatch({ type: "failed", failure: failureOf(error) });
+          return;
+        }
+        dispatch({ type: "bought" });
+        await confirm();
+      });
+    },
+    [once, userId, confirm],
+  );
+
+  const restore = useCallback(async () => {
+    await once(async () => {
       if (userId == null || phase.current !== "idle") return;
-      dispatch({ type: "buy" });
+      dispatch({ type: "restore" });
+      let found: boolean;
       try {
-        await purchases.purchase(kind, userId);
+        ({ found } = await purchases.restore(userId));
       } catch (error) {
         dispatch({ type: "failed", failure: failureOf(error) });
         return;
       }
-      dispatch({ type: "bought" });
+      if (!found) {
+        dispatch({ type: "restoredNone" });
+        return;
+      }
+      dispatch({ type: "restoredFound" });
       await confirm();
-    },
-    [userId, confirm],
-  );
-
-  const restore = useCallback(async () => {
-    if (userId == null || phase.current !== "idle") return;
-    dispatch({ type: "restore" });
-    let found: boolean;
-    try {
-      ({ found } = await purchases.restore(userId));
-    } catch (error) {
-      dispatch({ type: "failed", failure: failureOf(error) });
-      return;
-    }
-    if (!found) {
-      dispatch({ type: "restoredNone" });
-      return;
-    }
-    dispatch({ type: "restoredFound" });
-    await confirm();
-  }, [userId, confirm]);
+    });
+  }, [once, userId, confirm]);
 
   // Access arriving while the wait is on, or after it gave up (the webhook,
   // Realtime, a later foreground), ends it in success: a sync that stalls must
