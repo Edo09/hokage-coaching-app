@@ -8,13 +8,14 @@ import Purchases, {
 import { ENTITLEMENT_ID, resolveSdkKey, SDK_KEYS, type PlanKind } from "@/src/config/purchases";
 import type { PurchasesGateway } from "@/src/lib/purchases-gateway";
 import { createIdentity } from "@/src/lib/purchases-identity";
+import { createSdkStarter } from "@/src/lib/sdk-starter";
 import { classifyPurchaseError, pickPlans, PurchaseFailed } from "@/src/utils/purchase";
 
 // The RevenueCat SDK on iOS and Android (src/lib/purchases-gateway.ts says
 // what it is for). Metro picks src/lib/purchases.web.ts on web, so this file,
 // and the SDK with it, never reach the web bundle. Nothing here has run on a
 // device yet: it type-checks, and the pure rules around it are tested
-// (src/utils/purchase.ts, src/lib/purchases-identity.ts).
+// (src/utils/purchase.ts, src/lib/purchases-identity.ts, src/lib/sdk-starter.ts).
 
 /** The SDK key for this platform, or null: web, no variable set, or a Test
     Store key in a release build (RevenueCat crashes those on purpose). */
@@ -24,17 +25,22 @@ const apiKey = resolveSdkKey(Platform.OS, SDK_KEYS, __DEV__);
     management URL of their own. */
 const PLAY_SUBSCRIPTIONS_URL = "https://play.google.com/store/account/subscriptions";
 
-let configured = false;
+const sdk = createSdkStarter({
+  key: apiKey,
+  start(key) {
+    // No appUserID: the user is logged in once the session starts (identify).
+    Purchases.configure({ apiKey: key });
+    void Purchases.setLogLevel(__DEV__ ? LOG_LEVEL.DEBUG : LOG_LEVEL.WARN).catch(() => {});
+  },
+  onError(error) {
+    // A build without the SDK's native module (a development client made before
+    // it was added) lands here: no purchasing, but the app opens.
+    console.warn("[purchases] the SDK did not start, so purchasing is off in this build.", error);
+  },
+});
 
 function configure(): boolean {
-  if (apiKey == null) return false;
-  if (!configured) {
-    configured = true;
-    // No appUserID: the user is logged in once the session starts (identify).
-    Purchases.configure({ apiKey });
-    void Purchases.setLogLevel(__DEV__ ? LOG_LEVEL.DEBUG : LOG_LEVEL.WARN).catch(() => {});
-  }
-  return true;
+  return sdk.ensure();
 }
 
 const identity = createIdentity(Purchases);
@@ -48,7 +54,9 @@ function fail(error: unknown): never {
 }
 
 export const purchases: PurchasesGateway = {
-  available: apiKey != null,
+  get available() {
+    return sdk.available;
+  },
 
   configure() {
     configure();
